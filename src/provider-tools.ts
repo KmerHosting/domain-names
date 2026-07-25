@@ -7,12 +7,6 @@ const DOMAIN_API_URL =
   import.meta.env.VITE_DOMAIN_API_URL ||
   "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-api";
 
-type ProviderState = {
-  role?: string;
-  capabilities?: Array<Record<string, any>>;
-  recentLogs?: Array<Record<string, any>>;
-};
-
 function token() {
   return getSession()?.token || "";
 }
@@ -89,53 +83,27 @@ function renderJson(target: HTMLElement, payload: unknown) {
   target.textContent = JSON.stringify(payload, null, 2).slice(0, 12000);
 }
 
-async function loadCapabilities(): Promise<ProviderState | null> {
-  if (!token()) return null;
-  try {
-    return await provider("/capabilities");
-  } catch {
-    return null;
-  }
+function removeProviderLauncher() {
+  document.getElementById("khd-provider-launcher")?.remove();
+  document.getElementById("khd-provider-panel")?.remove();
 }
 
-function installAdminProviderPanel(state: ProviderState) {
-  if (state.role !== "admin") return;
-  if (document.getElementById("khd-provider-launcher")) return;
+function cleanBillingPanelsOutsideOrders() {
+  const isOrdersPage = window.location.pathname === "/dashboard/orders";
+  document.querySelectorAll("#khd-documents-panel").forEach((node) => node.remove());
 
-  const launcher = el("button", "khd-provider-launcher", "Provider API");
-  launcher.id = "khd-provider-launcher";
-  document.body.appendChild(launcher);
+  const panels = Array.from(document.querySelectorAll<HTMLElement>("section.card, .card"))
+    .filter((node) => /Invoices & receipts/i.test(node.textContent || ""));
 
-  launcher.addEventListener("click", () => {
-    document.getElementById("khd-provider-panel")?.remove();
-    const panel = el("aside", "khd-provider-panel");
-    panel.id = "khd-provider-panel";
-    const header = el("div", "khd-provider-panel-header");
-    header.innerHTML = `<div><small>DomainNameAPI</small><h2>Provider operations</h2><p>Admin-only registrar and pricing tools.</p></div>`;
-    header.appendChild(button("×", async () => panel.remove(), "khd-provider-close"));
-    panel.appendChild(header);
+  if (!isOrdersPage) {
+    panels.forEach((node) => node.remove());
+    return;
+  }
 
-    const output = el("pre", "khd-provider-output", "Select an operation.");
-    const adminGrid = el("div", "khd-provider-grid");
-    adminGrid.append(
-      button("Provider balance", async () => renderJson(output, await provider("/admin/account"))),
-      button("Provider transactions", async () => renderJson(output, await provider("/admin/transactions?MaxResultCount=25"))),
-      button("Provider domains", async () => renderJson(output, await provider("/admin/provider-domains?MaxResultCount=25"))),
-      button("Products", async () => renderJson(output, await provider("/admin/products?MaxResultCount=25"))),
-      button("TLD list", async () => renderJson(output, await provider("/admin/products/tlds?MaxResultCount=50&Currency=USD"))),
-      button("Sync TLD costs", async () => renderJson(output, await provider("/admin/products/tlds/sync?max=250&currency=USD", "POST"))),
-      button("Product .com info", async () => renderJson(output, await provider("/admin/products/info?ProductName=com&OrderType=1&Period=1"))),
-      button("Capability matrix", async () => renderJson(output, await provider("/capabilities"))),
-      button("Transfer check", async () => {
-        const domainName = prompt("Domain name to check for transfer:") || "";
-        const authCode = prompt("EPP/Auth code:") || "";
-        if (!domainName || !authCode) return;
-        renderJson(output, await provider("/transfers/check", "POST", { domainName, authCode }));
-      }),
-    );
-    panel.append(adminGrid, output);
-    document.body.appendChild(panel);
-  });
+  const canonical = document.getElementById("khd-billing-documents");
+  for (const panel of panels) {
+    if (canonical && panel !== canonical && panel.id !== "khd-billing-documents") panel.remove();
+  }
 }
 
 async function installDomainAdvancedTools() {
@@ -209,34 +177,20 @@ async function installContactProviderTools() {
   document.querySelector(".dashboard-content")?.appendChild(card);
 }
 
-function removeLegacyDuplicateInvoicePanels() {
-  document.querySelectorAll("#khd-documents-panel").forEach((node) => node.remove());
-  const panels = Array.from(document.querySelectorAll<HTMLElement>("section.card, .card"))
-    .filter((node) => /Invoices & receipts/i.test(node.textContent || ""));
-  const canonical = document.getElementById("khd-billing-documents");
-  for (const panel of panels) {
-    if (canonical && panel !== canonical && panel.id !== "khd-billing-documents") panel.remove();
-  }
-}
-
 function injectProviderStyles() {
   if (document.getElementById("khd-provider-styles")) return;
   const style = document.createElement("style");
   style.id = "khd-provider-styles";
   style.textContent = `
-    .khd-provider-launcher{position:fixed;right:18px;bottom:78px;z-index:62;border:0;border-radius:999px;background:#0f172a;color:#fff;padding:11px 16px;font-weight:800;box-shadow:0 16px 38px rgba(15,23,42,.28);cursor:pointer}.khd-provider-panel{position:fixed;right:0;top:0;bottom:0;z-index:100;width:min(620px,100vw);overflow:auto;background:#fff;color:#172033;padding:22px;box-shadow:-20px 0 50px rgba(15,23,42,.22)}.khd-provider-panel-header{display:flex;justify-content:space-between;gap:14px;border-bottom:1px solid #e5eaf2;padding-bottom:16px;margin-bottom:16px}.khd-provider-panel-header small{color:#667085;text-transform:uppercase;font-weight:800}.khd-provider-panel-header h2{margin:4px 0}.khd-provider-close{border:0;border-radius:10px;background:#f1f5f9;width:36px;height:36px;font-size:22px;cursor:pointer}.khd-provider-grid{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.khd-provider-button{border:0;border-radius:10px;background:#155eef;color:#fff;padding:9px 12px;font-weight:800;cursor:pointer}.khd-provider-button.secondary{background:#eef4ff;color:#155eef}.khd-provider-button.danger{background:#d92d20;color:white}.khd-provider-button:disabled{opacity:.55;cursor:not-allowed}.khd-provider-output{max-height:360px;overflow:auto;background:#0f172a;color:#dbeafe;border-radius:14px;padding:14px;font-size:12px;white-space:pre-wrap}.khd-provider-message{position:fixed;right:18px;top:18px;z-index:140;border-radius:12px;padding:12px 14px;background:#ecfdf3;color:#027a48;font-weight:800;box-shadow:0 18px 42px rgba(15,23,42,.18)}.khd-provider-message.error{background:#fff1f0;color:#b42318}.khd-doc-list{display:grid;gap:10px}.khd-doc-row{border:1px solid #e5eaf2;border-radius:14px;padding:12px;display:flex;justify-content:space-between;gap:12px;align-items:center}.khd-doc-row small{display:block;color:#667085;margin-top:3px}.khd-doc-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.khd-provider-muted{color:#667085}.khd-domain-advanced,.khd-contact-provider-tools{margin-top:20px}@media(max-width:760px){.khd-doc-row{display:grid}.khd-doc-actions{justify-content:flex-start}.khd-provider-launcher{right:12px;bottom:70px}}
+    .khd-provider-grid{display:flex;gap:10px;flex-wrap:wrap;margin:12px 0}.khd-provider-button{border:0;border-radius:10px;background:#155eef;color:#fff;padding:9px 12px;font-weight:800;cursor:pointer}.khd-provider-button.secondary{background:#eef4ff;color:#155eef}.khd-provider-button.danger{background:#d92d20;color:white}.khd-provider-button:disabled{opacity:.55;cursor:not-allowed}.khd-provider-output{max-height:360px;overflow:auto;background:#0f172a;color:#dbeafe;border-radius:14px;padding:14px;font-size:12px;white-space:pre-wrap}.khd-provider-message{position:fixed;right:18px;top:18px;z-index:140;border-radius:12px;padding:12px 14px;background:#ecfdf3;color:#027a48;font-weight:800;box-shadow:0 18px 42px rgba(15,23,42,.18)}.khd-provider-message.error{background:#fff1f0;color:#b42318}.khd-doc-list{display:grid;gap:10px}.khd-doc-row{border:1px solid #e5eaf2;border-radius:14px;padding:12px;display:flex;justify-content:space-between;gap:12px;align-items:center}.khd-doc-row small{display:block;color:#667085;margin-top:3px}.khd-doc-actions{display:flex;gap:8px;flex-wrap:wrap;justify-content:flex-end}.khd-provider-muted{color:#667085}.khd-domain-advanced,.khd-contact-provider-tools{margin-top:20px}@media(max-width:760px){.khd-doc-row{display:grid}.khd-doc-actions{justify-content:flex-start}}
   `;
   document.head.appendChild(style);
 }
 
 async function runProviderEnhancements() {
-  if (!(window as any).__khdProviderEnhancementsBooted) {
-    (window as any).__khdProviderEnhancementsBooted = true;
-    injectProviderStyles();
-    const state = await loadCapabilities();
-    if (state?.role === "admin") installAdminProviderPanel(state);
-  }
-  removeLegacyDuplicateInvoicePanels();
+  injectProviderStyles();
+  removeProviderLauncher();
+  cleanBillingPanelsOutsideOrders();
   await installDomainAdvancedTools();
   await installContactProviderTools();
 }
