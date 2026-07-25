@@ -9,6 +9,9 @@ const OPS_API_URL =
 const DOCUMENTS_API_URL =
   import.meta.env.VITE_DOMAIN_DOCUMENTS_API_URL ||
   "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-documents";
+const ORDER_GUARD_API_URL =
+  import.meta.env.VITE_DOMAIN_ORDER_GUARD_API_URL ||
+  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-order-guard";
 
 type BillingDocument = {
   invoice_id: string;
@@ -110,6 +113,15 @@ function installOfficialFetchRoutes() {
       return previousFetch(SEARCH_API_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: init?.body,
+        signal: init?.signal,
+      });
+    }
+
+    if (url.pathname.endsWith("/domain-api/orders/registration") && method === "POST") {
+      return previousFetch(ORDER_GUARD_API_URL, {
+        method: "POST",
+        headers: headersFrom(init),
         body: init?.body,
         signal: init?.signal,
       });
