@@ -1,0 +1,40 @@
+name: Fix Admin TLD Cost Columns
+
+on:
+  push:
+    paths:
+      - .github/workflows/fix-admin-tld-columns.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Fix TLD column names
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+          p = Path('src/admin.tsx')
+          text = p.read_text()
+          text = text.replace('cost_registration_usd', 'registration_cost_usd')
+          text = text.replace('cost_renewal_usd', 'renewal_cost_usd')
+          text = text.replace('cost_transfer_usd', 'transfer_cost_usd')
+          p.write_text(text)
+          PY
+      - name: Remove workflow
+        run: rm -f .github/workflows/fix-admin-tld-columns.yml
+      - name: Commit patch
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git add src/admin.tsx .github/workflows/fix-admin-tld-columns.yml
+            git commit -m "Fix admin TLD cost field names"
+            git push
+          fi
