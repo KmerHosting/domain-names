@@ -6,6 +6,7 @@ import { router } from "./router";
 import "./styles.css";
 import "./runtime-fixes";
 import "./domain-control-patches";
+import "./provider-tools";
 
 const queryClient = new QueryClient({
   defaultOptions: {
