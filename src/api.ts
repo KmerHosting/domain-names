@@ -10,9 +10,11 @@ const WALLET_API_URL =
 const ADMIN_API_URL =
   import.meta.env.VITE_DOMAIN_ADMIN_API_URL ||
   "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-admin";
-const PUBLISHABLE_KEY =
-  import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
-  "sb_publishable_DA_Z7P8cQ0CNAA26nekJTg_Tm0LLaO8";
+const PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+
+if (!PUBLISHABLE_KEY) {
+  throw new Error("Missing VITE_SUPABASE_PUBLISHABLE_KEY environment variable.");
+}
 
 const SESSION_KEY = "kmerhosting-domain-session";
 const SESSION_EVENT = "kmerhosting-domain-session-change";
