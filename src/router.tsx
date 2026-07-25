@@ -251,7 +251,7 @@ function HomePage() {
     queryFn: () => api<{ prices: TldPrice[] }>("/prices"),
   });
   const search = useMutation({
-    mutationFn: (domains: string[]) => api<{ results: Array<{ domainName: string; registrar: Record<string, unknown>; price: TldPrice | null }> }>("/domains/check", {
+    mutationFn: (domains: string[]) => api<{ results: Array<{ domainName: string; domain provider: Record<string, unknown>; price: TldPrice | null }> }>("/domains/check", {
       method: "POST",
       body: { domains },
     }),
@@ -296,7 +296,7 @@ function HomePage() {
                 </div>
                 <div className="mini-metrics">
                   <div><span>Auto-renew</span><strong>Enabled</strong></div>
-                  <div><span>Transfer lock</span><strong>Enabled</strong></div>
+                  <div><span>Domain lock</span><strong>Enabled</strong></div>
                   <div><span>DNS</span><strong>Managed</strong></div>
                 </div>
                 <div className="automation-line"><Zap size={17} /><span>Renewal reminders help you avoid missed expirations.</span></div>
@@ -308,7 +308,7 @@ function HomePage() {
               {search.isPending && <LoadingBlock label="Checking domain availability" />}
               {search.isError && <div className="alert alert-error">{errorText(search.error)}</div>}
               {search.data?.results.map((result) => {
-                const raw = result.registrar as Record<string, any>;
+                const raw = result.domain provider as Record<string, any>;
                 const availableValue = raw.available ?? raw.isAvailable ?? raw.data?.available ?? raw.data?.isAvailable ?? raw.status;
                 const available = ["true", "available", "free", "1"].includes(String(availableValue).toLowerCase());
                 return (
@@ -651,7 +651,7 @@ function DomainDetailPage() {
         <section className="card">
           <div className="card-heading"><div><h2>Protection & renewal</h2><p>Keep the domain active without missing an expiry date.</p></div></div>
           <div className="setting-row"><div className="setting-icon"><RefreshCw /></div><div><strong>Automatic renewal</strong><p>A renewal payment request is created before expiration.</p></div><button className={d.auto_renew ? "toggle on" : "toggle"} onClick={() => autoRenew.mutate(!d.auto_renew)}><span /></button></div>
-          <div className="setting-row"><div className="setting-icon"><LockKeyhole /></div><div><strong>Transfer lock</strong><p>Prevents unauthorized transfer attempts.</p></div><StatusBadge value={d.locked ? "active" : "disabled"} /></div>
+          <div className="setting-row"><div className="setting-icon"><LockKeyhole /></div><div><strong>Domain lock</strong><p>Prevents unauthorized transfer attempts.</p></div><StatusBadge value={d.locked ? "active" : "disabled"} /></div>
           <div className="setting-row"><div className="setting-icon"><ShieldCheck /></div><div><strong>WHOIS privacy</strong><p>Registrant details are protected when the extension supports privacy.</p></div><StatusBadge value={d.privacy_enabled ? "active" : "disabled"} /></div>
         </section>
         <section className="card">
@@ -932,7 +932,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
       <PublicHeader />
       <main className="purchase-main">
         <div className="container narrow">
-          <div className="purchase-heading"><span className="kicker">{type === "registration" ? "New registration" : "Domain transfer"}</span><h1>{type === "registration" ? "Register a domain" : "Transfer your domain"}</h1><p>{type === "registration" ? "Create the order, then complete secure Secure checkout." : "Enter the current registrar EPP/auth code. It is encrypted before storage."}</p></div>
+          <div className="purchase-heading"><span className="kicker">{type === "registration" ? "New registration" : "Domain transfer"}</span><h1>{type === "registration" ? "Register a domain" : "Transfer your domain"}</h1><p>{type === "registration" ? "Create the order, then complete checkout." : "Enter the transfer authorization code from your current provider."}</p></div>
           {!session ? <div className="card sign-in-gate"><KeyRound /><h2>Sign in first</h2><p>A verified account is required for domain ownership and billing.</p><Link to="/auth" search={{}} className="button button-primary">Sign in or create account</Link></div> : (
             <section className="card">
               <form className="form-stack" onSubmit={(event) => {
@@ -941,7 +941,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
                 order.mutate({ ...raw, years: Number(raw.years), nameServers: [raw.ns1, raw.ns2] });
               }}>
                 <label>Domain name<input name="domainName" defaultValue={search.domain || ""} placeholder="yourbrand.com" required /></label>
-                {type === "transfer" && <label>EPP / authorization code<input name="authCode" type="password" required minLength={4} /></label>}
+                {type === "transfer" && <label>Transfer authorization code<input name="authCode" type="password" required minLength={4} /></label>}
                 <div className="form-row"><label>Registration period<select name="years" defaultValue="1">{[1,2,3,4,5,6,7,8,9,10].map((n) => <option value={n} key={n}>{n} year{n > 1 ? "s" : ""}</option>)}</select></label><label>Registrant contact<select name="contactId" required defaultValue="">{<option value="" disabled>Select a contact</option>}{contacts.data?.contacts.map((c) => <option value={c.id} key={c.id}>{c.first_name} {c.last_name} — {c.label}</option>)}</select></label></div>
                 <div className="form-row"><label>Primary nameserver<input name="ns1" defaultValue="tr.apiname.com" required /></label><label>Secondary nameserver<input name="ns2" defaultValue="eu.apiname.com" required /></label></div>
                 {!contacts.isPending && !contacts.data?.contacts.length && <div className="alert alert-warning">Create a registrant contact in the dashboard before ordering.</div>}

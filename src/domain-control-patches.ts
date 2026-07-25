@@ -166,7 +166,7 @@ function enhanceSettingRows() {
   if (!domainId) return;
   document.querySelectorAll<HTMLElement>(".setting-row").forEach((row) => {
     const text = row.textContent || "";
-    const isLock = /Transfer lock/i.test(text);
+    const isLock = /Domain lock/i.test(text);
     const isPrivacy = /WHOIS privacy/i.test(text);
     if (!isLock && !isPrivacy) return;
     const key = isLock ? "lock" : "privacy";
@@ -183,7 +183,7 @@ function enhanceSettingRows() {
       button.textContent = "Saving…";
       try {
         await ops(`/domains/${domainId}/${key}`, "POST", { enabled: targetState });
-        notify(isLock ? "Transfer lock updated." : "WHOIS privacy updated.");
+        notify(isLock ? "Domain lock updated." : "WHOIS privacy updated.");
         window.setTimeout(() => window.location.reload(), 700);
       } catch (error) {
         notify(error instanceof Error ? error.message : "Operation failed.", "error");

@@ -26,23 +26,23 @@ function errorMessage(error: unknown) {
 }
 
 function normalizeAvailabilityResult(result: any) {
-  const registrar = result?.registrar || {};
+  const domain provider = result?.domain provider || {};
   const status = String(
-    registrar.info?.status ??
-    registrar.data?.info?.status ??
-    registrar.data?.status ??
-    registrar.status ??
-    registrar.available ??
-    registrar.isAvailable ??
+    domain provider.info?.status ??
+    domain provider.data?.info?.status ??
+    domain provider.data?.status ??
+    domain provider.status ??
+    domain provider.available ??
+    domain provider.isAvailable ??
     "",
   ).toLowerCase().replace(/[\s_-]+/g, "");
 
-  const available = registrar.success !== false && ["available", "true", "free", "1"].includes(status);
+  const available = domain provider.success !== false && ["available", "true", "free", "1"].includes(status);
   const unavailable = ["notavailable", "unavailable", "registered", "taken", "false", "0"].includes(status);
 
   if (available || unavailable) {
-    result.registrar = {
-      ...registrar,
+    result.domain provider = {
+      ...domain provider,
       available,
       isAvailable: available,
       status: available ? "available" : "unavailable",
@@ -188,7 +188,7 @@ function WalletWidget() {
     setMessage("");
     try {
       await walletApi("/pay-order", { method: "POST", body: { orderId } });
-      setMessage("Order paid from balance. Registrar processing is queued.");
+      setMessage("Order paid from balance. Domain provider processing is queued.");
       await loadSummary();
       window.setTimeout(() => window.location.assign("/dashboard/orders"), 900);
     } catch (err) {
