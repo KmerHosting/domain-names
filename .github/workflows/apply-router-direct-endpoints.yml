@@ -59,3 +59,4 @@ jobs:
           git add .github/workflows/apply-router-direct-endpoints.yml
           git commit -m "Remove router endpoint refactor workflow" || exit 0
           git push || true
+# trigger: 2
