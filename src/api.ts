@@ -4,6 +4,9 @@ const API_URL =
 const PAYMENT_API_URL =
   import.meta.env.VITE_DOMAIN_PAYMENT_API_URL ||
   "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-payment-status";
+const WALLET_API_URL =
+  import.meta.env.VITE_DOMAIN_WALLET_API_URL ||
+  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-wallet";
 const PUBLISHABLE_KEY =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   "sb_publishable_DA_Z7P8cQ0CNAA26nekJTg_Tm0LLaO8";
@@ -117,6 +120,10 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
 
 export async function paymentApi<T>(path: string, options: ApiOptions = {}): Promise<T> {
   return await request<T>(PAYMENT_API_URL, path, options);
+}
+
+export async function walletApi<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  return await request<T>(WALLET_API_URL, path, options);
 }
 
 export function formatMoney(value: number | string, currency = "USD"): string {
