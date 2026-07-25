@@ -1,0 +1,10 @@
+{
+  "imports": {
+    "@supabase/supabase-js": "npm:@supabase/supabase-js@2.49.8",
+    "pdfkit": "npm:pdfkit@0.15.0"
+  },
+  "compilerOptions": {
+    "strict": false,
+    "lib": ["deno.window", "dom", "dom.iterable", "esnext"]
+  }
+}
