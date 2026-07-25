@@ -12,6 +12,7 @@ import "./provider-tools";
 import "./admin-link";
 import "./notifications-panel";
 import "./customer-domain-tools";
+import "./transfer-page-fixes";
 
 const queryClient = new QueryClient({
   defaultOptions: {
