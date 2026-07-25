@@ -9,10 +9,10 @@ import "./admin.css";
 import "./runtime-fixes";
 import "./domain-control-patches";
 import "./provider-tools";
-import "./admin-link";
 import "./notifications-panel";
 import "./customer-domain-tools";
 import "./transfer-page-fixes";
+import "./admin-super-tools";
 
 const queryClient = new QueryClient({
   defaultOptions: {
