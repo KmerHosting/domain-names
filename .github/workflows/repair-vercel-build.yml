@@ -1,0 +1,53 @@
+name: Repair Vercel build
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    if: github.actor != 'github-actions[bot]'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Patch TanStack Router links
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+
+          path = Path('src/router.tsx')
+          source = path.read_text()
+          replacements = {
+              '<Link to="/auth" className="button button-ghost">Sign in</Link>': '<Link to="/auth" search={{}} className="button button-ghost">Sign in</Link>',
+              '<Link to="/auth">Customer sign in</Link>': '<Link to="/auth" search={{}}>Customer sign in</Link>',
+              'navigate({ to: "/auth" });': 'navigate({ to: "/auth", search: {} });',
+              '<Link to="/register-domain" className="button button-primary"><Plus size={18} /> Register domain</Link>': '<Link to="/register-domain" search={{}} className="button button-primary"><Plus size={18} /> Register domain</Link>',
+              '<Link to="/register-domain" className="button button-primary">Register a domain</Link>': '<Link to="/register-domain" search={{}} className="button button-primary">Register a domain</Link>',
+              '<Link to="/register-domain" className="button button-primary"><Plus size={18} /> Register</Link>': '<Link to="/register-domain" search={{}} className="button button-primary"><Plus size={18} /> Register</Link>',
+              '<Link to="/register-domain" className="button button-primary">Find a domain</Link>': '<Link to="/register-domain" search={{}} className="button button-primary">Find a domain</Link>',
+              '<Link to="/auth" className="button button-primary">Sign in or create account</Link>': '<Link to="/auth" search={{}} className="button button-primary">Sign in or create account</Link>',
+          }
+          for old, new in replacements.items():
+              if old not in source:
+                  raise SystemExit(f'Expected source fragment not found: {old}')
+              source = source.replace(old, new)
+          path.write_text(source)
+          PY
+
+      - name: Verify production build
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+
+      - name: Commit verified repair
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/repair-vercel-build.yml
+          git add src/router.tsx
+          git commit -m "Fix Vercel TypeScript build"
+          git push
