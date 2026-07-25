@@ -1,4 +1,4 @@
-import { getSession } from "./api";
+import { formatDate, formatMoney, getSession } from "./api";
 
 const SEARCH_API_URL =
   import.meta.env.VITE_DOMAIN_SEARCH_API_URL ||
@@ -6,6 +6,26 @@ const SEARCH_API_URL =
 const OPS_API_URL =
   import.meta.env.VITE_DOMAIN_OPS_API_URL ||
   "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-ops";
+const DOCUMENTS_API_URL =
+  import.meta.env.VITE_DOMAIN_DOCUMENTS_API_URL ||
+  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-documents";
+
+type BillingDocument = {
+  invoice_id: string;
+  invoice_number: string;
+  order_id: string;
+  order_number: string;
+  domain_name: string;
+  order_type: string;
+  order_status: string;
+  invoice_status: string;
+  amount_usd: number | string;
+  amount_xaf: number | string;
+  issued_at: string;
+};
+
+let billingDocumentsCache: BillingDocument[] | null = null;
+let billingDocumentsLoading = false;
 
 function headersFrom(init?: RequestInit): Headers {
   const headers = new Headers(init?.headers || {});
@@ -42,6 +62,38 @@ async function ops(path: string, method = "POST", body?: unknown) {
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(String(payload.message || payload.error || `Request failed (${response.status})`));
   return payload;
+}
+
+async function listBillingDocuments(): Promise<BillingDocument[]> {
+  if (billingDocumentsCache) return billingDocumentsCache;
+  if (billingDocumentsLoading) return [];
+  billingDocumentsLoading = true;
+  try {
+    const response = await fetch(`${DOCUMENTS_API_URL}/invoices`, { headers: headersFrom({}) });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(String(payload.message || payload.error || "Unable to load billing documents."));
+    billingDocumentsCache = Array.isArray(payload.invoices) ? payload.invoices : [];
+    return billingDocumentsCache;
+  } finally {
+    billingDocumentsLoading = false;
+  }
+}
+
+async function downloadDocument(path: string, filename: string) {
+  const response = await fetch(`${DOCUMENTS_API_URL}${path}`, { headers: headersFrom({ Accept: "application/pdf" }) });
+  if (!response.ok) {
+    const payload = await response.json().catch(() => ({}));
+    throw new Error(String(payload.message || payload.error || `Download failed (${response.status}).`));
+  }
+  const blob = await response.blob();
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  window.setTimeout(() => URL.revokeObjectURL(url), 2000);
 }
 
 function installOfficialFetchRoutes() {
@@ -186,6 +238,53 @@ function enhanceUnknownSearchLabels() {
   });
 }
 
+async function enhanceBillingDocuments() {
+  if (window.location.pathname !== "/dashboard/orders" || !getSession()) return;
+  const heading = document.querySelector<HTMLElement>(".page-heading");
+  if (!heading || document.getElementById("khd-billing-documents")) return;
+  const section = document.createElement("section");
+  section.id = "khd-billing-documents";
+  section.className = "card khd-documents-card";
+  section.innerHTML = `<div class="card-heading"><div><h2>Invoices & receipts</h2><p>Download paid billing documents generated with PDFKit.</p></div></div><div class="khd-documents-list"><div class="khd-documents-loading">Loading billing documents…</div></div>`;
+  heading.insertAdjacentElement("afterend", section);
+  try {
+    const docs = await listBillingDocuments();
+    const list = section.querySelector<HTMLElement>(".khd-documents-list")!;
+    if (!docs.length) {
+      list.innerHTML = `<p class="khd-documents-empty">No paid invoice yet.</p>`;
+      return;
+    }
+    list.innerHTML = "";
+    docs.slice(0, 20).forEach((doc) => {
+      const row = document.createElement("div");
+      row.className = "khd-document-row";
+      row.innerHTML = `<div><strong>${doc.invoice_number}</strong><span>${doc.domain_name} · ${doc.order_type} · ${formatDate(doc.issued_at)}</span></div><div><strong>${formatMoney(doc.amount_usd)}</strong><span>${formatMoney(doc.amount_xaf, "XAF")}</span></div>`;
+      const invoiceButton = document.createElement("button");
+      invoiceButton.className = "khd-inline-action secondary";
+      invoiceButton.textContent = "Invoice PDF";
+      invoiceButton.addEventListener("click", async () => {
+        try { await downloadDocument(`/invoices/${doc.invoice_id}.pdf`, `${doc.invoice_number}.pdf`); }
+        catch (error) { notify(error instanceof Error ? error.message : "Invoice download failed.", "error"); }
+      });
+      const receiptButton = document.createElement("button");
+      receiptButton.className = "khd-inline-action";
+      receiptButton.textContent = "Receipt PDF";
+      receiptButton.addEventListener("click", async () => {
+        try { await downloadDocument(`/orders/${doc.order_id}/receipt.pdf`, `${doc.order_number}-receipt.pdf`); }
+        catch (error) { notify(error instanceof Error ? error.message : "Receipt download failed.", "error"); }
+      });
+      const actions = document.createElement("div");
+      actions.className = "khd-document-actions";
+      actions.append(invoiceButton, receiptButton);
+      row.appendChild(actions);
+      list.appendChild(row);
+    });
+  } catch (error) {
+    const list = section.querySelector<HTMLElement>(".khd-documents-list")!;
+    list.innerHTML = `<div class="alert alert-error">${error instanceof Error ? error.message : "Unable to load billing documents."}</div>`;
+  }
+}
+
 function installDomEnhancements() {
   if ((window as any).__khdDomOpsInstalled) return;
   (window as any).__khdDomOpsInstalled = true;
@@ -193,6 +292,7 @@ function installDomEnhancements() {
     enhanceSettingRows();
     enhanceDnsTools();
     enhanceUnknownSearchLabels();
+    void enhanceBillingDocuments();
   };
   run();
   const observer = new MutationObserver(run);
@@ -204,7 +304,7 @@ function injectStyles() {
   const style = document.createElement("style");
   style.id = "khd-domain-control-styles";
   style.textContent = `
-    .khd-inline-action{border:0;border-radius:10px;background:#155eef;color:#fff;padding:8px 12px;font-weight:700;cursor:pointer;white-space:nowrap;margin-left:auto}.khd-inline-action.secondary{background:#eef4ff;color:#155eef}.khd-inline-action:disabled{opacity:.6;cursor:not-allowed}.khd-dns-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.khd-runtime-message{position:fixed;right:18px;top:18px;z-index:120;border-radius:12px;padding:12px 14px;font-weight:700;box-shadow:0 18px 42px rgba(15,23,42,.18);background:#ecfdf3;color:#027a48}.khd-runtime-message.error{background:#fff1f0;color:#b42318}@media(max-width:640px){.khd-dns-tools{margin-top:10px}.khd-inline-action{margin-left:0}}
+    .khd-inline-action{border:0;border-radius:10px;background:#155eef;color:#fff;padding:8px 12px;font-weight:700;cursor:pointer;white-space:nowrap;margin-left:auto}.khd-inline-action.secondary{background:#eef4ff;color:#155eef}.khd-inline-action:disabled{opacity:.6;cursor:not-allowed}.khd-dns-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.khd-runtime-message{position:fixed;right:18px;top:18px;z-index:120;border-radius:12px;padding:12px 14px;font-weight:700;box-shadow:0 18px 42px rgba(15,23,42,.18);background:#ecfdf3;color:#027a48}.khd-runtime-message.error{background:#fff1f0;color:#b42318}.khd-documents-card{margin-bottom:18px}.khd-documents-list{display:grid;gap:10px}.khd-document-row{display:grid;grid-template-columns:1.5fr .7fr auto;gap:14px;align-items:center;border:1px solid #e5eaf2;border-radius:14px;padding:12px 14px}.khd-document-row strong{display:block}.khd-document-row span,.khd-documents-empty,.khd-documents-loading{display:block;color:#667085;font-size:13px}.khd-document-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}@media(max-width:760px){.khd-document-row{grid-template-columns:1fr}.khd-document-actions{justify-content:flex-start}.khd-dns-tools{margin-top:10px}.khd-inline-action{margin-left:0}}
   `;
   document.head.appendChild(style);
 }
