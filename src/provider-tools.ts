@@ -113,21 +113,21 @@ async function installDomainAdvancedTools() {
 
   const card = el("section", "card khd-domain-advanced");
   card.id = "khd-domain-advanced";
-  card.innerHTML = `<div class="card-heading"><div><h2>Advanced domain tools</h2><p>Forwarding, glue hosts, transfer status, restore and registrar pre-checks.</p></div></div>`;
-  const output = el("pre", "khd-provider-output", "Provider responses will appear here.");
+  card.innerHTML = `<div class="card-heading"><div><h2>Domain tools</h2><p>Additional domain actions.</p></div></div>`;
+  const output = el("pre", "khd-provider-output", "Results will appear here.");
   const grid = el("div", "khd-provider-grid");
   grid.append(
-    button("Renew check", async () => renderJson(output, await provider(`/domains/${domainId}/renew-check`, "POST", { years: 1 }))),
-    button("Transfer query", async () => renderJson(output, await provider(`/domains/${domainId}/transfer-query`, "POST"))),
-    button("Get forwarding", async () => renderJson(output, await provider(`/domains/${domainId}/forwards`))),
-    button("Create forwarding", async () => {
+    button("Check renewal eligibility", async () => renderJson(output, await provider(`/domains/${domainId}/renew-check`, "POST", { years: 1 }))),
+    button("Check transfer status", async () => renderJson(output, await provider(`/domains/${domainId}/transfer-query`, "POST"))),
+    button("View forwarding", async () => renderJson(output, await provider(`/domains/${domainId}/forwards`))),
+    button("Add forwarding", async () => {
       const url = prompt("Redirect URL, including https://") || "";
       if (!url) return;
       renderJson(output, await provider(`/domains/${domainId}/forwards`, "POST", { redirectAddress: url, forwardType: "Permanent" }));
     }),
-    button("Delete forwarding", async () => renderJson(output, await provider(`/domains/${domainId}/forwards`, "DELETE"))),
+    button("Remove forwarding", async () => renderJson(output, await provider(`/domains/${domainId}/forwards`, "DELETE"))),
     button("Update contacts", async () => renderJson(output, await provider(`/domains/${domainId}/contacts`, "PUT", {}))),
-    button("Add glue host", async () => {
+    button("Add nameserver host", async () => {
       const hostName = prompt("Host name, for example ns1") || "";
       const ip = prompt("IP address, IPv4 or IPv6") || "";
       if (!hostName || !ip) return;
@@ -156,13 +156,13 @@ async function installContactProviderTools() {
 
   const card = el("section", "card khd-contact-provider-tools");
   card.id = "khd-contact-provider-tools";
-  card.innerHTML = `<div class="card-heading"><div><h2>Provider contact handles</h2><p>Create, sync and verify DomainNameAPI contact handles.</p></div></div>`;
-  const output = el("pre", "khd-provider-output", "Contact provider responses will appear here.");
+  card.innerHTML = `<div class="card-heading"><div><h2>Domain contacts</h2><p>Manage the contact details used for domain orders.</p></div></div>`;
+  const output = el("pre", "khd-provider-output", "Contact updates will appear here.");
   const list = el("div", "khd-doc-list");
   contacts.forEach((contact) => {
     const row = el("div", "khd-doc-row");
     const label = el("div");
-    label.innerHTML = `<strong>${contact.first_name} ${contact.last_name}</strong><small>${contact.email} · ${contact.registrar_handle || "No provider handle"}</small>`;
+    label.innerHTML = `<strong>${contact.first_name} ${contact.last_name}</strong><small>${contact.email} · ${contact.registrar_handle || "Not synced yet"}</small>`;
     const actions = el("div", "khd-doc-actions");
     actions.append(
       button("Create handle", async () => renderJson(output, await provider(`/contacts/${contact.id}/provider`, "POST")), "khd-provider-button"),

@@ -296,7 +296,7 @@ function HomePage() {
                 </div>
                 <div className="mini-metrics">
                   <div><span>Auto-renew</span><strong>Enabled</strong></div>
-                  <div><span>Registrar lock</span><strong>Enabled</strong></div>
+                  <div><span>Transfer lock</span><strong>Enabled</strong></div>
                   <div><span>DNS</span><strong>Managed</strong></div>
                 </div>
                 <div className="automation-line"><Zap size={17} /><span>Renewal reminders help you avoid missed expirations.</span></div>
@@ -305,7 +305,7 @@ function HomePage() {
           </div>
           {searched && (
             <div className="container results-wrap">
-              {search.isPending && <LoadingBlock label="Checking registrar availability" />}
+              {search.isPending && <LoadingBlock label="Checking domain availability" />}
               {search.isError && <div className="alert alert-error">{errorText(search.error)}</div>}
               {search.data?.results.map((result) => {
                 const raw = result.registrar as Record<string, any>;
@@ -326,10 +326,10 @@ function HomePage() {
 
         <section className="trust-strip">
           <div className="container trust-grid">
-            <div><ShieldCheck /><span><strong>Domain management</strong>Safe availability checks</span></div>
-            <div><CreditCard /><span><strong>CamerPay checkout</strong>Mobile money and cards</span></div>
+            <div><ShieldCheck /><span><strong>Domain management</strong>Clear availability checks</span></div>
+            <div><CreditCard /><span><strong>Secure checkout</strong>Mobile money and cards</span></div>
             <div><Mail /><span><strong>Account email</strong>Verification and reminders</span></div>
-            <div><Database /><span><strong>Reliable backend</strong>Secure platform services</span></div>
+            <div><Database /><span><strong>Reliable service</strong>Stable domain services</span></div>
           </div>
         </section>
 
@@ -365,17 +365,17 @@ function HomePage() {
           <div className="container">
             <div className="section-heading centered">
               <span className="kicker">Built for domain management</span>
-              <h2>After payment, we handle the registrar steps</h2>
+              <h2>After payment, we process the order</h2>
               <p>Your domain order is processed and updated in your dashboard.</p>
             </div>
             <div className="feature-grid">
               {[
-                [<Globe2 />, "Registration & transfer", "Register new domains or transfer existing names with encrypted EPP codes."],
-                [<RefreshCw />, "Renewal lifecycle", "Automated renewal orders, expiry notices and repeated synchronization."],
+                [<Globe2 />, "Registration & transfer", "Register new domains or transfer existing names with your authorization code."],
+                [<RefreshCw />, "Renewals", "Renewal reminders, expiry notices and account updates."],
                 [<Network />, "DNS management", "Create and update A, AAAA, CNAME, MX, TXT, NS, SRV and CAA records."],
                 [<ShieldCheck />, "Safer domain changes", "Payment checks, transfer locks and status updates reduce mistakes."],
                 [<KeyRound />, "Secure customer accounts", "Email verification and protected sessions keep your account secure."],
-                [<Bell />, "Actionable notifications", "Payment, provisioning, transfer and expiry events appear in one place."],
+                [<Bell />, "Actionable notifications", "Payment, transfer and expiry updates appear in one place."],
               ].map(([icon, title, text]) => (
                 <article className="feature-card" key={String(title)}>
                   <div className="feature-icon">{icon}</div>
@@ -389,7 +389,7 @@ function HomePage() {
 
         <section className="cta-section">
           <div className="container cta-card">
-            <div><span className="kicker light">Start now</span><h2>Your next domain is one search away.</h2><p>Create an account, verify your email and complete checkout securely.</p></div>
+            <div><span className="kicker light">Start now</span><h2>Your next domain is one search away.</h2><p>Create an account, verify your email and complete checkout.</p></div>
             <Link to="/auth" search={{ mode: "register" }} className="button button-light">Create account <ArrowRight size={18} /></Link>
           </div>
         </section>
@@ -443,12 +443,12 @@ function AuthPage() {
         <div>
           <span className="eyebrow dark"><ShieldCheck size={15} /> Secure customer portal</span>
           <h1>Control your domains from one dashboard.</h1>
-          <p>OTP verification, protected transfer codes and secure domain management.</p>
+          <p>Email verification, protected transfer codes and secure domain management.</p>
         </div>
         <div className="auth-points">
           <span><Check /> Secure account verification</span>
           <span><Check /> Session protection included</span>
-          <span><Check /> Payment and registrar keys are never exposed</span>
+          <span><Check /> Sensitive payment and domain data stay protected</span>
         </div>
       </div>
       <div className="auth-form-pane">
@@ -461,7 +461,7 @@ function AuthPage() {
           {step === "form" ? (
             <>
               <h2>{mode === "login" ? "Welcome back" : "Create your domain account"}</h2>
-              <p>{mode === "login" ? "Sign in with your verified email and password." : "We will send a six-digit OTP to verify your email."}</p>
+              <p>{mode === "login" ? "Sign in with your verified email and password." : "We will send a six-digit code to verify your email."}</p>
               <form className="form-stack" onSubmit={submit}>
                 {mode === "register" && (
                   <>
@@ -482,7 +482,7 @@ function AuthPage() {
               </form>
               {mode === "login" && (
                 <button className="text-button" onClick={() => api("/auth/login/request", { method: "POST", body: { email } }).then(() => setStep("otp")).catch(() => undefined)}>
-                  Sign in with an OTP instead
+                  Sign in with a code instead
                 </button>
               )}
             </>
@@ -591,7 +591,7 @@ function DashboardOverview() {
       </div>
       <div className="dashboard-grid">
         <section className="card">
-          <div className="card-heading"><div><h2>Your domains</h2><p>Registration, transfer and renewal status.</p></div><Link to="/dashboard/domains">View all <ChevronRight size={17} /></Link></div>
+          <div className="card-heading"><div><h2>Your domains</h2><p>Registration, transfer and renewal details.</p></div><Link to="/dashboard/domains">View all <ChevronRight size={17} /></Link></div>
           {domains.length ? <div className="table-wrap"><table><thead><tr><th>Domain</th><th>Status</th><th>Expires</th><th>Auto-renew</th></tr></thead><tbody>{domains.slice(0, 6).map((d) => <tr key={d.id}><td><Link to="/dashboard/domains/$domainId" params={{ domainId: d.id }} className="domain-cell"><Globe2 size={17} />{d.domain_name}</Link></td><td><StatusBadge value={d.status} /></td><td>{formatDate(d.expires_at)}</td><td>{d.auto_renew ? <span className="yes"><Check size={15} /> On</span> : "Off"}</td></tr>)}</tbody></table></div> : <EmptyState icon={<Globe2 />} title="No domains yet" text="Search for a new domain or transfer one you already own." action={<Link to="/register-domain" search={{}} className="button button-primary">Register a domain</Link>} />}
         </section>
         <section className="card activity-card">
@@ -650,12 +650,12 @@ function DomainDetailPage() {
       <div className="detail-grid">
         <section className="card">
           <div className="card-heading"><div><h2>Protection & renewal</h2><p>Keep the domain active without missing an expiry date.</p></div></div>
-          <div className="setting-row"><div className="setting-icon"><RefreshCw /></div><div><strong>Automatic renewal</strong><p>The system creates a renewal payment request before expiration.</p></div><button className={d.auto_renew ? "toggle on" : "toggle"} onClick={() => autoRenew.mutate(!d.auto_renew)}><span /></button></div>
-          <div className="setting-row"><div className="setting-icon"><LockKeyhole /></div><div><strong>Registrar lock</strong><p>Prevents unauthorized transfer attempts.</p></div><StatusBadge value={d.locked ? "active" : "disabled"} /></div>
-          <div className="setting-row"><div className="setting-icon"><ShieldCheck /></div><div><strong>WHOIS privacy</strong><p>Registrant details are protected where the TLD supports it.</p></div><StatusBadge value={d.privacy_enabled ? "active" : "disabled"} /></div>
+          <div className="setting-row"><div className="setting-icon"><RefreshCw /></div><div><strong>Automatic renewal</strong><p>A renewal payment request is created before expiration.</p></div><button className={d.auto_renew ? "toggle on" : "toggle"} onClick={() => autoRenew.mutate(!d.auto_renew)}><span /></button></div>
+          <div className="setting-row"><div className="setting-icon"><LockKeyhole /></div><div><strong>Transfer lock</strong><p>Prevents unauthorized transfer attempts.</p></div><StatusBadge value={d.locked ? "active" : "disabled"} /></div>
+          <div className="setting-row"><div className="setting-icon"><ShieldCheck /></div><div><strong>WHOIS privacy</strong><p>Registrant details are protected when the extension supports privacy.</p></div><StatusBadge value={d.privacy_enabled ? "active" : "disabled"} /></div>
         </section>
         <section className="card">
-          <div className="card-heading"><div><h2>Nameservers</h2><p>Nameserver changes are submitted to the registrar. Some changes may take time to appear.</p></div></div>
+          <div className="card-heading"><div><h2>Nameservers</h2><p>Nameserver changes are submitted for this domain. Some changes may take time to appear.</p></div></div>
           <form className="form-stack" onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
@@ -685,7 +685,7 @@ function DomainDetailPage() {
         {addDns.isError && <div className="alert alert-error">{errorText(addDns.error)}</div>}
         {d.domain_dns_records?.length ? (
           <div className="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Value</th><th>TTL</th><th>Status</th><th /></tr></thead><tbody>{d.domain_dns_records.map((r) => <tr key={r.id}><td>{r.name}</td><td><span className="record-type">{r.type}</span></td><td className="mono">{r.contents.join(", ")}</td><td>{r.ttl}</td><td><StatusBadge value={r.status} /></td><td><button className="icon-button danger" onClick={() => deleteDns.mutate(r.id)}><Trash2 size={17} /></button></td></tr>)}</tbody></table></div>
-        ) : <EmptyState icon={<Network />} title="No DNS records" text="Create the first zone record for this domain." />}
+        ) : <EmptyState icon={<Network />} title="No DNS records" text="Add the first DNS record for this domain." />}
       </section>
     </>
   );
@@ -742,7 +742,7 @@ function OrdersPage() {
         <div className={checkStatus.data.payment.status === "paid" ? "alert alert-success" : "alert alert-warning"}>
           {checkStatus.data.payment.status === "paid"
             ? "Payment confirmed. We are now processing your domain order."
-            : `CamerPay currently reports ${checkStatus.data.providerStatus || checkStatus.data.payment.status}. You can check again.`}
+            : `The payment provider currently reports ${checkStatus.data.providerStatus || checkStatus.data.payment.status}. You can check again.`}
         </div>
       )}
 
@@ -815,7 +815,7 @@ function OrdersPage() {
               <h2>Complete payment</h2>
               <button className="icon-button" onClick={() => setPaying(null)}><X /></button>
             </div>
-            <p>CamerPay will open a secure checkout page. We will update the order when the payment is confirmed.</p>
+            <p>A secure checkout page will open. We will update the order when the payment is confirmed.</p>
             <form
               className="form-stack"
               onSubmit={(event) => {
@@ -841,7 +841,7 @@ function OrdersPage() {
               {checkout.isError && <div className="alert alert-error">{errorText(checkout.error)}</div>}
               <button className="button button-primary button-wide" disabled={checkout.isPending}>
                 {checkout.isPending && <LoaderCircle className="spin" size={17} />}
-                Continue to CamerPay
+                Continue to checkout
               </button>
             </form>
           </div>
@@ -932,7 +932,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
       <PublicHeader />
       <main className="purchase-main">
         <div className="container narrow">
-          <div className="purchase-heading"><span className="kicker">{type === "registration" ? "New registration" : "Domain transfer"}</span><h1>{type === "registration" ? "Register a domain" : "Transfer your domain"}</h1><p>{type === "registration" ? "Create the order, then complete secure CamerPay checkout." : "Enter the current registrar EPP/auth code. It is encrypted before storage."}</p></div>
+          <div className="purchase-heading"><span className="kicker">{type === "registration" ? "New registration" : "Domain transfer"}</span><h1>{type === "registration" ? "Register a domain" : "Transfer your domain"}</h1><p>{type === "registration" ? "Create the order, then complete secure Secure checkout." : "Enter the current registrar EPP/auth code. It is encrypted before storage."}</p></div>
           {!session ? <div className="card sign-in-gate"><KeyRound /><h2>Sign in first</h2><p>A verified account is required for domain ownership and billing.</p><Link to="/auth" search={{}} className="button button-primary">Sign in or create account</Link></div> : (
             <section className="card">
               <form className="form-stack" onSubmit={(event) => {
@@ -1055,7 +1055,7 @@ function PaymentReturnPage() {
           <>
             <X className="return-error" />
             <h1>Payment {paymentStatus}</h1>
-            <p>CamerPay returned a final payment status. Open the order to start another checkout when applicable.</p>
+            <p>The payment provider returned a final status. Open the order to start another checkout when applicable.</p>
             <Link to="/dashboard/orders" className="button button-primary">Open orders</Link>
           </>
         ) : (
@@ -1065,7 +1065,7 @@ function PaymentReturnPage() {
             <p>
               {pollingStopped
                 ? "We could not confirm the payment after 5 minutes. Use the button below to check again."
-                : "We are checking CamerPay for confirmation. This can take a few minutes."}
+                : "We are checking the payment confirmation. This can take a few minutes."}
             </p>
             {lastChecked && <small className="last-checked">Last checked at {lastChecked}</small>}
             <div className="return-actions">

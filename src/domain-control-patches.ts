@@ -166,7 +166,7 @@ function enhanceSettingRows() {
   if (!domainId) return;
   document.querySelectorAll<HTMLElement>(".setting-row").forEach((row) => {
     const text = row.textContent || "";
-    const isLock = /Registrar lock/i.test(text);
+    const isLock = /Transfer lock/i.test(text);
     const isPrivacy = /WHOIS privacy/i.test(text);
     if (!isLock && !isPrivacy) return;
     const key = isLock ? "lock" : "privacy";
@@ -183,7 +183,7 @@ function enhanceSettingRows() {
       button.textContent = "Saving…";
       try {
         await ops(`/domains/${domainId}/${key}`, "POST", { enabled: targetState });
-        notify(isLock ? "Registrar lock updated." : "WHOIS privacy updated.");
+        notify(isLock ? "Transfer lock updated." : "WHOIS privacy updated.");
         window.setTimeout(() => window.location.reload(), 700);
       } catch (error) {
         notify(error instanceof Error ? error.message : "Operation failed.", "error");
@@ -257,7 +257,7 @@ async function enhanceBillingDocuments() {
   const section = document.createElement("section");
   section.id = "khd-billing-documents";
   section.className = "card khd-documents-card";
-  section.innerHTML = `<div class="card-heading"><div><h2>Invoices & receipts</h2><p>Download invoices and receipts for paid orders.</p></div></div><div class="khd-documents-list"><div class="khd-documents-loading">Loading billing documents…</div></div>`;
+  section.innerHTML = `<div class="card-heading"><div><h2>Invoices & receipts</h2><p>Download invoices and receipts for paid orders.</p></div></div><div class="khd-documents-list"><div class="khd-documents-loading">Loading invoices and receipts…</div></div>`;
   heading.insertAdjacentElement("afterend", section);
   try {
     const docs = await listBillingDocuments();

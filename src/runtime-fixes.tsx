@@ -233,7 +233,7 @@ function WalletWidget() {
                 <label>Amount in USD<input type="number" min="5" max="5000" step="1" value={topupAmount} onChange={(event) => setTopupAmount(event.target.value)} /></label>
                 <label>Payment phone<input value={topupPhone} onChange={(event) => setTopupPhone(event.target.value)} placeholder="2376…" /></label>
                 <label>Method<select value={topupMethod} onChange={(event) => setTopupMethod(event.target.value)}><option value="orange_money">Orange Money</option><option value="mtn_momo">MTN MoMo</option><option value="stripe">Card</option><option value="paypal">PayPal</option></select></label>
-                <button disabled={loading}>Recharge with CamerPay</button>
+                <button disabled={loading}>Recharge balance</button>
               </form>
             </section>
 
