@@ -1,17 +1,9 @@
 import { formatDate, formatMoney, getSession } from "./api";
 
-const SEARCH_API_URL =
-  import.meta.env.VITE_DOMAIN_SEARCH_API_URL ||
-  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-search-fast";
-const OPS_API_URL =
-  import.meta.env.VITE_DOMAIN_OPS_API_URL ||
-  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-ops";
-const DOCUMENTS_API_URL =
-  import.meta.env.VITE_DOMAIN_DOCUMENTS_API_URL ||
-  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-documents";
-const ORDER_GUARD_API_URL =
-  import.meta.env.VITE_DOMAIN_ORDER_GUARD_API_URL ||
-  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-order-guard";
+const SEARCH_API_URL = import.meta.env.VITE_DOMAIN_SEARCH_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-search-fast";
+const OPS_API_URL = import.meta.env.VITE_DOMAIN_OPS_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-ops";
+const DOCUMENTS_API_URL = import.meta.env.VITE_DOMAIN_DOCUMENTS_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-documents";
+const ORDER_GUARD_API_URL = import.meta.env.VITE_DOMAIN_ORDER_GUARD_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-order-guard";
 
 type BillingDocument = {
   invoice_id: string;
@@ -20,8 +12,6 @@ type BillingDocument = {
   order_number: string;
   domain_name: string;
   order_type: string;
-  order_status: string;
-  invoice_status: string;
   amount_usd: number | string;
   amount_xaf: number | string;
   issued_at: string;
@@ -57,11 +47,7 @@ function notify(message: string, kind: "success" | "error" = "success") {
 async function ops(path: string, method = "POST", body?: unknown) {
   const headers = headersFrom({});
   if (body !== undefined) headers.set("Content-Type", "application/json");
-  const response = await fetch(`${OPS_API_URL}${path}`, {
-    method,
-    headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
-  });
+  const response = await fetch(`${OPS_API_URL}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) throw new Error(String(payload.message || payload.error || `Request failed (${response.status})`));
   return payload;
@@ -110,53 +96,23 @@ function installOfficialFetchRoutes() {
     const method = String(init?.method || "GET").toUpperCase();
 
     if (url.pathname.endsWith("/domain-api/domains/check") && method === "POST") {
-      return previousFetch(SEARCH_API_URL, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: init?.body,
-        signal: init?.signal,
-      });
+      return previousFetch(SEARCH_API_URL, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: init?.body, signal: init?.signal });
     }
-
     if (url.pathname.endsWith("/domain-api/orders/registration") && method === "POST") {
-      return previousFetch(ORDER_GUARD_API_URL, {
-        method: "POST",
-        headers: headersFrom(init),
-        body: init?.body,
-        signal: init?.signal,
-      });
+      return previousFetch(ORDER_GUARD_API_URL, { method: "POST", headers: headersFrom(init), body: init?.body, signal: init?.signal });
     }
-
     const nameservers = url.pathname.match(/\/domain-api\/domains\/([0-9a-f-]+)\/nameservers$/i);
     if (nameservers && (method === "PUT" || method === "POST")) {
-      return previousFetch(`${OPS_API_URL}/domains/${nameservers[1]}/nameservers`, {
-        method: "PUT",
-        headers: headersFrom(init),
-        body: init?.body,
-        signal: init?.signal,
-      });
+      return previousFetch(`${OPS_API_URL}/domains/${nameservers[1]}/nameservers`, { method: "PUT", headers: headersFrom(init), body: init?.body, signal: init?.signal });
     }
-
     const dnsRoot = url.pathname.match(/\/domain-api\/domains\/([0-9a-f-]+)\/dns$/i);
     if (dnsRoot && method === "POST") {
-      return previousFetch(`${OPS_API_URL}/domains/${dnsRoot[1]}/dns`, {
-        method: "POST",
-        headers: headersFrom(init),
-        body: init?.body,
-        signal: init?.signal,
-      });
+      return previousFetch(`${OPS_API_URL}/domains/${dnsRoot[1]}/dns`, { method: "POST", headers: headersFrom(init), body: init?.body, signal: init?.signal });
     }
-
     const dnsOne = url.pathname.match(/\/domain-api\/domains\/([0-9a-f-]+)\/dns\/([0-9a-f-]+)$/i);
     if (dnsOne && ["PUT", "DELETE"].includes(method)) {
-      return previousFetch(`${OPS_API_URL}/domains/${dnsOne[1]}/dns/${dnsOne[2]}`, {
-        method,
-        headers: headersFrom(init),
-        body: init?.body,
-        signal: init?.signal,
-      });
+      return previousFetch(`${OPS_API_URL}/domains/${dnsOne[1]}/dns/${dnsOne[2]}`, { method, headers: headersFrom(init), body: init?.body, signal: init?.signal });
     }
-
     return previousFetch(input, init);
   };
 }
@@ -175,11 +131,12 @@ function enhanceSettingRows() {
     const button = document.createElement("button");
     button.type = "button";
     button.className = "khd-inline-action";
-    button.dataset[`khd${key[0].toUpperCase()}${key.slice(1)}Button` as any] = "true";
+    button.setAttribute(`data-khd-${key}-button`, "true");
     button.textContent = isLock ? (active ? "Unlock" : "Lock") : (active ? "Disable privacy" : "Enable privacy");
     button.addEventListener("click", async () => {
       button.disabled = true;
       const targetState = !active;
+      const oldText = button.textContent || "Saving";
       button.textContent = "Saving…";
       try {
         await ops(`/domains/${domainId}/${key}`, "POST", { enabled: targetState });
@@ -188,7 +145,7 @@ function enhanceSettingRows() {
       } catch (error) {
         notify(error instanceof Error ? error.message : "Operation failed.", "error");
         button.disabled = false;
-        button.textContent = isLock ? (active ? "Unlock" : "Lock") : (active ? "Disable privacy" : "Enable privacy");
+        button.textContent = oldText;
       }
     });
     row.appendChild(button);
@@ -206,18 +163,18 @@ function enhanceDnsTools() {
   const processButton = document.createElement("button");
   processButton.type = "button";
   processButton.className = "khd-inline-action";
-  processButton.textContent = "Apply pending DNS";
+  processButton.textContent = "Retry DNS changes";
   processButton.addEventListener("click", async () => {
     processButton.disabled = true;
-    processButton.textContent = "Applying…";
+    processButton.textContent = "Retrying…";
     try {
       const result = await ops(`/domains/${domainId}/dns/process-pending`, "POST");
-      notify(`DNS applied: ${result.processed || 0} processed, ${result.failed || 0} failed.`);
+      notify(`DNS retry completed: ${result.processed || 0} processed, ${result.failed || 0} failed.`);
       window.setTimeout(() => window.location.reload(), 700);
     } catch (error) {
-      notify(error instanceof Error ? error.message : "DNS apply failed.", "error");
+      notify(error instanceof Error ? error.message : "DNS retry failed.", "error");
       processButton.disabled = false;
-      processButton.textContent = "Apply pending DNS";
+      processButton.textContent = "Retry DNS changes";
     }
   });
   const refreshButton = document.createElement("button");
@@ -250,6 +207,14 @@ function enhanceUnknownSearchLabels() {
   });
 }
 
+function appendText(parent: HTMLElement, tag: keyof HTMLElementTagNameMap, text: string, className?: string) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  node.textContent = text;
+  parent.appendChild(node);
+  return node;
+}
+
 async function enhanceBillingDocuments() {
   if (window.location.pathname !== "/dashboard/orders" || !getSession()) return;
   const heading = document.querySelector<HTMLElement>(".page-heading");
@@ -257,43 +222,50 @@ async function enhanceBillingDocuments() {
   const section = document.createElement("section");
   section.id = "khd-billing-documents";
   section.className = "card khd-documents-card";
-  section.innerHTML = `<div class="card-heading"><div><h2>Invoices & receipts</h2><p>Download invoices and receipts for paid orders.</p></div></div><div class="khd-documents-list"><div class="khd-documents-loading">Loading invoices and receipts…</div></div>`;
+  const cardHeading = document.createElement("div");
+  cardHeading.className = "card-heading";
+  const titleWrap = document.createElement("div");
+  appendText(titleWrap, "h2", "Invoices & receipts");
+  appendText(titleWrap, "p", "Download invoices and receipts for paid orders.");
+  cardHeading.appendChild(titleWrap);
+  const list = document.createElement("div");
+  list.className = "khd-documents-list";
+  appendText(list, "div", "Loading invoices and receipts…", "khd-documents-loading");
+  section.append(cardHeading, list);
   heading.insertAdjacentElement("afterend", section);
   try {
     const docs = await listBillingDocuments();
-    const list = section.querySelector<HTMLElement>(".khd-documents-list")!;
+    list.replaceChildren();
     if (!docs.length) {
-      list.innerHTML = `<p class="khd-documents-empty">No paid invoice yet.</p>`;
+      appendText(list, "p", "No paid invoice yet.", "khd-documents-empty");
       return;
     }
-    list.innerHTML = "";
     docs.slice(0, 20).forEach((doc) => {
       const row = document.createElement("div");
       row.className = "khd-document-row";
-      row.innerHTML = `<div><strong>${doc.invoice_number}</strong><span>${doc.domain_name} · ${doc.order_type} · ${formatDate(doc.issued_at)}</span></div><div><strong>${formatMoney(doc.amount_usd)}</strong><span>${formatMoney(doc.amount_xaf, "XAF")}</span></div>`;
+      const left = document.createElement("div");
+      appendText(left, "strong", doc.invoice_number);
+      appendText(left, "span", `${doc.domain_name} · ${doc.order_type} · ${formatDate(doc.issued_at)}`);
+      const amount = document.createElement("div");
+      appendText(amount, "strong", formatMoney(doc.amount_usd));
+      appendText(amount, "span", formatMoney(doc.amount_xaf, "XAF"));
+      const actions = document.createElement("div");
+      actions.className = "khd-document-actions";
       const invoiceButton = document.createElement("button");
       invoiceButton.className = "khd-inline-action secondary";
       invoiceButton.textContent = "Invoice PDF";
-      invoiceButton.addEventListener("click", async () => {
-        try { await downloadDocument(`/invoices/${doc.invoice_id}.pdf`, `${doc.invoice_number}.pdf`); }
-        catch (error) { notify(error instanceof Error ? error.message : "Invoice download failed.", "error"); }
-      });
+      invoiceButton.addEventListener("click", () => downloadDocument(`/invoices/${doc.invoice_id}.pdf`, `${doc.invoice_number}.pdf`).catch((error) => notify(error instanceof Error ? error.message : "Invoice download failed.", "error")));
       const receiptButton = document.createElement("button");
       receiptButton.className = "khd-inline-action";
       receiptButton.textContent = "Receipt PDF";
-      receiptButton.addEventListener("click", async () => {
-        try { await downloadDocument(`/orders/${doc.order_id}/receipt.pdf`, `${doc.order_number}-receipt.pdf`); }
-        catch (error) { notify(error instanceof Error ? error.message : "Receipt download failed.", "error"); }
-      });
-      const actions = document.createElement("div");
-      actions.className = "khd-document-actions";
+      receiptButton.addEventListener("click", () => downloadDocument(`/orders/${doc.order_id}/receipt.pdf`, `${doc.order_number}-receipt.pdf`).catch((error) => notify(error instanceof Error ? error.message : "Receipt download failed.", "error")));
       actions.append(invoiceButton, receiptButton);
-      row.appendChild(actions);
+      row.append(left, amount, actions);
       list.appendChild(row);
     });
   } catch (error) {
-    const list = section.querySelector<HTMLElement>(".khd-documents-list")!;
-    list.innerHTML = `<div class="alert alert-error">${error instanceof Error ? error.message : "Unable to load billing documents."}</div>`;
+    list.replaceChildren();
+    appendText(list, "div", error instanceof Error ? error.message : "Unable to load billing documents.", "alert alert-error");
   }
 }
 
@@ -307,24 +279,9 @@ function installDomEnhancements() {
     void enhanceBillingDocuments();
   };
   run();
-  const observer = new MutationObserver(run);
-  observer.observe(document.body, { childList: true, subtree: true });
-}
-
-function injectStyles() {
-  if (document.getElementById("khd-domain-control-styles")) return;
-  const style = document.createElement("style");
-  style.id = "khd-domain-control-styles";
-  style.textContent = `
-    .khd-inline-action{border:0;border-radius:10px;background:#155eef;color:#fff;padding:8px 12px;font-weight:700;cursor:pointer;white-space:nowrap;margin-left:auto}.khd-inline-action.secondary{background:#eef4ff;color:#155eef}.khd-inline-action:disabled{opacity:.6;cursor:not-allowed}.khd-dns-tools{display:flex;gap:10px;align-items:center;flex-wrap:wrap}.khd-runtime-message{position:fixed;right:18px;top:18px;z-index:120;border-radius:12px;padding:12px 14px;font-weight:700;box-shadow:0 18px 42px rgba(15,23,42,.18);background:#ecfdf3;color:#027a48}.khd-runtime-message.error{background:#fff1f0;color:#b42318}.khd-documents-card{margin-bottom:18px}.khd-documents-list{display:grid;gap:10px}.khd-document-row{display:grid;grid-template-columns:1.5fr .7fr auto;gap:14px;align-items:center;border:1px solid #e5eaf2;border-radius:14px;padding:12px 14px}.khd-document-row strong{display:block}.khd-document-row span,.khd-documents-empty,.khd-documents-loading{display:block;color:#667085;font-size:13px}.khd-document-actions{display:flex;gap:8px;align-items:center;justify-content:flex-end}@media(max-width:760px){.khd-document-row{grid-template-columns:1fr}.khd-document-actions{justify-content:flex-start}.khd-dns-tools{margin-top:10px}.khd-inline-action{margin-left:0}}
-  `;
-  document.head.appendChild(style);
+  new MutationObserver(run).observe(document.body, { childList: true, subtree: true });
 }
 
 installOfficialFetchRoutes();
-injectStyles();
-if (document.readyState === "loading") {
-  document.addEventListener("DOMContentLoaded", installDomEnhancements, { once: true });
-} else {
-  installDomEnhancements();
-}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", installDomEnhancements, { once: true });
+else installDomEnhancements();
