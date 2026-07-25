@@ -1,0 +1,131 @@
+name: Customer Copy Cleanup
+
+on:
+  push:
+    paths:
+      - .github/workflows/customer-copy-cleanup.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Clean customer-facing copy
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              # Public/home
+              'CamerPay checkout': 'Secure checkout',
+              'Checking registrar availability': 'Checking domain availability',
+              'After payment, we handle the registrar steps': 'After payment, we process the order',
+              'Renewal lifecycle': 'Renewals',
+              'Automated renewal orders, expiry notices and repeated synchronization.': 'Renewal reminders, expiry notices and account updates.',
+              'Payment, provisioning, transfer and expiry events appear in one place.': 'Payment, transfer and expiry updates appear in one place.',
+              'Create an account, verify your email and complete checkout securely.': 'Create an account, verify your email and complete checkout.',
+              'Safe availability checks': 'Clear availability checks',
+              'Reliable backend': 'Reliable service',
+              'Secure platform services': 'Stable domain services',
+              'Register new domains or transfer existing names with encrypted EPP codes.': 'Register new domains or transfer existing names with your authorization code.',
+
+              # Auth/customer
+              'OTP verification, protected transfer codes and secure domain management.': 'Email verification, protected transfer codes and secure domain management.',
+              'Payment and registrar keys are never exposed': 'Sensitive payment and domain data stay protected',
+              'We will send a six-digit OTP to verify your email.': 'We will send a six-digit code to verify your email.',
+              'Sign in with an OTP instead': 'Sign in with a code instead',
+
+              # Dashboard/domain
+              'Registrar lock': 'Transfer lock',
+              'Nameserver changes are submitted to the registrar. Some changes may take time to appear.': 'Nameserver changes are submitted for this domain. Some changes may take time to appear.',
+              'The system creates a renewal payment request before expiration.': 'A renewal payment request is created before expiration.',
+              'Registrant details are protected where the TLD supports it.': 'Registrant details are protected when the extension supports privacy.',
+              'Registration, transfer and renewal status.': 'Registration, transfer and renewal details.',
+              'System and lifecycle notifications.': 'Recent account notifications.',
+              'Automation events will appear here.': 'Account events will appear here.',
+              'Create the first zone record for this domain.': 'Add the first DNS record for this domain.',
+
+              # Orders/payment
+              'Track domain purchases, poll CamerPay and complete pending checkout.': 'Track orders, payments and invoices.',
+              'CamerPay currently reports': 'The payment provider currently reports',
+              'CamerPay will open a secure checkout page. We will update the order when the payment is confirmed.': 'A secure checkout page will open. We will update the order when the payment is confirmed.',
+              'CamerPay will open a secure checkout page. Payment confirmation is checked by polling.': 'A secure checkout page will open. We will update the order when the payment is confirmed.',
+              'Continue to CamerPay': 'Continue to checkout',
+              'Payment confirmation is checked by polling.': 'We will update the order when the payment is confirmed.',
+              'CamerPay returned a final payment status. Open the order to start another checkout when applicable.': 'The payment provider returned a final status. Open the order to start another checkout when applicable.',
+              'The platform checks CamerPay every 5 seconds. A webhook is not required.': 'We are checking your payment status. This usually takes a few seconds.',
+              'The platform is polling CamerPay every 5 seconds for up to 5 minutes.': 'We are checking the payment status for up to 5 minutes.',
+              'Automatic polling paused after 5 minutes. Use the button below to check again.': 'We could not confirm the payment after 5 minutes. Use the button below to check again.',
+              'We are checking CamerPay for confirmation. This can take a few minutes.': 'We are checking the payment confirmation. This can take a few minutes.',
+              'Payment confirmed. The order was permanently marked as paid and registrar processing is queued.': 'Payment confirmed. We are now processing your domain order.',
+              'The payment and order were permanently marked as paid. Registrar processing is now queued.': 'Payment confirmed. We are now processing your domain order.',
+              'Create the order, then complete secure CamerPay checkout.': 'Create the order, then complete checkout.',
+              'Complete secure CamerPay checkout.': 'Complete checkout.',
+              'Recharge with CamerPay': 'Recharge balance',
+
+              # Contacts
+              'DomainNameAPI requires complete registrant details.': 'Complete registrant details are required to register or transfer a domain.',
+              'Create, sync and verify DomainNameAPI contact handles.': 'Manage the contact details used for domain orders.',
+              'No provider handle': 'Not synced yet',
+              'Contact provider responses will appear here.': 'Contact updates will appear here.',
+
+              # Documents/runtime UI
+              'Download server-generated PDF documents powered by PDFKit.': 'Download invoices and receipts for paid orders.',
+              'Download paid billing documents generated with PDFKit.': 'Download invoices and receipts for paid orders.',
+              'Loading billing documents…': 'Loading invoices and receipts…',
+              'No paid invoice yet.': 'No paid invoice yet.',
+
+              # Technical leftovers in client temporary tools
+              'Advanced domain tools': 'Domain tools',
+              'Forwarding, glue hosts, transfer status, restore and registrar pre-checks.': 'Additional domain actions.',
+              'Renew check': 'Check renewal eligibility',
+              'Transfer query': 'Check transfer status',
+              'Get forwarding': 'View forwarding',
+              'Create forwarding': 'Add forwarding',
+              'Delete forwarding': 'Remove forwarding',
+              'Add glue host': 'Add nameserver host',
+              'Provider responses will appear here.': 'Results will appear here.',
+              'Provider contact handles': 'Domain contacts',
+          }
+
+          paths = [
+              Path('src/router.tsx'),
+              Path('src/runtime-fixes.tsx'),
+              Path('src/domain-control-patches.ts'),
+              Path('src/provider-tools.ts'),
+          ]
+          for path in paths:
+              if not path.exists():
+                  continue
+              text = path.read_text()
+              original = text
+              for old, new in replacements.items():
+                  text = text.replace(old, new)
+              if text != original:
+                  path.write_text(text)
+
+          # Make sure advanced tools remain hidden in the customer bundle cleanup script.
+          provider_tools = Path('src/provider-tools.ts')
+          if provider_tools.exists():
+              text = provider_tools.read_text()
+              text = text.replace('document.getElementById("khd-domain-advanced")?.remove();', 'document.getElementById("khd-domain-advanced")?.remove();')
+              text = text.replace('document.getElementById("khd-contact-provider-tools")?.remove();', 'document.getElementById("khd-contact-provider-tools")?.remove();')
+              provider_tools.write_text(text)
+          PY
+      - name: Remove temporary workflow
+        run: rm -f .github/workflows/customer-copy-cleanup.yml
+      - name: Commit cleanup
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git add src/router.tsx src/runtime-fixes.tsx src/domain-control-patches.ts src/provider-tools.ts .github/workflows/customer-copy-cleanup.yml
+            git commit -m "Remove provider and implementation wording from customer UI"
+            git push
+          fi
