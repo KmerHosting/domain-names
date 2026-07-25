@@ -5,6 +5,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { router } from "./router";
 import "./styles.css";
 import "./runtime-fixes";
+import "./domain-control-patches";
 
 const queryClient = new QueryClient({
   defaultOptions: {
