@@ -1,0 +1,96 @@
+name: Apply customer wording cleanup
+on:
+  push:
+    paths:
+      - '.github/workflows/apply-customer-wording-cleanup.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Apply wording and UX cleanup
+        shell: bash
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          replacements = {
+              Path('src/router.tsx'): {
+                  'Find the right domain.<br /><span>Manage it without friction.</span>': 'Search, buy and manage domains.<br /><span>All from one place.</span>',
+                  'Search, register, transfer, renew and control DNS from one automated domain platform.': 'Register, transfer, renew and manage DNS from your KmerHosting account.',
+                  'Renewal reminders and lifecycle jobs run automatically.': 'Renewal reminders help you avoid missed expirations.',
+                  'Registrar automation': 'Domain management',
+                  'OT&E and production separation': 'Safe availability checks',
+                  'Lifecycle email': 'Account email',
+                  'OTP and expiry reminders': 'Verification and reminders',
+                  'Supabase native': 'Reliable backend',
+                  'No custom server required': 'Secure platform services',
+                  'Designed for autonomy': 'Built for domain management',
+                  'Everything after checkout is automated': 'After payment, we handle the registrar steps',
+                  'Registrar operations are queued, retried safely and synchronized back to your dashboard.': 'Your domain order is processed and updated in your dashboard.',
+                  'Safe operations': 'Safer domain changes',
+                  'Idempotent payments, signed webhooks, retry queues and registrar locks.': 'Payment checks, transfer locks and status updates reduce mistakes.',
+                  'Custom OTP accounts': 'Secure customer accounts',
+                  'OTP verification and sessions isolated from the shared Supabase Auth quota.': 'Email verification and protected sessions keep your account secure.',
+                  'Domain registration and lifecycle automation from KmerHosting LLC.': 'Domain registration and management by KmerHosting LLC.',
+                  '<strong>Infrastructure</strong>': '<strong>Services</strong>',
+                  '<span>Supabase backend</span>': '<span>Domain search</span>',
+                  '<span>DomainNameAPI registrar</span>': '<span>Domain transfers</span>',
+                  '<span>CamerPay payments</span>': '<span>Secure payments</span>',
+                  'Your domain portfolio and recent automation activity.': 'Your domains, orders and recent account activity.',
+                  'Renewal orders generated automatically': 'Renewals can be paid from your account',
+                  'Email reminders are automatic': 'Email reminders are enabled',
+                  'System and lifecycle notifications.': 'Recent account notifications.',
+                  'Automation events will appear here.': 'Account events will appear here.',
+                  'Changes are queued and synchronized automatically.': 'Nameserver changes are submitted to the registrar. Some changes may take time to appear.',
+                  'Manage zone records directly through DomainNameAPI.': 'Add and manage DNS records for this domain.',
+                  'Track domain purchases, poll CamerPay and complete pending checkout.': 'Track orders, payments and invoices.',
+                  'Payment confirmed. The order was permanently marked as paid and registrar processing is queued.': 'Payment confirmed. We are now processing your domain order.',
+                  'CamerPay will open a secure checkout page. Payment confirmation is checked by polling.': 'CamerPay will open a secure checkout page. We will update the order when the payment is confirmed.',
+                  'DomainNameAPI requires complete registrant details.': 'Complete registrant details are required to register or transfer a domain.',
+                  'OTP verification, encrypted transfer codes and automated lifecycle operations.': 'OTP verification, protected transfer codes and secure domain management.',
+                  'No shared Supabase Auth user quota': 'Secure account verification',
+                  'Sessions can be revoked instantly': 'Session protection included',
+                  'Provider secrets remain server-side': 'Payment and registrar keys are never exposed',
+                  'The platform checks CamerPay every 5 seconds. A webhook is not required.': 'We are checking your payment status. This usually takes a few seconds.',
+                  'The payment and order were permanently marked as paid. Registrar processing is now queued.': 'Payment confirmed. We are now processing your domain order.',
+                  'Automatic polling paused after 5 minutes. Use the button below to check again.': 'We could not confirm the payment after 5 minutes. Use the button below to check again.',
+                  'The platform is polling CamerPay every 5 seconds for up to 5 minutes.': 'We are checking CamerPay for confirmation. This can take a few minutes.',
+              },
+              Path('src/domain-control-patches.ts'): {
+                  'Download paid billing documents generated with PDFKit.': 'Download invoices and receipts for paid orders.',
+              },
+              Path('src/provider-tools.ts'): {
+                  'async function runProviderEnhancements() {\n  injectProviderStyles();\n  removeProviderLauncher();\n  cleanBillingPanelsOutsideOrders();\n  await installDomainAdvancedTools();\n  await installContactProviderTools();\n}': 'async function runProviderEnhancements() {\n  injectProviderStyles();\n  removeProviderLauncher();\n  cleanBillingPanelsOutsideOrders();\n  document.getElementById("khd-domain-advanced")?.remove();\n  document.getElementById("khd-contact-provider-tools")?.remove();\n}',
+              },
+          }
+
+          for path, mapping in replacements.items():
+              text = path.read_text()
+              old_text = text
+              for old, new in mapping.items():
+                  text = text.replace(old, new)
+              if text != old_text:
+                  path.write_text(text)
+
+          # Remove the temporary workflow after it applies the changes.
+          Path('.github/workflows/apply-customer-wording-cleanup.yml').unlink(missing_ok=True)
+          PY
+      - name: Commit cleanup
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git add src/router.tsx src/domain-control-patches.ts src/provider-tools.ts .github/workflows/apply-customer-wording-cleanup.yml
+          git commit -m "Clean customer-facing wording and hide advanced provider tools"
+          git push
