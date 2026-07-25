@@ -9,6 +9,7 @@ import "./admin.css";
 import "./runtime-fixes";
 import "./domain-control-patches";
 import "./provider-tools";
+import "./admin-link";
 
 const queryClient = new QueryClient({
   defaultOptions: {
