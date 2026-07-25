@@ -47,6 +47,7 @@ import {
   formatMoney,
   getSession,
   newIdempotencyKey,
+  paymentApi,
   setSession,
   subscribeSession,
   type Session,
@@ -118,7 +119,29 @@ type Order = {
     id: string;
     status: string;
     checkout_url?: string | null;
+    created_at?: string | null;
+    processed_at?: string | null;
   }>;
+};
+
+type PaymentCheckResult = {
+  payment: {
+    id: string;
+    status: string;
+    processed_at?: string | null;
+  };
+  order: {
+    id: string;
+    status: string;
+  };
+  providerStatus?: string | null;
+  checkedAt: string;
+  finalized: boolean;
+  polling: {
+    intervalSeconds: number;
+    recommendedWindowSeconds: number;
+    webhookRequired: boolean;
+  };
 };
 
 function useSession() {
@@ -164,7 +187,7 @@ function PublicHeader() {
             <Link to="/dashboard" className="button button-primary">Dashboard</Link>
           ) : (
             <>
-              <Link to="/auth" className="button button-ghost">Sign in</Link>
+              <Link to="/auth" search={{}} className="button button-ghost">Sign in</Link>
               <Link to="/auth" search={{ mode: "register" }} className="button button-primary">Create account</Link>
             </>
           )}
@@ -185,7 +208,7 @@ function PublicFooter() {
         <div>
           <strong>Platform</strong>
           <Link to="/transfer-domain">Transfer a domain</Link>
-          <Link to="/auth">Customer sign in</Link>
+          <Link to="/auth" search={{}}>Customer sign in</Link>
           <a href="mailto:support@kmerhosting.com">Technical support</a>
         </div>
         <div>
@@ -506,7 +529,7 @@ function DashboardLayout() {
   });
 
   useEffect(() => {
-    if (!session) navigate({ to: "/auth" });
+    if (!session) navigate({ to: "/auth", search: {} });
   }, [session, navigate]);
 
   if (!session) return <LoadingBlock label="Redirecting to sign in" />;
@@ -559,7 +582,7 @@ function DashboardOverview() {
   const expiring = domains.filter((d) => d.expires_at && new Date(d.expires_at).getTime() < Date.now() + 30 * 86_400_000).length;
   return (
     <>
-      <div className="page-heading"><div><span className="kicker">Customer portal</span><h1>Overview</h1><p>Your domain portfolio and recent automation activity.</p></div><Link to="/register-domain" className="button button-primary"><Plus size={18} /> Register domain</Link></div>
+      <div className="page-heading"><div><span className="kicker">Customer portal</span><h1>Overview</h1><p>Your domain portfolio and recent automation activity.</p></div><Link to="/register-domain" search={{}} className="button button-primary"><Plus size={18} /> Register domain</Link></div>
       <div className="metric-grid">
         <div className="metric-card"><div className="metric-icon blue"><Globe2 /></div><span>Managed domains</span><strong>{domains.length}</strong><small>{domains.filter((d) => d.status === "active").length} active</small></div>
         <div className="metric-card"><div className="metric-icon green"><RefreshCw /></div><span>Auto-renew enabled</span><strong>{domains.filter((d) => d.auto_renew).length}</strong><small>Renewal orders generated automatically</small></div>
@@ -569,7 +592,7 @@ function DashboardOverview() {
       <div className="dashboard-grid">
         <section className="card">
           <div className="card-heading"><div><h2>Your domains</h2><p>Registration, transfer and renewal status.</p></div><Link to="/dashboard/domains">View all <ChevronRight size={17} /></Link></div>
-          {domains.length ? <div className="table-wrap"><table><thead><tr><th>Domain</th><th>Status</th><th>Expires</th><th>Auto-renew</th></tr></thead><tbody>{domains.slice(0, 6).map((d) => <tr key={d.id}><td><Link to="/dashboard/domains/$domainId" params={{ domainId: d.id }} className="domain-cell"><Globe2 size={17} />{d.domain_name}</Link></td><td><StatusBadge value={d.status} /></td><td>{formatDate(d.expires_at)}</td><td>{d.auto_renew ? <span className="yes"><Check size={15} /> On</span> : "Off"}</td></tr>)}</tbody></table></div> : <EmptyState icon={<Globe2 />} title="No domains yet" text="Search for a new domain or transfer one you already own." action={<Link to="/register-domain" className="button button-primary">Register a domain</Link>} />}
+          {domains.length ? <div className="table-wrap"><table><thead><tr><th>Domain</th><th>Status</th><th>Expires</th><th>Auto-renew</th></tr></thead><tbody>{domains.slice(0, 6).map((d) => <tr key={d.id}><td><Link to="/dashboard/domains/$domainId" params={{ domainId: d.id }} className="domain-cell"><Globe2 size={17} />{d.domain_name}</Link></td><td><StatusBadge value={d.status} /></td><td>{formatDate(d.expires_at)}</td><td>{d.auto_renew ? <span className="yes"><Check size={15} /> On</span> : "Off"}</td></tr>)}</tbody></table></div> : <EmptyState icon={<Globe2 />} title="No domains yet" text="Search for a new domain or transfer one you already own." action={<Link to="/register-domain" search={{}} className="button button-primary">Register a domain</Link>} />}
         </section>
         <section className="card activity-card">
           <div className="card-heading"><div><h2>Recent activity</h2><p>System and lifecycle notifications.</p></div></div>
@@ -584,11 +607,11 @@ function DomainsPage() {
   const data = useQuery({ queryKey: ["domains"], queryFn: () => api<{ domains: Domain[] }>("/domains") });
   return (
     <>
-      <div className="page-heading"><div><span className="kicker">Portfolio</span><h1>Domains</h1><p>Manage registrations, nameservers, DNS and renewal settings.</p></div><div className="heading-actions"><Link to="/transfer-domain" className="button button-secondary">Transfer</Link><Link to="/register-domain" className="button button-primary"><Plus size={18} /> Register</Link></div></div>
+      <div className="page-heading"><div><span className="kicker">Portfolio</span><h1>Domains</h1><p>Manage registrations, nameservers, DNS and renewal settings.</p></div><div className="heading-actions"><Link to="/transfer-domain" className="button button-secondary">Transfer</Link><Link to="/register-domain" search={{}} className="button button-primary"><Plus size={18} /> Register</Link></div></div>
       <section className="card">
         {data.isPending ? <LoadingBlock /> : data.isError ? <div className="alert alert-error">{errorText(data.error)}</div> : data.data.domains.length ? (
           <div className="domain-card-list">{data.data.domains.map((d) => <Link to="/dashboard/domains/$domainId" params={{ domainId: d.id }} className="domain-list-card" key={d.id}><div className="domain-logo"><Globe2 /></div><div className="domain-list-main"><strong>{d.domain_name}</strong><span>Expires {formatDate(d.expires_at)}</span></div><StatusBadge value={d.status} /><div className="domain-flags"><span className={d.auto_renew ? "flag enabled" : "flag"}><RefreshCw size={14} /> Auto-renew</span><span className={d.locked ? "flag enabled" : "flag"}><LockKeyhole size={14} /> Locked</span></div><ChevronRight /></Link>)}</div>
-        ) : <EmptyState icon={<Globe2 />} title="Build your domain portfolio" text="Register a new name or transfer an existing domain." action={<Link to="/register-domain" className="button button-primary">Find a domain</Link>} />}
+        ) : <EmptyState icon={<Globe2 />} title="Build your domain portfolio" text="Register a new name or transfer an existing domain." action={<Link to="/register-domain" search={{}} className="button button-primary">Find a domain</Link>} />}
       </section>
     </>
   );
@@ -669,27 +692,161 @@ function DomainDetailPage() {
 }
 
 function OrdersPage() {
-  const data = useQuery({ queryKey: ["orders"], queryFn: () => api<{ orders: Order[] }>("/orders"), refetchInterval: 20_000 });
+  const client = useQueryClient();
+  const [paying, setPaying] = useState<string | null>(null);
+  const [checkingOrderId, setCheckingOrderId] = useState<string | null>(null);
+  const data = useQuery({
+    queryKey: ["orders"],
+    queryFn: () => api<{ orders: Order[] }>("/orders"),
+    refetchInterval: 20_000,
+  });
   const checkout = useMutation({
-    mutationFn: ({ id, phone, paymentMethod }: { id: string; phone: string; paymentMethod: string }) => api<{ payment: { checkout_url: string } }>(`/orders/${id}/checkout`, { method: "POST", body: { phone, paymentMethod } }),
+    mutationFn: ({ id, phone, paymentMethod }: { id: string; phone: string; paymentMethod: string }) =>
+      api<{ payment: { checkout_url: string } }>(`/orders/${id}/checkout`, {
+        method: "POST",
+        body: { phone, paymentMethod },
+      }),
     onSuccess: (result, variables) => {
       localStorage.setItem("kmerhosting-domain-pending-order", variables.id);
       window.location.assign(result.payment.checkout_url);
     },
   });
-  const [paying, setPaying] = useState<string | null>(null);
+  const checkStatus = useMutation({
+    mutationFn: (orderId: string) =>
+      paymentApi<PaymentCheckResult>("/check", { method: "POST", body: { orderId } }),
+    onMutate: (orderId) => setCheckingOrderId(orderId),
+    onSuccess: (result, orderId) => {
+      if (result.payment.status === "paid" &&
+          localStorage.getItem("kmerhosting-domain-pending-order") === orderId) {
+        localStorage.removeItem("kmerhosting-domain-pending-order");
+      }
+      client.invalidateQueries({ queryKey: ["orders"] });
+      client.invalidateQueries({ queryKey: ["dashboard"] });
+      client.invalidateQueries({ queryKey: ["domains"] });
+    },
+    onSettled: () => setCheckingOrderId(null),
+  });
+
   return (
     <>
-      <div className="page-heading"><div><span className="kicker">Billing</span><h1>Orders & payments</h1><p>Track domain purchases and complete pending checkout.</p></div></div>
+      <div className="page-heading">
+        <div>
+          <span className="kicker">Billing</span>
+          <h1>Orders & payments</h1>
+          <p>Track domain purchases, poll CamerPay and complete pending checkout.</p>
+        </div>
+      </div>
+
+      {checkStatus.isError && <div className="alert alert-error">{errorText(checkStatus.error)}</div>}
+      {checkStatus.isSuccess && (
+        <div className={checkStatus.data.payment.status === "paid" ? "alert alert-success" : "alert alert-warning"}>
+          {checkStatus.data.payment.status === "paid"
+            ? "Payment confirmed. The order was permanently marked as paid and registrar processing is queued."
+            : `CamerPay currently reports ${checkStatus.data.providerStatus || checkStatus.data.payment.status}. You can check again.`}
+        </div>
+      )}
+
       <section className="card">
-        {data.isPending ? <LoadingBlock /> : data.isError ? <div className="alert alert-error">{errorText(data.error)}</div> : data.data.orders.length ? (
-          <div className="order-list">{data.data.orders.map((o) => {
-            const canPay = ["pending_payment","payment_pending"].includes(o.status);
-            return <div className="order-card" key={o.id}><div className="order-icon">{o.type === "renewal" ? <RefreshCw /> : o.type === "transfer" ? <ArrowRight /> : <Globe2 />}</div><div className="order-main"><strong>{o.domain_name}</strong><span>{o.order_number} · {o.type}</span><small>{formatDate(o.created_at)}</small></div><div className="order-amount"><strong>{formatMoney(o.price_usd)}</strong><span>{formatMoney(o.amount_xaf, "XAF")}</span></div><StatusBadge value={o.status} />{canPay && <button className="button button-primary" onClick={() => setPaying(o.id)}>Pay now</button>}</div>;
-          })}</div>
-        ) : <EmptyState icon={<CreditCard />} title="No orders" text="Your registration, transfer and renewal orders will appear here." />}
+        {data.isPending ? <LoadingBlock /> : data.isError ? (
+          <div className="alert alert-error">{errorText(data.error)}</div>
+        ) : data.data.orders.length ? (
+          <div className="order-list">
+            {data.data.orders.map((o) => {
+              const latestPayment = [...(o.domain_payments || [])].sort(
+                (a, b) => new Date(b.created_at || 0).getTime() - new Date(a.created_at || 0).getTime(),
+              )[0];
+              const paymentPending = ["pending", "processing"].includes(latestPayment?.status || "");
+              const canPay = ["pending_payment", "payment_pending"].includes(o.status) &&
+                latestPayment?.status !== "paid";
+              const canCheck = o.status === "payment_pending" && Boolean(latestPayment) &&
+                latestPayment?.status !== "paid";
+
+              return (
+                <div className="order-card" key={o.id}>
+                  <div className="order-icon">
+                    {o.type === "renewal" ? <RefreshCw /> : o.type === "transfer" ? <ArrowRight /> : <Globe2 />}
+                  </div>
+                  <div className="order-main">
+                    <strong>{o.domain_name}</strong>
+                    <span>{o.order_number} · {o.type}</span>
+                    <small>{formatDate(o.created_at)}</small>
+                  </div>
+                  <div className="order-amount">
+                    <strong>{formatMoney(o.price_usd)}</strong>
+                    <span>{formatMoney(o.amount_xaf, "XAF")}</span>
+                  </div>
+                  <StatusBadge value={o.status} />
+                  <div className="order-actions">
+                    {canCheck && (
+                      <button
+                        className="button button-secondary"
+                        disabled={checkingOrderId === o.id}
+                        onClick={() => checkStatus.mutate(o.id)}
+                      >
+                        {checkingOrderId === o.id
+                          ? <LoaderCircle className="spin" size={16} />
+                          : <RefreshCw size={16} />}
+                        {paymentPending ? "Check payment status" : "Check again"}
+                      </button>
+                    )}
+                    {canPay && (
+                      <button className="button button-primary" onClick={() => setPaying(o.id)}>
+                        Pay now
+                      </button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        ) : (
+          <EmptyState
+            icon={<CreditCard />}
+            title="No orders"
+            text="Your registration, transfer and renewal orders will appear here."
+          />
+        )}
       </section>
-      {paying && <div className="modal-backdrop"><div className="modal"><div className="modal-heading"><h2>Complete payment</h2><button className="icon-button" onClick={() => setPaying(null)}><X /></button></div><p>CamerPay will open a secure checkout page.</p><form className="form-stack" onSubmit={(event) => {event.preventDefault();const f=new FormData(event.currentTarget);checkout.mutate({id:paying,phone:String(f.get("phone")||""),paymentMethod:String(f.get("paymentMethod")||"orange_money")});}}><label>Payment phone<input name="phone" required placeholder="2376…" /></label><label>Payment method<select name="paymentMethod"><option value="orange_money">Orange Money</option><option value="mtn_momo">MTN MoMo</option><option value="stripe">Card</option><option value="paypal">PayPal</option></select></label>{checkout.isError&&<div className="alert alert-error">{errorText(checkout.error)}</div>}<button className="button button-primary button-wide" disabled={checkout.isPending}>{checkout.isPending&&<LoaderCircle className="spin" size={17}/>} Continue to CamerPay</button></form></div></div>}
+
+      {paying && (
+        <div className="modal-backdrop">
+          <div className="modal">
+            <div className="modal-heading">
+              <h2>Complete payment</h2>
+              <button className="icon-button" onClick={() => setPaying(null)}><X /></button>
+            </div>
+            <p>CamerPay will open a secure checkout page. Payment confirmation is checked by polling.</p>
+            <form
+              className="form-stack"
+              onSubmit={(event) => {
+                event.preventDefault();
+                const form = new FormData(event.currentTarget);
+                checkout.mutate({
+                  id: paying,
+                  phone: String(form.get("phone") || ""),
+                  paymentMethod: String(form.get("paymentMethod") || "orange_money"),
+                });
+              }}
+            >
+              <label>Payment phone<input name="phone" required placeholder="2376…" /></label>
+              <label>
+                Payment method
+                <select name="paymentMethod">
+                  <option value="orange_money">Orange Money</option>
+                  <option value="mtn_momo">MTN MoMo</option>
+                  <option value="stripe">Card</option>
+                  <option value="paypal">PayPal</option>
+                </select>
+              </label>
+              {checkout.isError && <div className="alert alert-error">{errorText(checkout.error)}</div>}
+              <button className="button button-primary button-wide" disabled={checkout.isPending}>
+                {checkout.isPending && <LoaderCircle className="spin" size={17} />}
+                Continue to CamerPay
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
     </>
   );
 }
@@ -776,7 +933,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
       <main className="purchase-main">
         <div className="container narrow">
           <div className="purchase-heading"><span className="kicker">{type === "registration" ? "New registration" : "Domain transfer"}</span><h1>{type === "registration" ? "Register a domain" : "Transfer your domain"}</h1><p>{type === "registration" ? "Create the order, then complete secure CamerPay checkout." : "Enter the current registrar EPP/auth code. It is encrypted before storage."}</p></div>
-          {!session ? <div className="card sign-in-gate"><KeyRound /><h2>Sign in first</h2><p>A verified account is required for domain ownership and billing.</p><Link to="/auth" className="button button-primary">Sign in or create account</Link></div> : (
+          {!session ? <div className="card sign-in-gate"><KeyRound /><h2>Sign in first</h2><p>A verified account is required for domain ownership and billing.</p><Link to="/auth" search={{}} className="button button-primary">Sign in or create account</Link></div> : (
             <section className="card">
               <form className="form-stack" onSubmit={(event) => {
                 event.preventDefault();
@@ -785,7 +942,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
               }}>
                 <label>Domain name<input name="domainName" defaultValue={search.domain || ""} placeholder="yourbrand.com" required /></label>
                 {type === "transfer" && <label>EPP / authorization code<input name="authCode" type="password" required minLength={4} /></label>}
-                <div className="form-row"><label>Registration period<select name="years" defaultValue="1">{[1,2,3,4,5,6,7,8,9,10].map((n) => <option value={n} key={n}>{n} year{n > 1 ? "s" : ""}</option>)}</select></label><label>Registrant contact<select name="contactId" required defaultValue=""><option value="" disabled>Select a contact</option>{contacts.data?.contacts.map((c) => <option value={c.id} key={c.id}>{c.first_name} {c.last_name} — {c.label}</option>)}</select></label></div>
+                <div className="form-row"><label>Registration period<select name="years" defaultValue="1">{[1,2,3,4,5,6,7,8,9,10].map((n) => <option value={n} key={n}>{n} year{n > 1 ? "s" : ""}</option>)}</select></label><label>Registrant contact<select name="contactId" required defaultValue="">{<option value="" disabled>Select a contact</option>}{contacts.data?.contacts.map((c) => <option value={c.id} key={c.id}>{c.first_name} {c.last_name} — {c.label}</option>)}</select></label></div>
                 <div className="form-row"><label>Primary nameserver<input name="ns1" defaultValue="tr.apiname.com" required /></label><label>Secondary nameserver<input name="ns2" defaultValue="eu.apiname.com" required /></label></div>
                 {!contacts.isPending && !contacts.data?.contacts.length && <div className="alert alert-warning">Create a registrant contact in the dashboard before ordering.</div>}
                 {order.isError && <div className="alert alert-error">{errorText(order.error)}</div>}
@@ -802,25 +959,128 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
 
 function PaymentReturnPage() {
   const navigate = useNavigate();
-  const orderId = localStorage.getItem("kmerhosting-domain-pending-order");
+  const client = useQueryClient();
+  const [pollStartedAt] = useState(() => Date.now());
+  const returnSearch = new URLSearchParams(window.location.search);
+  const orderFromUrl = returnSearch.get("order");
+  const invoiceFromUrl = returnSearch.get("invoice");
+  const orderId = orderFromUrl || localStorage.getItem("kmerhosting-domain-pending-order");
+  const paymentReference = orderId ? { orderId } : invoiceFromUrl ? { invoice: invoiceFromUrl } : null;
+  const session = getSession();
+  const terminalStatuses = ["paid", "failed", "cancelled", "refunded"];
+
   const status = useQuery({
-    queryKey: ["payment-return", orderId],
-    queryFn: () => api<{ payment: { status: string } }>(`/payments/${orderId}/status`),
-    enabled: Boolean(orderId && getSession()),
-    refetchInterval: (query) => query.state.data?.payment.status === "paid" ? false : 4_000,
+    queryKey: ["payment-return", orderId, invoiceFromUrl],
+    queryFn: () => {
+      if (!paymentReference) throw new Error("The payment order reference is missing.");
+      return paymentApi<PaymentCheckResult>("/check", { method: "POST", body: paymentReference });
+    },
+    enabled: Boolean(paymentReference && session),
+    retry: false,
+    refetchInterval: (query) => {
+      const paymentStatus = query.state.data?.payment.status;
+      if (paymentStatus && terminalStatuses.includes(paymentStatus)) return false;
+      if (Date.now() - pollStartedAt >= 300_000) return false;
+      return 5_000;
+    },
+    refetchIntervalInBackground: false,
   });
+
   useEffect(() => {
     if (status.data?.payment.status === "paid") {
       localStorage.removeItem("kmerhosting-domain-pending-order");
-      const timer = setTimeout(() => navigate({ to: "/dashboard/orders" }), 1800);
+      client.invalidateQueries({ queryKey: ["orders"] });
+      client.invalidateQueries({ queryKey: ["dashboard"] });
+      client.invalidateQueries({ queryKey: ["domains"] });
+      const timer = setTimeout(() => navigate({ to: "/dashboard/orders" }), 2500);
       return () => clearTimeout(timer);
     }
-  }, [status.data, navigate]);
+  }, [status.data, navigate, client]);
+
+  const paymentStatus = status.data?.payment.status;
+  const pollingStopped = Date.now() - pollStartedAt >= 300_000 &&
+    !terminalStatuses.includes(paymentStatus || "");
+  const lastChecked = status.data?.checkedAt
+    ? new Date(status.data.checkedAt).toLocaleTimeString("en-US")
+    : null;
+
   return (
     <div className="return-page">
       <Brand />
       <div className="return-card">
-        {status.isPending ? <><LoaderCircle className="spin return-loader" /><h1>Confirming payment</h1><p>The platform is checking CamerPay and will continue automatically.</p></> : status.isError ? <><X className="return-error" /><h1>Unable to confirm yet</h1><p>{errorText(status.error)}</p><Link to="/dashboard/orders" className="button button-primary">Open orders</Link></> : status.data.payment.status === "paid" ? <><BadgeCheck className="return-success" /><h1>Payment confirmed</h1><p>Your registrar operation is now queued. No support intervention is required.</p></> : <><Clock3 className="return-waiting" /><h1>Payment pending</h1><p>Complete the payment or return to your orders to retry.</p><Link to="/dashboard/orders" className="button button-primary">Open orders</Link></>}
+        {!paymentReference ? (
+          <>
+            <X className="return-error" />
+            <h1>Payment reference missing</h1>
+            <p>Open your orders and use the payment status button on the relevant order.</p>
+            <Link to="/dashboard/orders" className="button button-primary">Open orders</Link>
+          </>
+        ) : !session ? (
+          <>
+            <KeyRound className="return-error" />
+            <h1>Sign in to verify payment</h1>
+            <p>Payment status is protected and can only be checked from the account that created the order.</p>
+            <Link to="/auth" search={{}} className="button button-primary">Sign in</Link>
+          </>
+        ) : status.isPending ? (
+          <>
+            <LoaderCircle className="spin return-loader" />
+            <h1>Confirming payment</h1>
+            <p>The platform checks CamerPay every 5 seconds. A webhook is not required.</p>
+          </>
+        ) : status.isError ? (
+          <>
+            <X className="return-error" />
+            <h1>Unable to confirm yet</h1>
+            <p>{errorText(status.error)}</p>
+            <div className="return-actions">
+              <button
+                className="button button-secondary"
+                onClick={() => status.refetch()}
+                disabled={status.isFetching}
+              >
+                {status.isFetching ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}
+                Check payment status
+              </button>
+              <Link to="/dashboard/orders" className="button button-primary">Open orders</Link>
+            </div>
+          </>
+        ) : paymentStatus === "paid" ? (
+          <>
+            <BadgeCheck className="return-success" />
+            <h1>Payment confirmed</h1>
+            <p>The payment and order were permanently marked as paid. Registrar processing is now queued.</p>
+          </>
+        ) : ["failed", "cancelled", "refunded"].includes(paymentStatus || "") ? (
+          <>
+            <X className="return-error" />
+            <h1>Payment {paymentStatus}</h1>
+            <p>CamerPay returned a final payment status. Open the order to start another checkout when applicable.</p>
+            <Link to="/dashboard/orders" className="button button-primary">Open orders</Link>
+          </>
+        ) : (
+          <>
+            <Clock3 className="return-waiting" />
+            <h1>Payment pending</h1>
+            <p>
+              {pollingStopped
+                ? "Automatic polling paused after 5 minutes. Use the button below to check again."
+                : "The platform is polling CamerPay every 5 seconds for up to 5 minutes."}
+            </p>
+            {lastChecked && <small className="last-checked">Last checked at {lastChecked}</small>}
+            <div className="return-actions">
+              <button
+                className="button button-secondary"
+                onClick={() => status.refetch()}
+                disabled={status.isFetching}
+              >
+                {status.isFetching ? <LoaderCircle className="spin" size={16} /> : <RefreshCw size={16} />}
+                Check payment status
+              </button>
+              <Link to="/dashboard/orders" className="button button-primary">Open orders</Link>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

@@ -1,6 +1,9 @@
 const API_URL =
   import.meta.env.VITE_DOMAIN_API_URL ||
   "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-api";
+const PAYMENT_API_URL =
+  import.meta.env.VITE_DOMAIN_PAYMENT_API_URL ||
+  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-payment-status";
 const PUBLISHABLE_KEY =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   "sb_publishable_DA_Z7P8cQ0CNAA26nekJTg_Tm0LLaO8";
@@ -78,7 +81,7 @@ export function subscribeSession(listener: () => void): () => void {
   };
 }
 
-export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
+async function request<T>(baseUrl: string, path: string, options: ApiOptions = {}): Promise<T> {
   const session = getSession();
   const headers: Record<string, string> = {
     Accept: "application/json",
@@ -88,7 +91,7 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
   if (session?.token) headers.Authorization = `Bearer ${session.token}`;
   if (options.idempotencyKey) headers["Idempotency-Key"] = options.idempotencyKey;
 
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${baseUrl}${path}`, {
     method: options.method || "GET",
     headers,
     body: options.body === undefined ? undefined : JSON.stringify(options.body),
@@ -106,6 +109,14 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
     );
   }
   return payload as T;
+}
+
+export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  return await request<T>(API_URL, path, options);
+}
+
+export async function paymentApi<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  return await request<T>(PAYMENT_API_URL, path, options);
 }
 
 export function formatMoney(value: number | string, currency = "USD"): string {

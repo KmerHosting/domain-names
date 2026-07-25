@@ -277,6 +277,8 @@ tbody tr:last-child td { border-bottom: 0; }
 .order-amount { display: flex; flex-direction: column; text-align: right; }
 .order-amount strong { font-size: 12px; }
 .order-amount span { color: #8490a3; font-size: 9px; margin-top: 3px; }
+.order-actions { display: flex; align-items: center; justify-content: flex-end; gap: 8px; flex-wrap: wrap; }
+.order-actions .button { white-space: nowrap; }
 .modal-backdrop { position: fixed; inset: 0; z-index: 90; display: grid; place-items: center; padding: 20px; background: rgba(8,15,31,.55); backdrop-filter: blur(5px); }
 .modal { width: min(100%,460px); padding: 25px; border-radius: 17px; background: white; box-shadow: 0 30px 90px rgba(0,0,0,.22); }
 .modal-heading { display: flex; align-items: center; justify-content: space-between; }
@@ -306,6 +308,8 @@ tbody tr:last-child td { border-bottom: 0; }
 .return-card { width: min(100%,510px); padding: 45px; text-align: center; border: 1px solid var(--line); border-radius: 21px; background: white; box-shadow: var(--shadow); }
 .return-card h1 { margin: 18px 0 9px; letter-spacing: -.035em; }
 .return-card p { color: var(--muted); line-height: 1.6; }
+.return-actions { display: flex; justify-content: center; gap: 9px; flex-wrap: wrap; margin-top: 22px; }
+.last-checked { display: block; margin-top: 10px; color: #8490a3; font-size: 10px; }
 .return-loader,.return-success,.return-error,.return-waiting { width: 55px; height: 55px; }
 .return-loader,.return-waiting { color: var(--blue); }
 .return-success { color: #0b8f5b; }
@@ -346,7 +350,7 @@ tbody tr:last-child td { border-bottom: 0; }
   .dashboard-content { padding: 23px 18px; }
   .page-heading { align-items: start; flex-direction: column; }
   .order-card { grid-template-columns: auto 1fr auto; }
-  .order-card > .status,.order-card > .button { grid-column: span 1; }
+  .order-card > .status,.order-card > .button,.order-card > .order-actions { grid-column: span 1; }
   .search-result { grid-template-columns: auto 1fr auto; }
   .search-result .button { grid-column: 2 / -1; }
 }
@@ -363,6 +367,6 @@ tbody tr:last-child td { border-bottom: 0; }
   .dns-add-row { grid-template-columns: 1fr; }
   .dns-add-row > * { grid-column: auto !important; }
   .order-card { grid-template-columns: auto 1fr; }
-  .order-amount,.order-card > .status,.order-card > .button { grid-column: 2; text-align: left; justify-self: start; }
+  .order-amount,.order-card > .status,.order-card > .button,.order-card > .order-actions { grid-column: 2; text-align: left; justify-self: start; }
   .cta-card h2 { font-size: 29px; }
 }
