@@ -191,8 +191,8 @@ async function runProviderEnhancements() {
   injectProviderStyles();
   removeProviderLauncher();
   cleanBillingPanelsOutsideOrders();
-  await installDomainAdvancedTools();
-  await installContactProviderTools();
+  document.getElementById("khd-domain-advanced")?.remove();
+  document.getElementById("khd-contact-provider-tools")?.remove();
 }
 
 function boot() {

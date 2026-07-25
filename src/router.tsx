@@ -203,7 +203,7 @@ function PublicFooter() {
       <div className="container footer-grid">
         <div>
           <Brand />
-          <p>Domain registration and lifecycle automation from KmerHosting LLC.</p>
+          <p>Domain registration and management by KmerHosting LLC.</p>
         </div>
         <div>
           <strong>Platform</strong>
@@ -212,10 +212,10 @@ function PublicFooter() {
           <a href="mailto:support@kmerhosting.com">Technical support</a>
         </div>
         <div>
-          <strong>Infrastructure</strong>
-          <span>Supabase backend</span>
-          <span>DomainNameAPI registrar</span>
-          <span>CamerPay payments</span>
+          <strong>Services</strong>
+          <span>Domain search</span>
+          <span>Domain transfers</span>
+          <span>Secure payments</span>
         </div>
       </div>
       <div className="container footer-bottom">© {new Date().getFullYear()} KmerHosting LLC. All rights reserved.</div>
@@ -274,8 +274,8 @@ function HomePage() {
           <div className="container hero-grid">
             <div className="hero-copy">
               <div className="eyebrow"><Sparkles size={15} /> From KmerHosting LLC</div>
-              <h1>Find the right domain.<br /><span>Manage it without friction.</span></h1>
-              <p>Search, register, transfer, renew and control DNS from one automated domain platform.</p>
+              <h1>Search, buy and manage domains.<br /><span>All from one place.</span></h1>
+              <p>Register, transfer, renew and manage DNS from your KmerHosting account.</p>
               <form className="domain-search" onSubmit={submit}>
                 <Search size={21} />
                 <input value={query} onChange={(e) => setQuery(e.target.value)} placeholder="yourbrand.com or multiple domains" aria-label="Domain names" />
@@ -299,7 +299,7 @@ function HomePage() {
                   <div><span>Registrar lock</span><strong>Enabled</strong></div>
                   <div><span>DNS</span><strong>Managed</strong></div>
                 </div>
-                <div className="automation-line"><Zap size={17} /><span>Renewal reminders and lifecycle jobs run automatically.</span></div>
+                <div className="automation-line"><Zap size={17} /><span>Renewal reminders help you avoid missed expirations.</span></div>
               </div>
             </div>
           </div>
@@ -326,10 +326,10 @@ function HomePage() {
 
         <section className="trust-strip">
           <div className="container trust-grid">
-            <div><ShieldCheck /><span><strong>Registrar automation</strong>OT&E and production separation</span></div>
+            <div><ShieldCheck /><span><strong>Domain management</strong>Safe availability checks</span></div>
             <div><CreditCard /><span><strong>CamerPay checkout</strong>Mobile money and cards</span></div>
-            <div><Mail /><span><strong>Lifecycle email</strong>OTP and expiry reminders</span></div>
-            <div><Database /><span><strong>Supabase native</strong>No custom server required</span></div>
+            <div><Mail /><span><strong>Account email</strong>Verification and reminders</span></div>
+            <div><Database /><span><strong>Reliable backend</strong>Secure platform services</span></div>
           </div>
         </section>
 
@@ -364,17 +364,17 @@ function HomePage() {
         <section className="section section-soft" id="features">
           <div className="container">
             <div className="section-heading centered">
-              <span className="kicker">Designed for autonomy</span>
-              <h2>Everything after checkout is automated</h2>
-              <p>Registrar operations are queued, retried safely and synchronized back to your dashboard.</p>
+              <span className="kicker">Built for domain management</span>
+              <h2>After payment, we handle the registrar steps</h2>
+              <p>Your domain order is processed and updated in your dashboard.</p>
             </div>
             <div className="feature-grid">
               {[
                 [<Globe2 />, "Registration & transfer", "Register new domains or transfer existing names with encrypted EPP codes."],
                 [<RefreshCw />, "Renewal lifecycle", "Automated renewal orders, expiry notices and repeated synchronization."],
                 [<Network />, "DNS management", "Create and update A, AAAA, CNAME, MX, TXT, NS, SRV and CAA records."],
-                [<ShieldCheck />, "Safe operations", "Idempotent payments, signed webhooks, retry queues and registrar locks."],
-                [<KeyRound />, "Custom OTP accounts", "OTP verification and sessions isolated from the shared Supabase Auth quota."],
+                [<ShieldCheck />, "Safer domain changes", "Payment checks, transfer locks and status updates reduce mistakes."],
+                [<KeyRound />, "Secure customer accounts", "Email verification and protected sessions keep your account secure."],
                 [<Bell />, "Actionable notifications", "Payment, provisioning, transfer and expiry events appear in one place."],
               ].map(([icon, title, text]) => (
                 <article className="feature-card" key={String(title)}>
@@ -443,12 +443,12 @@ function AuthPage() {
         <div>
           <span className="eyebrow dark"><ShieldCheck size={15} /> Secure customer portal</span>
           <h1>Control your domains from one dashboard.</h1>
-          <p>OTP verification, encrypted transfer codes and automated lifecycle operations.</p>
+          <p>OTP verification, protected transfer codes and secure domain management.</p>
         </div>
         <div className="auth-points">
-          <span><Check /> No shared Supabase Auth user quota</span>
-          <span><Check /> Sessions can be revoked instantly</span>
-          <span><Check /> Provider secrets remain server-side</span>
+          <span><Check /> Secure account verification</span>
+          <span><Check /> Session protection included</span>
+          <span><Check /> Payment and registrar keys are never exposed</span>
         </div>
       </div>
       <div className="auth-form-pane">
@@ -582,11 +582,11 @@ function DashboardOverview() {
   const expiring = domains.filter((d) => d.expires_at && new Date(d.expires_at).getTime() < Date.now() + 30 * 86_400_000).length;
   return (
     <>
-      <div className="page-heading"><div><span className="kicker">Customer portal</span><h1>Overview</h1><p>Your domain portfolio and recent automation activity.</p></div><Link to="/register-domain" search={{}} className="button button-primary"><Plus size={18} /> Register domain</Link></div>
+      <div className="page-heading"><div><span className="kicker">Customer portal</span><h1>Overview</h1><p>Your domains, orders and recent account activity.</p></div><Link to="/register-domain" search={{}} className="button button-primary"><Plus size={18} /> Register domain</Link></div>
       <div className="metric-grid">
         <div className="metric-card"><div className="metric-icon blue"><Globe2 /></div><span>Managed domains</span><strong>{domains.length}</strong><small>{domains.filter((d) => d.status === "active").length} active</small></div>
-        <div className="metric-card"><div className="metric-icon green"><RefreshCw /></div><span>Auto-renew enabled</span><strong>{domains.filter((d) => d.auto_renew).length}</strong><small>Renewal orders generated automatically</small></div>
-        <div className="metric-card"><div className="metric-icon orange"><Clock3 /></div><span>Expiring in 30 days</span><strong>{expiring}</strong><small>Email reminders are automatic</small></div>
+        <div className="metric-card"><div className="metric-icon green"><RefreshCw /></div><span>Auto-renew enabled</span><strong>{domains.filter((d) => d.auto_renew).length}</strong><small>Renewals can be paid from your account</small></div>
+        <div className="metric-card"><div className="metric-icon orange"><Clock3 /></div><span>Expiring in 30 days</span><strong>{expiring}</strong><small>Email reminders are enabled</small></div>
         <div className="metric-card"><div className="metric-icon purple"><FileText /></div><span>Recent orders</span><strong>{data.data.orders.length}</strong><small>{data.data.orders.filter((o) => o.status === "completed").length} completed</small></div>
       </div>
       <div className="dashboard-grid">
@@ -595,8 +595,8 @@ function DashboardOverview() {
           {domains.length ? <div className="table-wrap"><table><thead><tr><th>Domain</th><th>Status</th><th>Expires</th><th>Auto-renew</th></tr></thead><tbody>{domains.slice(0, 6).map((d) => <tr key={d.id}><td><Link to="/dashboard/domains/$domainId" params={{ domainId: d.id }} className="domain-cell"><Globe2 size={17} />{d.domain_name}</Link></td><td><StatusBadge value={d.status} /></td><td>{formatDate(d.expires_at)}</td><td>{d.auto_renew ? <span className="yes"><Check size={15} /> On</span> : "Off"}</td></tr>)}</tbody></table></div> : <EmptyState icon={<Globe2 />} title="No domains yet" text="Search for a new domain or transfer one you already own." action={<Link to="/register-domain" search={{}} className="button button-primary">Register a domain</Link>} />}
         </section>
         <section className="card activity-card">
-          <div className="card-heading"><div><h2>Recent activity</h2><p>System and lifecycle notifications.</p></div></div>
-          {data.data.notifications.length ? <div className="activity-list">{data.data.notifications.slice(0, 7).map((n) => <div className="activity-item" key={n.id}><div className="activity-dot" /><div><strong>{n.title}</strong><p>{n.message}</p><small>{formatDate(n.created_at)}</small></div></div>)}</div> : <EmptyState icon={<Bell />} title="No activity" text="Automation events will appear here." />}
+          <div className="card-heading"><div><h2>Recent activity</h2><p>Recent account notifications.</p></div></div>
+          {data.data.notifications.length ? <div className="activity-list">{data.data.notifications.slice(0, 7).map((n) => <div className="activity-item" key={n.id}><div className="activity-dot" /><div><strong>{n.title}</strong><p>{n.message}</p><small>{formatDate(n.created_at)}</small></div></div>)}</div> : <EmptyState icon={<Bell />} title="No activity" text="Account events will appear here." />}
         </section>
       </div>
     </>
@@ -655,7 +655,7 @@ function DomainDetailPage() {
           <div className="setting-row"><div className="setting-icon"><ShieldCheck /></div><div><strong>WHOIS privacy</strong><p>Registrant details are protected where the TLD supports it.</p></div><StatusBadge value={d.privacy_enabled ? "active" : "disabled"} /></div>
         </section>
         <section className="card">
-          <div className="card-heading"><div><h2>Nameservers</h2><p>Changes are queued and synchronized automatically.</p></div></div>
+          <div className="card-heading"><div><h2>Nameservers</h2><p>Nameserver changes are submitted to the registrar. Some changes may take time to appear.</p></div></div>
           <form className="form-stack" onSubmit={(event) => {
             event.preventDefault();
             const form = new FormData(event.currentTarget);
@@ -669,7 +669,7 @@ function DomainDetailPage() {
         </section>
       </div>
       <section className="card">
-        <div className="card-heading"><div><h2>DNS records</h2><p>Manage zone records directly through DomainNameAPI.</p></div></div>
+        <div className="card-heading"><div><h2>DNS records</h2><p>Add and manage DNS records for this domain.</p></div></div>
         <form className="dns-add-row" onSubmit={(event) => {
           event.preventDefault();
           const f = Object.fromEntries(new FormData(event.currentTarget));
@@ -733,7 +733,7 @@ function OrdersPage() {
         <div>
           <span className="kicker">Billing</span>
           <h1>Orders & payments</h1>
-          <p>Track domain purchases, poll CamerPay and complete pending checkout.</p>
+          <p>Track orders, payments and invoices.</p>
         </div>
       </div>
 
@@ -741,7 +741,7 @@ function OrdersPage() {
       {checkStatus.isSuccess && (
         <div className={checkStatus.data.payment.status === "paid" ? "alert alert-success" : "alert alert-warning"}>
           {checkStatus.data.payment.status === "paid"
-            ? "Payment confirmed. The order was permanently marked as paid and registrar processing is queued."
+            ? "Payment confirmed. We are now processing your domain order."
             : `CamerPay currently reports ${checkStatus.data.providerStatus || checkStatus.data.payment.status}. You can check again.`}
         </div>
       )}
@@ -815,7 +815,7 @@ function OrdersPage() {
               <h2>Complete payment</h2>
               <button className="icon-button" onClick={() => setPaying(null)}><X /></button>
             </div>
-            <p>CamerPay will open a secure checkout page. Payment confirmation is checked by polling.</p>
+            <p>CamerPay will open a secure checkout page. We will update the order when the payment is confirmed.</p>
             <form
               className="form-stack"
               onSubmit={(event) => {
@@ -863,7 +863,7 @@ function ContactsPage() {
       <div className="page-heading"><div><span className="kicker">Registrant data</span><h1>Contacts</h1><p>Reusable contact information for registration and transfers.</p></div></div>
       <div className="contacts-grid">
         <section className="card">
-          <div className="card-heading"><div><h2>Saved contacts</h2><p>DomainNameAPI requires complete registrant details.</p></div></div>
+          <div className="card-heading"><div><h2>Saved contacts</h2><p>Complete registrant details are required to register or transfer a domain.</p></div></div>
           {data.isPending ? <LoadingBlock /> : data.data?.contacts.length ? <div className="contact-list">{data.data.contacts.map((c) => <div className="contact-card" key={c.id}><div className="avatar">{c.first_name[0]}{c.last_name[0]}</div><div><strong>{c.first_name} {c.last_name}</strong><span>{c.label}{c.is_default ? " · Default" : ""}</span><small>{c.email}<br />{c.city}, {c.country}</small></div>{c.is_default && <BadgeCheck className="verified-icon" />}</div>)}</div> : <EmptyState icon={<UserRound />} title="No contacts" text="Add a complete registrant contact before ordering a domain." />}
         </section>
         <section className="card">
@@ -1026,7 +1026,7 @@ function PaymentReturnPage() {
           <>
             <LoaderCircle className="spin return-loader" />
             <h1>Confirming payment</h1>
-            <p>The platform checks CamerPay every 5 seconds. A webhook is not required.</p>
+            <p>We are checking your payment status. This usually takes a few seconds.</p>
           </>
         ) : status.isError ? (
           <>
@@ -1049,7 +1049,7 @@ function PaymentReturnPage() {
           <>
             <BadgeCheck className="return-success" />
             <h1>Payment confirmed</h1>
-            <p>The payment and order were permanently marked as paid. Registrar processing is now queued.</p>
+            <p>Payment confirmed. We are now processing your domain order.</p>
           </>
         ) : ["failed", "cancelled", "refunded"].includes(paymentStatus || "") ? (
           <>
@@ -1064,8 +1064,8 @@ function PaymentReturnPage() {
             <h1>Payment pending</h1>
             <p>
               {pollingStopped
-                ? "Automatic polling paused after 5 minutes. Use the button below to check again."
-                : "The platform is polling CamerPay every 5 seconds for up to 5 minutes."}
+                ? "We could not confirm the payment after 5 minutes. Use the button below to check again."
+                : "We are checking CamerPay for confirmation. This can take a few minutes."}
             </p>
             {lastChecked && <small className="last-checked">Last checked at {lastChecked}</small>}
             <div className="return-actions">

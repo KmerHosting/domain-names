@@ -257,7 +257,7 @@ async function enhanceBillingDocuments() {
   const section = document.createElement("section");
   section.id = "khd-billing-documents";
   section.className = "card khd-documents-card";
-  section.innerHTML = `<div class="card-heading"><div><h2>Invoices & receipts</h2><p>Download paid billing documents generated with PDFKit.</p></div></div><div class="khd-documents-list"><div class="khd-documents-loading">Loading billing documents…</div></div>`;
+  section.innerHTML = `<div class="card-heading"><div><h2>Invoices & receipts</h2><p>Download invoices and receipts for paid orders.</p></div></div><div class="khd-documents-list"><div class="khd-documents-loading">Loading billing documents…</div></div>`;
   heading.insertAdjacentElement("afterend", section);
   try {
     const docs = await listBillingDocuments();
