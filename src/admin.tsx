@@ -1,5 +1,4 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useNavigate } from "@tanstack/react-router";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -17,7 +16,7 @@ import {
   UserRound,
   XCircle,
 } from "lucide-react";
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import { FormEvent, ReactNode, useMemo, useState } from "react";
 import { adminApi, api, clearSession, formatDate, formatMoney, getSession, type User } from "./api";
 
 type AdminSummary = {
@@ -55,12 +54,7 @@ function AdminPanel({ title, description, children }: { title: string; descripti
 }
 
 function useAdminGuard() {
-  const navigate = useNavigate();
-  const me = useQuery({ queryKey: ["me"], queryFn: () => api<{ user: User }>("/me"), enabled: Boolean(getSession()) });
-  useEffect(() => {
-    if (!getSession()) navigate({ to: "/auth", search: {} });
-  }, [navigate]);
-  return me;
+  return useQuery({ queryKey: ["me"], queryFn: () => api<{ user: User }>("/me"), enabled: Boolean(getSession()) });
 }
 
 function OverviewTab({ summary }: { summary?: AdminSummary }) {
@@ -170,25 +164,24 @@ function AdminContent({ tab, summary }: { tab: AdminTab; summary?: AdminSummary 
 
 export default function AdminPage() {
   const me = useAdminGuard();
-  const navigate = useNavigate();
   const [tab, setTab] = useState<AdminTab>("overview");
   const summary = useQuery({ queryKey: ["admin", "summary"], queryFn: () => adminApi<AdminSummary>("/summary"), enabled: me.data?.user.role === "admin", refetchInterval: 30_000 });
   const tabs = useMemo(() => [
     ["overview", "Overview", ShieldCheck], ["users", "Users", UserRound], ["orders", "Orders", CreditCard], ["domains", "Domains", Globe2], ["payments", "Payments", FileText], ["tlds", "TLD pricing", Database], ["jobs", "Jobs", RefreshCw], ["settings", "Settings", Settings2],
   ] as const, []);
 
-  if (!getSession()) return <div className="return-page"><div className="return-card"><LockKeyhole /><h1>Admin access</h1><p>Sign in with the administrator account.</p><Link to="/auth" search={{}} className="button button-primary">Sign in</Link></div></div>;
+  if (!getSession()) return <div className="return-page"><div className="return-card"><LockKeyhole /><h1>Admin access</h1><p>Sign in with the administrator account.</p><a href="/auth" className="button button-primary">Sign in</a></div></div>;
   if (me.isPending) return <div className="return-page"><div className="return-card"><LoaderCircle className="spin" /><h1>Checking admin access</h1></div></div>;
-  if (me.isError || me.data?.user.role !== "admin") return <div className="return-page"><div className="return-card"><XCircle className="return-error" /><h1>Access denied</h1><p>This page is reserved for the single platform administrator.</p><Link to="/dashboard" className="button button-primary">Open dashboard</Link></div></div>;
+  if (me.isError || me.data?.user.role !== "admin") return <div className="return-page"><div className="return-card"><XCircle className="return-error" /><h1>Access denied</h1><p>This page is reserved for the single platform administrator.</p><a href="/dashboard" className="button button-primary">Open dashboard</a></div></div>;
 
   return <div className="admin-shell">
     <aside className="admin-sidebar">
       <div className="admin-brand"><ShieldCheck /><div><strong>KmerHosting Admin</strong><small>{me.data.user.email}</small></div></div>
       <nav>{tabs.map(([key, label, Icon]) => <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}><Icon size={18} /> {label}</button>)}</nav>
-      <div className="admin-sidebar-bottom"><Link to="/dashboard" className="button button-secondary"><ArrowLeft size={16} /> Customer dashboard</Link><button className="button button-ghost" onClick={() => { clearSession(); navigate({ to: "/" }); }}>Sign out</button></div>
+      <div className="admin-sidebar-bottom"><a href="/dashboard" className="button button-secondary"><ArrowLeft size={16} /> Customer dashboard</a><button className="button button-ghost" onClick={() => { clearSession(); window.location.assign("/"); }}>Sign out</button></div>
     </aside>
     <main className="admin-main">
-      <div className="page-heading"><div><span className="kicker">Single admin account</span><h1>Platform administration</h1><p>Manage users, orders, payments, domains, jobs, pricing and platform settings.</p></div><div className="heading-actions"><button className="button button-secondary" onClick={() => summary.refetch()}><RefreshCw size={16} /> Refresh</button><Link to="/" className="button button-primary"><Search size={16} /> Search site</Link></div></div>
+      <div className="page-heading"><div><span className="kicker">Single admin account</span><h1>Platform administration</h1><p>Manage users, orders, payments, domains, jobs, pricing and platform settings.</p></div><div className="heading-actions"><button className="button button-secondary" onClick={() => summary.refetch()}><RefreshCw size={16} /> Refresh</button><a href="/" className="button button-primary"><Search size={16} /> Search site</a></div></div>
       {summary.isError && <div className="alert alert-error">{adminError(summary.error)}</div>}
       <AdminContent tab={tab} summary={summary.data} />
     </main>
