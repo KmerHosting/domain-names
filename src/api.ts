@@ -7,6 +7,9 @@ const PAYMENT_API_URL =
 const WALLET_API_URL =
   import.meta.env.VITE_DOMAIN_WALLET_API_URL ||
   "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-wallet";
+const ADMIN_API_URL =
+  import.meta.env.VITE_DOMAIN_ADMIN_API_URL ||
+  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-admin";
 const PUBLISHABLE_KEY =
   import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
   "sb_publishable_DA_Z7P8cQ0CNAA26nekJTg_Tm0LLaO8";
@@ -124,6 +127,10 @@ export async function paymentApi<T>(path: string, options: ApiOptions = {}): Pro
 
 export async function walletApi<T>(path: string, options: ApiOptions = {}): Promise<T> {
   return await request<T>(WALLET_API_URL, path, options);
+}
+
+export async function adminApi<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  return await request<T>(ADMIN_API_URL, path, options);
 }
 
 export function formatMoney(value: number | string, currency = "USD"): string {
