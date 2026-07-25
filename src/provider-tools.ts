@@ -162,7 +162,7 @@ async function installContactProviderTools() {
   contacts.forEach((contact) => {
     const row = el("div", "khd-doc-row");
     const label = el("div");
-    label.innerHTML = `<strong>${contact.first_name} ${contact.last_name}</strong><small>${contact.email} · ${contact.domain provider_handle || "Not synced yet"}</small>`;
+    label.innerHTML = `<strong>${contact.first_name} ${contact.last_name}</strong><small>${contact.email} · ${contact.registrar_handle || "Not synced yet"}</small>`;
     const actions = el("div", "khd-doc-actions");
     actions.append(
       button("Create handle", async () => renderJson(output, await provider(`/contacts/${contact.id}/provider`, "POST")), "khd-provider-button"),

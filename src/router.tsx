@@ -251,7 +251,7 @@ function HomePage() {
     queryFn: () => api<{ prices: TldPrice[] }>("/prices"),
   });
   const search = useMutation({
-    mutationFn: (domains: string[]) => api<{ results: Array<{ domainName: string; domain provider: Record<string, unknown>; price: TldPrice | null }> }>("/domains/check", {
+    mutationFn: (domains: string[]) => api<{ results: Array<{ domainName: string; registrar: Record<string, unknown>; price: TldPrice | null }> }>("/domains/check", {
       method: "POST",
       body: { domains },
     }),
@@ -308,7 +308,7 @@ function HomePage() {
               {search.isPending && <LoadingBlock label="Checking domain availability" />}
               {search.isError && <div className="alert alert-error">{errorText(search.error)}</div>}
               {search.data?.results.map((result) => {
-                const raw = result.domain provider as Record<string, any>;
+                const raw = result.registrar as Record<string, any>;
                 const availableValue = raw.available ?? raw.isAvailable ?? raw.data?.available ?? raw.data?.isAvailable ?? raw.status;
                 const available = ["true", "available", "free", "1"].includes(String(availableValue).toLowerCase());
                 return (
