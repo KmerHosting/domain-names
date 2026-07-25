@@ -95,6 +95,17 @@ function installHashNavigationFix() {
   }, true);
 }
 
+function installWalletReturnFix() {
+  if ((window as any).__khdWalletReturnFixInstalled) return;
+  (window as any).__khdWalletReturnFixInstalled = true;
+  const params = new URLSearchParams(window.location.search);
+  const walletTopup = params.get("walletTopup");
+  const hasOrderPayment = params.has("order") || params.has("invoice");
+  if (window.location.pathname === "/payment/return" && walletTopup && !hasOrderPayment) {
+    window.location.replace(`/dashboard/orders?walletTopup=${encodeURIComponent(walletTopup)}`);
+  }
+}
+
 function WalletWidget() {
   const [hasSession, setHasSession] = useState(Boolean(getSession()));
   const [open, setOpen] = useState(false);
@@ -270,6 +281,7 @@ function injectWalletStyles() {
   document.head.appendChild(style);
 }
 
+installWalletReturnFix();
 installFetchNormalizer();
 installHashNavigationFix();
 injectWalletStyles();
