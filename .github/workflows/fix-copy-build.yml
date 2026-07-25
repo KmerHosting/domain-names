@@ -1,0 +1,60 @@
+name: Fix Copy Build
+
+on:
+  push:
+    paths:
+      - .github/workflows/fix-copy-build.yml
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+      - name: Restore internal identifiers and keep customer copy clean
+        run: |
+          python3 <<'PY'
+          from pathlib import Path
+
+          paths = [Path('src/router.tsx'), Path('src/runtime-fixes.tsx'), Path('src/domain-control-patches.ts'), Path('src/provider-tools.ts')]
+          for path in paths:
+              if not path.exists():
+                  continue
+              text = path.read_text()
+              original = text
+              # Restore code identifiers broken by the previous global copy replacement.
+              text = text.replace('domain provider', 'registrar')
+              text = text.replace('domain_provider', 'registrar')
+              text = text.replace('contact.registrar_handle', 'contact.registrar_handle')
+
+              # Keep visible customer copy clean.
+              text = text.replace('Create the order, then complete secure Secure checkout.', 'Create the order, then complete checkout.')
+              text = text.replace('Create the order, then complete secure checkout.', 'Create the order, then complete checkout.')
+              text = text.replace('Enter the current registrar EPP/auth code. It is encrypted before storage.', 'Enter the transfer authorization code from your current provider.')
+              text = text.replace('EPP / authorization code', 'Transfer authorization code')
+              text = text.replace('Checking registrar availability', 'Checking domain availability')
+              text = text.replace('Registrar lock', 'Domain lock')
+              text = text.replace('Transfer lock', 'Domain lock')
+              text = text.replace('Order paid from balance. Registrar processing is queued.', 'Order paid from balance. We are now processing your domain order.')
+              text = text.replace('Order paid from balance. Domain provider processing is queued.', 'Order paid from balance. We are now processing your domain order.')
+              text = text.replace('Domain provider processing is queued.', 'We are now processing your domain order.')
+
+              if text != original:
+                  path.write_text(text)
+          PY
+      - name: Remove temporary workflow
+        run: rm -f .github/workflows/fix-copy-build.yml
+      - name: Commit fix
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet; then
+            git add src/router.tsx src/runtime-fixes.tsx src/domain-control-patches.ts src/provider-tools.ts .github/workflows/fix-copy-build.yml
+            git commit -m "Restore internal identifiers after copy cleanup"
+            git push
+          fi
