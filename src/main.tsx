@@ -11,6 +11,7 @@ import "./domain-control-patches";
 import "./provider-tools";
 import "./admin-link";
 import "./notifications-panel";
+import "./customer-domain-tools";
 
 const queryClient = new QueryClient({
   defaultOptions: {
