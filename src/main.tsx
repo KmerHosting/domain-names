@@ -10,6 +10,7 @@ import "./runtime-fixes";
 import "./domain-control-patches";
 import "./provider-tools";
 import "./admin-link";
+import "./notifications-panel";
 
 const queryClient = new QueryClient({
   defaultOptions: {
