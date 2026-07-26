@@ -7,6 +7,7 @@ import AdminPage from "./admin";
 import "./styles.css";
 import "./admin.css";
 import "./runtime-button-fixes.css";
+import "./platform-status-banner";
 import "./runtime-fixes";
 import "./domain-control-patches";
 import "./provider-tools";
