@@ -1,8 +1,4 @@
-import { adminApi, formatDate, getSession } from "./api";
-
-const TLD_PROVIDER_SYNC_API_URL =
-  import.meta.env.VITE_DOMAIN_TLD_PROVIDER_SYNC_API_URL ||
-  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-tld-provider-sync";
+import { adminApi, formatDate, formatMoney, getSession } from "./api";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) {
   const n = document.createElement(tag);
@@ -43,18 +39,6 @@ function button(label: string, action: () => Promise<void> | void, cls = "khd-ad
   return b;
 }
 
-async function providerTldSync(mode: "catalog" | "prices" | "sync", extra = "") {
-  const token = getSession()?.token;
-  if (!token) throw new Error("Admin session is required.");
-  const res = await fetch(`${TLD_PROVIDER_SYNC_API_URL}?mode=${mode}&environment=production&margin=30&max=1000${extra}`, {
-    method: "POST",
-    headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
-  });
-  const payload = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(String(payload.message || payload.error || `Provider sync failed (${res.status}).`));
-  return payload as any;
-}
-
 function renderText(target: HTMLElement, lines: string[]) {
   target.textContent = lines.filter(Boolean).join("\n");
 }
@@ -67,8 +51,44 @@ function summarizeCatalogSync(data: any) {
     `Provider items returned: ${catalog.providerItems ?? 0}`,
     `TLDs imported/updated: ${catalog.importedProviderTlds ?? 0}`,
     `TLDs with provider catalog prices: ${catalog.tldsWithCatalogPrices ?? 0}`,
-    "Customer prices are provider cost +30%.",
-    prices ? `Fallback price checks updated: ${prices.updated ?? 0}` : "No fallback product-info calls were needed for this action.",
+    `Customer margin: +${data?.marginPercent ?? 30}%`,
+    prices ? `Fallback product-info rows updated: ${prices.updated ?? 0}` : "No fallback product-info calls were needed for this action.",
+  ];
+}
+
+function summarizeProviderAccount(data: any) {
+  const p = data?.provider || data || {};
+  const balance = p.balance ?? p.amount ?? p.availableBalance ?? p.data?.balance ?? p.deposit ?? null;
+  const currency = p.currency ?? p.data?.currency ?? "USD";
+  return [
+    "Provider account loaded.",
+    balance === null || balance === undefined ? "Balance: not returned by provider" : `Balance: ${balance} ${currency}`,
+    p.accountCode ? `Account: ${p.accountCode}` : "",
+    p.resellerId ? "Reseller account: configured" : "",
+  ];
+}
+
+function summarizeProviderTransactions(data: any) {
+  const payload = data?.provider || data || {};
+  const items = Array.isArray(payload.items) ? payload.items : Array.isArray(payload.data) ? payload.data : Array.isArray(payload.results) ? payload.results : [];
+  return [
+    "Provider transactions loaded.",
+    `Transactions returned: ${items.length}`,
+    items.slice(0, 6).map((item: any) => {
+      const amount = item.amount ?? item.price ?? item.balance ?? "";
+      const date = item.createdAt ?? item.date ?? item.transactionDate ?? "";
+      const label = item.description ?? item.type ?? item.status ?? "transaction";
+      return `- ${label}${amount !== "" ? ` · ${amount}` : ""}${date ? ` · ${date}` : ""}`;
+    }).join("\n"),
+  ];
+}
+
+function summarizeProviderLogs(data: any) {
+  const rows = Array.isArray(data?.logs) ? data.logs : [];
+  return [
+    "Recent provider logs.",
+    `Rows: ${rows.length}`,
+    rows.slice(0, 8).map((row: any) => `- ${row.sync_type || "log"} · ${row.status || "unknown"} · ${formatDate(row.created_at)}${row.error_message ? ` · ${row.error_message}` : ""}`).join("\n"),
   ];
 }
 
@@ -118,20 +138,28 @@ function installAdminToolbox() {
   const root = document.querySelector(".admin-main, .dashboard-content, main") || document.body;
   const panel = el("section", "card khd-admin-super-tools");
   panel.id = "khd-admin-super-tools";
-  panel.appendChild(heading("Admin maintenance", "Provider catalog, provider prices and operational cleanup."));
-  append(panel, "p", "Import provider catalog reads the TLD list and prices directly from DomainNameAPI /products/tlds. It does not use the old local seed list.", "khd-admin-help");
+  panel.appendChild(heading("Provider operations", "Use these actions to reconcile the platform with DomainNameAPI and provider state."));
+  append(panel, "p", "Client pages stay simple. This admin panel shows provider account, provider TLD catalog, provider prices, provider logs, domain sync and DNS cleanup.", "khd-admin-help");
 
-  const output = el("pre", "khd-admin-tools-output", "Choose one maintenance action. Results will be summarized here.");
+  const output = el("pre", "khd-admin-tools-output", "Choose a provider/admin action. A short summary will appear here.");
   const grid = el("div", "khd-admin-tools-grid");
   grid.append(
+    button("Provider account", async () => {
+      const data = await adminApi("/provider/account");
+      renderText(output, summarizeProviderAccount(data));
+    }),
+    button("Provider transactions", async () => {
+      const data = await adminApi("/provider/transactions?limit=20");
+      renderText(output, summarizeProviderTransactions(data));
+    }, "khd-admin-tool-button secondary"),
     button("Import provider TLD catalog", async () => {
-      const data = await providerTldSync("catalog");
+      const data = await adminApi("/tlds/sync?mode=catalog&margin=30&max=1000", { method: "POST" });
       renderText(output, summarizeCatalogSync(data));
       notify("Provider TLD catalog imported.");
       await refreshTables();
     }),
     button("Update missing prices", async () => {
-      const data = await providerTldSync("prices", "&limit=3");
+      const data: any = await adminApi("/tlds/sync?mode=prices&margin=30&limit=3", { method: "POST" });
       const p = data?.prices || {};
       renderText(output, [
         "Fallback provider price check completed.",
@@ -147,6 +175,10 @@ function installAdminToolbox() {
       renderText(output, ["Provider status refresh finished.", `Domains updated: ${data?.synced ?? 0}`, `Domains skipped/failed: ${data?.failed ?? 0}`]);
       notify("Domain status refresh completed.");
       await refreshTables();
+    }, "khd-admin-tool-button secondary"),
+    button("Provider logs", async () => {
+      const data = await adminApi("/provider/logs?limit=30");
+      renderText(output, summarizeProviderLogs(data));
     }, "khd-admin-tool-button secondary"),
     button("Check failed DNS", async () => {
       const data = await adminApi<{ dns: Array<Record<string, any>> }>("/dns?status=failed");
