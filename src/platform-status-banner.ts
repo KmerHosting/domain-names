@@ -7,8 +7,9 @@ function ensureStyles() {
   const style = document.createElement("style");
   style.id = "khd-platform-status-style";
   style.textContent = `
-    .khd-platform-status-banner{position:sticky;top:0;z-index:1200;background:#fff7ed;color:#9a3412;border-bottom:1px solid #fed7aa;padding:10px 16px;font-weight:800;text-align:center;font-size:14px;line-height:1.4}
+    .khd-platform-status-banner{position:relative;z-index:2;background:#fff7ed;color:#9a3412;border-bottom:1px solid #fed7aa;padding:10px 16px;font-weight:800;text-align:center;font-size:14px;line-height:1.4}
     .khd-platform-status-banner strong{color:#7c2d12}
+    .khd-platform-status-banner small{display:block;font-weight:700;color:#9a3412;opacity:.88;margin-top:2px}
   `;
   document.head.appendChild(style);
 }
@@ -24,9 +25,12 @@ async function installPlatformStatusBanner() {
     banner.id = "khd-platform-status-banner";
     banner.className = "khd-platform-status-banner";
     const prefix = document.createElement("strong");
-    prefix.textContent = "Checkout paused. ";
+    prefix.textContent = "Test mode. ";
+    const details = document.createElement("small");
+    details.textContent = "Checkout is disabled until DomainNameAPI production and CamerPay live mode are enabled.";
     banner.appendChild(prefix);
     banner.appendChild(document.createTextNode(String(status.message || "Domain purchases are temporarily paused.")));
+    banner.appendChild(details);
     document.body.prepend(banner);
   } catch {
     // Do not block the app if the status endpoint is temporarily unavailable.
