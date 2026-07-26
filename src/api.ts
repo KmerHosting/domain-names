@@ -74,15 +74,29 @@ function authHeaders(extra?: HeadersInit): Headers {
   return headers;
 }
 
+function visibleEmailInputValue(): string {
+  const inputs = Array.from(document.querySelectorAll<HTMLInputElement>('input[name="email"], input[type="email"]'));
+  return inputs.map((input) => input.value.trim()).find(Boolean) || "";
+}
+
+function normalizeOptions(path: string, options: ApiOptions): ApiOptions {
+  if (path !== "/auth/login/request") return options;
+  const body = (options.body && typeof options.body === "object" && !Array.isArray(options.body) ? options.body : {}) as Record<string, unknown>;
+  const email = String(body.email || visibleEmailInputValue() || "").trim().toLowerCase();
+  if (!email) throw new ApiClientError(400, "invalid_email", "Enter your email address before requesting a sign-in code.");
+  return { ...options, body: { ...body, email } };
+}
+
 async function request<T>(baseUrl: string, path = "", options: ApiOptions = {}): Promise<T> {
+  const safeOptions = normalizeOptions(path, options);
   const headers = authHeaders();
-  if (options.body !== undefined) headers.set("Content-Type", "application/json");
-  if (options.idempotencyKey) headers.set("Idempotency-Key", options.idempotencyKey);
+  if (safeOptions.body !== undefined) headers.set("Content-Type", "application/json");
+  if (safeOptions.idempotencyKey) headers.set("Idempotency-Key", safeOptions.idempotencyKey);
   const response = await fetch(`${baseUrl}${path}`, {
-    method: options.method || "GET",
+    method: safeOptions.method || "GET",
     headers,
-    body: options.body === undefined ? undefined : JSON.stringify(options.body),
-    signal: options.signal,
+    body: safeOptions.body === undefined ? undefined : JSON.stringify(safeOptions.body),
+    signal: safeOptions.signal,
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
