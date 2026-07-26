@@ -32,6 +32,10 @@ function currentDomainId(): string | null {
   return window.location.pathname.match(/\/dashboard\/domains\/([0-9a-f-]+)/i)?.[1] || null;
 }
 
+function isOrdersRoute() {
+  return window.location.pathname === "/dashboard/orders";
+}
+
 function notify(message: string, kind: "success" | "error" = "success") {
   let box = document.getElementById("khd-runtime-message");
   if (!box) {
@@ -89,12 +93,10 @@ function installOfficialFetchRoutes() {
   if ((window as any).__khdOfficialFetchRoutesInstalled) return;
   (window as any).__khdOfficialFetchRoutesInstalled = true;
   const previousFetch = window.fetch.bind(window);
-
   window.fetch = async (input: RequestInfo | URL, init?: RequestInit) => {
     const rawUrl = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
     const url = new URL(rawUrl, window.location.origin);
     const method = String(init?.method || "GET").toUpperCase();
-
     if (url.pathname.endsWith("/domain-api/domains/check") && method === "POST") {
       return previousFetch(SEARCH_API_URL, { method: "POST", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: init?.body, signal: init?.signal });
     }
@@ -117,6 +119,18 @@ function installOfficialFetchRoutes() {
   };
 }
 
+function removeDuplicateNodes(selector: string) {
+  const nodes = Array.from(document.querySelectorAll(selector));
+  nodes.slice(1).forEach((node) => node.remove());
+}
+
+function cleanupRouteBlocks() {
+  if (!currentDomainId()) document.querySelectorAll(".khd-dns-tools,[data-khd-lock-button],[data-khd-privacy-button]").forEach((node) => node.remove());
+  if (!isOrdersRoute()) document.querySelectorAll("#khd-billing-documents,.khd-documents-card").forEach((node) => node.remove());
+  removeDuplicateNodes("#khd-billing-documents");
+  removeDuplicateNodes(".khd-dns-tools");
+}
+
 function enhanceSettingRows() {
   const domainId = currentDomainId();
   if (!domainId) return;
@@ -134,12 +148,11 @@ function enhanceSettingRows() {
     button.setAttribute(`data-khd-${key}-button`, "true");
     button.textContent = isLock ? (active ? "Unlock" : "Lock") : (active ? "Disable privacy" : "Enable privacy");
     button.addEventListener("click", async () => {
+      const oldText = button.textContent || "Save";
       button.disabled = true;
-      const targetState = !active;
-      const oldText = button.textContent || "Saving";
       button.textContent = "Saving…";
       try {
-        await ops(`/domains/${domainId}/${key}`, "POST", { enabled: targetState });
+        await ops(`/domains/${domainId}/${key}`, "POST", { enabled: !active });
         notify(isLock ? "Domain lock updated." : "WHOIS privacy updated.");
         window.setTimeout(() => window.location.reload(), 700);
       } catch (error) {
@@ -216,7 +229,7 @@ function appendText(parent: HTMLElement, tag: keyof HTMLElementTagNameMap, text:
 }
 
 async function enhanceBillingDocuments() {
-  if (window.location.pathname !== "/dashboard/orders" || !getSession()) return;
+  if (!isOrdersRoute() || !getSession()) return;
   const heading = document.querySelector<HTMLElement>(".page-heading");
   if (!heading || document.getElementById("khd-billing-documents")) return;
   const section = document.createElement("section");
@@ -273,6 +286,7 @@ function installDomEnhancements() {
   if ((window as any).__khdDomOpsInstalled) return;
   (window as any).__khdDomOpsInstalled = true;
   const run = () => {
+    cleanupRouteBlocks();
     enhanceSettingRows();
     enhanceDnsTools();
     enhanceUnknownSearchLabels();
