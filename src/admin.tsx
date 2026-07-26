@@ -41,6 +41,11 @@ function StatusBadge({ value }: { value?: string | null }) {
   return <span className={`status status-${cls}`}>{text}</span>;
 }
 
+function moneyOrDash(value: unknown) {
+  const n = Number(value || 0);
+  return Number.isFinite(n) && n > 0 ? formatMoney(n) : "—";
+}
+
 function AdminMetric({ icon, label, value, hint }: { icon: ReactNode; label: string; value: ReactNode; hint?: string }) {
   return <div className="admin-metric"><div className="admin-metric-icon">{icon}</div><span>{label}</span><strong>{value}</strong>{hint && <small>{hint}</small>}</div>;
 }
@@ -85,7 +90,7 @@ function UsersTab() {
   if (query.isPending) return <div className="loading"><LoaderCircle className="spin" size={20} /> Loading users</div>;
   if (query.isError) return <div className="alert alert-error">{adminError(query.error)}</div>;
   return <AdminPanel title="Users" description="Suspend accounts, restore accounts and adjust wallet balance when needed.">
-    <AdminTable><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Balance</th><th>Last login</th><th>Actions</th></tr></thead><tbody>{query.data.users.map((user) => <tr key={user.id}><td><strong>{user.full_name}</strong><small>{user.email}</small></td><td>{user.role}</td><td><StatusBadge value={user.status} /></td><td>{formatMoney(user.balance_usd || 0)}</td><td>{formatDate(user.last_login_at)}</td><td><div className="admin-actions"><button onClick={() => update.mutate({ id: user.id, body: { status: user.status === "active" ? "suspended" : "active" } })}>{user.status === "active" ? "Suspend" : "Activate"}</button><button onClick={() => { const v = prompt("New USD balance", String(user.balance_usd || 0)); if (v !== null) update.mutate({ id: user.id, body: { balanceUsd: Number(v) } }); }}>Set balance</button></div></td></tr>)}</tbody></AdminTable>
+    <AdminTable><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Balance</th><th>Last login</th><th>Actions</th></tr></thead><tbody>{query.data.users.map((user) => <tr key={user.id}><td><strong>{user.full_name}</strong><small>{user.email}</small></td><td>{user.role}</td><td><StatusBadge value={user.status} /></td><td>{formatMoney(user.balance_usd || 0)}</td><td>{formatDate(user.last_login_at)}</td><td><div className="admin-actions"><button disabled={user.role === "admin" && user.status === "active"} title={user.role === "admin" ? "The active admin account cannot suspend itself." : undefined} onClick={() => update.mutate({ id: user.id, body: { status: user.status === "active" ? "suspended" : "active" } })}>{user.status === "active" ? "Suspend" : "Activate"}</button><button onClick={() => { const v = prompt("New USD balance", String(user.balance_usd || 0)); if (v !== null) update.mutate({ id: user.id, body: { balanceUsd: Number(v) } }); }}>Set balance</button></div></td></tr>)}</tbody></AdminTable>
     {update.isError && <div className="alert alert-error">{adminError(update.error)}</div>}
   </AdminPanel>;
 }
@@ -126,9 +131,13 @@ function TldsTab() {
   const query = useQuery({ queryKey: ["admin", "tlds"], queryFn: () => adminApi<{ tlds: Array<Record<string, any>> }>("/tlds") });
   const client = useQueryClient();
   const update = useMutation({ mutationFn: ({ tld, body }: { tld: string; body: Record<string, unknown> }) => adminApi(`/tlds/${encodeURIComponent(tld)}`, { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "tlds"] }) });
-  if (query.isPending) return <div className="loading"><LoaderCircle className="spin" size={20} /> Loading TLD pricing</div>;
+  if (query.isPending) return <div className="loading"><LoaderCircle className="spin" size={20} /> Loading provider TLD catalog</div>;
   if (query.isError) return <div className="alert alert-error">{adminError(query.error)}</div>;
-  return <AdminPanel title="TLD pricing" description="Enable extensions and adjust customer prices in USD."><AdminTable><thead><tr><th>TLD</th><th>Registration</th><th>Renewal</th><th>Transfer</th><th>Flags</th><th>Actions</th></tr></thead><tbody>{query.data.tlds.map((tld) => <tr key={tld.tld}><td><strong>{tld.tld}</strong><small>Cost {formatMoney(tld.registration_cost_usd || 0)}</small></td><td>{formatMoney(tld.registration_price_usd)}</td><td>{formatMoney(tld.renewal_price_usd)}</td><td>{formatMoney(tld.transfer_price_usd)}</td><td><StatusBadge value={tld.enabled ? "enabled" : "disabled"} /> {tld.popular && <StatusBadge value="popular" />}</td><td><div className="admin-actions"><button onClick={() => update.mutate({ tld: tld.tld, body: { enabled: !tld.enabled } })}>{tld.enabled ? "Disable" : "Enable"}</button><button onClick={() => { const v = prompt(`Registration price for ${tld.tld}`, String(tld.registration_price_usd)); if (v !== null) update.mutate({ tld: tld.tld, body: { registrationPriceUsd: Number(v) } }); }}>Set price</button></div></td></tr>)}</tbody></AdminTable></AdminPanel>;
+  const rows = (query.data.tlds || []).filter((tld) => Boolean(tld.provider_available));
+  return <AdminPanel title="Provider TLD catalog" description="TLDs imported from DomainNameAPI. Customer prices are provider cost +30%."><AdminTable><thead><tr><th>TLD</th><th>Provider cost</th><th>Customer price</th><th>Sync</th><th>Sale status</th><th>Actions</th></tr></thead><tbody>{rows.map((tld) => {
+    const canEnable = Number(tld.registration_price_usd || 0) > 0;
+    return <tr key={tld.tld}><td><strong>{tld.tld}</strong><small>Provider product: {tld.provider_product_name || tld.tld.replace(".", "")}</small></td><td><small>Register: {moneyOrDash(tld.registration_cost_usd)}</small><small>Renew: {moneyOrDash(tld.renewal_cost_usd)}</small><small>Transfer: {moneyOrDash(tld.transfer_cost_usd)}</small></td><td><small>Register: {moneyOrDash(tld.registration_price_usd)}</small><small>Renew: {moneyOrDash(tld.renewal_price_usd)}</small><small>Transfer: {moneyOrDash(tld.transfer_price_usd)}</small></td><td><StatusBadge value={tld.registration_sync_status || "pending"} /> <small>{formatDate(tld.provider_catalog_seen_at || tld.last_synced_at)}</small></td><td><StatusBadge value={tld.enabled ? "enabled" : "disabled"} /> {tld.popular && <StatusBadge value="popular" />}</td><td><div className="admin-actions"><button disabled={!canEnable && !tld.enabled} title={!canEnable ? "Missing provider registration price." : undefined} onClick={() => update.mutate({ tld: tld.tld, body: { enabled: !tld.enabled } })}>{tld.enabled ? "Disable" : "Enable"}</button><button onClick={() => { const v = prompt(`Customer registration price for ${tld.tld}`, String(tld.registration_price_usd || 0)); if (v !== null) update.mutate({ tld: tld.tld, body: { registrationPriceUsd: Number(v) } }); }}>Set price</button></div></td></tr>;
+  })}</tbody></AdminTable>{!rows.length && <p className="admin-empty">No provider TLD catalog imported yet. Use “Import provider TLD catalog”.</p>}</AdminPanel>;
 }
 
 function JobsTab() {
@@ -167,7 +176,7 @@ export default function AdminPage() {
   const [tab, setTab] = useState<AdminTab>("overview");
   const summary = useQuery({ queryKey: ["admin", "summary"], queryFn: () => adminApi<AdminSummary>("/summary"), enabled: me.data?.user.role === "admin", refetchInterval: 30_000 });
   const tabs = useMemo(() => [
-    ["overview", "Overview", ShieldCheck], ["users", "Users", UserRound], ["orders", "Orders", CreditCard], ["domains", "Domains", Globe2], ["payments", "Payments", FileText], ["tlds", "TLD pricing", Database], ["jobs", "Jobs", RefreshCw], ["settings", "Settings", Settings2],
+    ["overview", "Overview", ShieldCheck], ["users", "Users", UserRound], ["orders", "Orders", CreditCard], ["domains", "Domains", Globe2], ["payments", "Payments", FileText], ["tlds", "Provider TLDs", Database], ["jobs", "Jobs", RefreshCw], ["settings", "Settings", Settings2],
   ] as const, []);
 
   if (!getSession()) return <div className="return-page"><div className="return-card"><LockKeyhole /><h1>Admin access</h1><p>Sign in with the administrator account.</p><a href="/auth" className="button button-primary">Sign in</a></div></div>;
@@ -181,7 +190,7 @@ export default function AdminPage() {
       <div className="admin-sidebar-bottom"><a href="/dashboard" className="button button-secondary"><ArrowLeft size={16} /> Customer dashboard</a><button className="button button-ghost" onClick={() => { clearSession(); window.location.assign("/"); }}>Sign out</button></div>
     </aside>
     <main className="admin-main">
-      <div className="page-heading"><div><span className="kicker">Single admin account</span><h1>Platform administration</h1><p>Manage users, orders, payments, domains, jobs, pricing and platform settings.</p></div><div className="heading-actions"><button className="button button-secondary" onClick={() => summary.refetch()}><RefreshCw size={16} /> Refresh</button><a href="/" className="button button-primary"><Search size={16} /> Search site</a></div></div>
+      <div className="page-heading"><div><span className="kicker">Single admin account</span><h1>Platform administration</h1><p>Manage users, orders, payments, domains, jobs, provider pricing and platform settings.</p></div><div className="heading-actions"><button className="button button-secondary" onClick={() => summary.refetch()}><RefreshCw size={16} /> Refresh</button><a href="/" className="button button-primary"><Search size={16} /> Search site</a></div></div>
       {summary.isError && <div className="alert alert-error">{adminError(summary.error)}</div>}
       <AdminContent tab={tab} summary={summary.data} />
     </main>
