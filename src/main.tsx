@@ -6,6 +6,7 @@ import { router } from "./router";
 import AdminPage from "./admin";
 import "./styles.css";
 import "./admin.css";
+import "./runtime-button-fixes.css";
 import "./runtime-fixes";
 import "./domain-control-patches";
 import "./provider-tools";
@@ -13,6 +14,7 @@ import "./notifications-panel";
 import "./customer-domain-tools";
 import "./transfer-page-fixes";
 import "./admin-super-tools";
+import "./auth-otp-guard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
