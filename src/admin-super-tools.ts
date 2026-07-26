@@ -56,7 +56,17 @@ function heading(title: string, description: string) {
   return wrap;
 }
 
+function cleanupAdminToolbox() {
+  if (window.location.pathname !== "/admin") {
+    document.querySelectorAll("#khd-admin-super-tools").forEach((node) => node.remove());
+    return;
+  }
+  const nodes = Array.from(document.querySelectorAll("#khd-admin-super-tools"));
+  nodes.slice(1).forEach((node) => node.remove());
+}
+
 function installAdminToolbox() {
+  cleanupAdminToolbox();
   if (window.location.pathname !== "/admin" || !getSession()) return;
   if (document.getElementById("khd-admin-super-tools")) return;
   const root = document.querySelector(".admin-main, .dashboard-content, main") || document.body;
