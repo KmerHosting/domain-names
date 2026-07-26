@@ -1,5 +1,9 @@
 import { adminApi, formatDate, getSession } from "./api";
 
+const TLD_PROVIDER_SYNC_API_URL =
+  import.meta.env.VITE_DOMAIN_TLD_PROVIDER_SYNC_API_URL ||
+  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-tld-provider-sync";
+
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) {
   const n = document.createElement(tag);
   if (cls) n.className = cls;
@@ -39,22 +43,32 @@ function button(label: string, action: () => Promise<void> | void, cls = "khd-ad
   return b;
 }
 
+async function providerTldSync(mode: "catalog" | "prices" | "sync", extra = "") {
+  const token = getSession()?.token;
+  if (!token) throw new Error("Admin session is required.");
+  const res = await fetch(`${TLD_PROVIDER_SYNC_API_URL}?mode=${mode}&environment=production&margin=30&max=1000${extra}`, {
+    method: "POST",
+    headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(String(payload.message || payload.error || `Provider sync failed (${res.status}).`));
+  return payload as any;
+}
+
 function renderText(target: HTMLElement, lines: string[]) {
   target.textContent = lines.filter(Boolean).join("\n");
 }
 
-function summarizeProviderSync(data: any) {
-  const details = Array.isArray(data?.details) ? data.details : [];
-  const rateLimited = details.filter((d: any) => String(d.error || "").includes("429")).length;
-  const periodErrors = details.filter((d: any) => /period/i.test(String(d.error || ""))).length;
-  const otherErrors = Math.max(0, details.length - rateLimited - periodErrors);
+function summarizeCatalogSync(data: any) {
+  const catalog = data?.catalog || {};
+  const prices = data?.prices || null;
   return [
-    "TLD price sync started.",
-    `Updated TLD rows: ${data?.synced ?? 0}`,
-    `Skipped/failed rows: ${data?.failed ?? 0}`,
-    rateLimited ? `Provider rate limit hit on ${rateLimited} price checks. This is normal when too many prices are requested at once. The background sync will continue progressively.` : "No provider rate limit reported in this run.",
-    periodErrors ? `${periodErrors} price checks need a different provider period. Those TLDs should be reviewed later.` : "",
-    otherErrors ? `${otherErrors} other provider errors were hidden from the UI. Check logs only if prices remain missing.` : "",
+    "Provider TLD catalog imported from DomainNameAPI.",
+    `Provider items returned: ${catalog.providerItems ?? 0}`,
+    `TLDs imported/updated: ${catalog.importedProviderTlds ?? 0}`,
+    `TLDs with provider catalog prices: ${catalog.tldsWithCatalogPrices ?? 0}`,
+    "Customer prices are provider cost +30%.",
+    prices ? `Fallback price checks updated: ${prices.updated ?? 0}` : "No fallback product-info calls were needed for this action.",
   ];
 }
 
@@ -104,22 +118,28 @@ function installAdminToolbox() {
   const root = document.querySelector(".admin-main, .dashboard-content, main") || document.body;
   const panel = el("section", "card khd-admin-super-tools");
   panel.id = "khd-admin-super-tools";
-  panel.appendChild(heading("Admin maintenance", "Use these only when you need to reconcile the platform with provider state."));
-  append(panel, "p", "Price sync is intentionally small per click because the provider rate-limits product price checks. A 429 means the provider asked us to slow down, not that the platform is broken.", "khd-admin-help");
+  panel.appendChild(heading("Admin maintenance", "Provider catalog, provider prices and operational cleanup."));
+  append(panel, "p", "Import provider catalog reads the TLD list and prices directly from DomainNameAPI /products/tlds. It does not use the old local seed list.", "khd-admin-help");
 
   const output = el("pre", "khd-admin-tools-output", "Choose one maintenance action. Results will be summarized here.");
   const grid = el("div", "khd-admin-tools-grid");
   grid.append(
-    button("Update a few TLD prices", async () => {
-      const data = await adminApi(`/tlds/sync?margin=30&limit=3`, { method: "POST" });
-      renderText(output, summarizeProviderSync(data));
-      notify("TLD price sync run completed.");
+    button("Import provider TLD catalog", async () => {
+      const data = await providerTldSync("catalog");
+      renderText(output, summarizeCatalogSync(data));
+      notify("Provider TLD catalog imported.");
       await refreshTables();
     }),
-    button("Re-apply +30% margin", async () => {
-      const data: any = await adminApi("/tlds/apply-margin?margin=30", { method: "POST" });
-      renderText(output, ["Stored provider costs were recalculated with a +30% customer margin.", `Updated TLD rows: ${data?.updated ?? 0}`]);
-      notify("Prices recalculated from stored provider costs.");
+    button("Update missing prices", async () => {
+      const data = await providerTldSync("prices", "&limit=3");
+      const p = data?.prices || {};
+      renderText(output, [
+        "Fallback provider price check completed.",
+        `Updated TLD rows: ${p.updated ?? 0}`,
+        `Failed checks: ${p.failed ?? 0}`,
+        p.rateLimited ? `Provider rate-limit hits: ${p.rateLimited}` : "No provider rate-limit reported.",
+      ]);
+      notify("Missing price check completed.");
       await refreshTables();
     }, "khd-admin-tool-button secondary"),
     button("Refresh domain statuses", async () => {
