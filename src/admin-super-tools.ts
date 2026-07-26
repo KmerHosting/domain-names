@@ -1,4 +1,8 @@
-import { adminApi, formatDate, formatMoney, getSession } from "./api";
+import { adminApi, formatDate, getSession } from "./api";
+
+const ADMIN_MONITOR_API_URL =
+  import.meta.env.VITE_DOMAIN_ADMIN_MONITOR_API_URL ||
+  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-admin-monitor";
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) {
   const n = document.createElement(tag);
@@ -11,6 +15,17 @@ function append<K extends keyof HTMLElementTagNameMap>(parent: HTMLElement, tag:
   const node = el(tag, cls, text);
   parent.appendChild(node);
   return node;
+}
+
+async function monitorApi<T>(path: string): Promise<T> {
+  const token = getSession()?.token;
+  if (!token) throw new Error("Admin session is required.");
+  const res = await fetch(`${ADMIN_MONITOR_API_URL}${path}`, {
+    headers: { Accept: "application/json", Authorization: `Bearer ${token}` },
+  });
+  const payload = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(String(payload.message || payload.error || `Monitor request failed (${res.status}).`));
+  return payload as T;
 }
 
 function notify(message: string, kind: "success" | "error" = "success") {
@@ -92,6 +107,15 @@ function summarizeProviderLogs(data: any) {
   ];
 }
 
+function summarizeCron(data: any) {
+  const rows = Array.isArray(data?.cron) ? data.cron : [];
+  return [
+    "Domain cron status.",
+    `Jobs: ${rows.length}`,
+    rows.map((row: any) => `- ${row.jobname} · ${row.active ? "active" : "paused"} · ${row.schedule} · last: ${row.last_status || "no run"}${row.last_finished_at ? ` · ${formatDate(row.last_finished_at)}` : ""}${row.last_error_message ? ` · ${row.last_error_message}` : ""}`).join("\n"),
+  ];
+}
+
 async function refreshTables() {
   window.dispatchEvent(new Event("focus"));
 }
@@ -139,7 +163,7 @@ function installAdminToolbox() {
   const panel = el("section", "card khd-admin-super-tools");
   panel.id = "khd-admin-super-tools";
   panel.appendChild(heading("Provider operations", "Use these actions to reconcile the platform with DomainNameAPI and provider state."));
-  append(panel, "p", "Client pages stay simple. This admin panel shows provider account, provider TLD catalog, provider prices, provider logs, domain sync and DNS cleanup.", "khd-admin-help");
+  append(panel, "p", "Client pages stay simple. This admin panel shows provider account, provider TLD catalog, provider prices, provider logs, cron status, domain sync and DNS cleanup.", "khd-admin-help");
 
   const output = el("pre", "khd-admin-tools-output", "Choose a provider/admin action. A short summary will appear here.");
   const grid = el("div", "khd-admin-tools-grid");
@@ -179,6 +203,10 @@ function installAdminToolbox() {
     button("Provider logs", async () => {
       const data = await adminApi("/provider/logs?limit=30");
       renderText(output, summarizeProviderLogs(data));
+    }, "khd-admin-tool-button secondary"),
+    button("Cron status", async () => {
+      const data = await monitorApi("/cron");
+      renderText(output, summarizeCron(data));
     }, "khd-admin-tool-button secondary"),
     button("Check failed DNS", async () => {
       const data = await adminApi<{ dns: Array<Record<string, any>> }>("/dns?status=failed");
