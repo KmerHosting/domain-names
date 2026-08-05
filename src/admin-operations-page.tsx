@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import type { ReactNode } from "react";
 import { adminApi, formatDate, formatMoney, operationsMonitorApi } from "./api";
 
 type Row = Record<string, any>;
@@ -37,7 +38,7 @@ function Badge({ value }: { value?: string | null }) {
   return <span className={`status status-${v.toLowerCase().replaceAll("_", "-")}`}>{v.replaceAll("_", " ")}</span>;
 }
 
-function AdminShell({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
+function AdminShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
   const links = [["/admin", "Main"], ["/admin/provider", "Provider"], ["/admin/operations", "Operations"], ["/admin/tlds", "TLDs"], ["/admin/logs", "Logs"], ["/admin/cron", "Crons"]];
   return <main className="admin-main">
     <div className="admin-topbar"><nav className="admin-nav-inline">{links.map(([href, label]) => <a key={href} href={href}>{label}</a>)}</nav></div>
