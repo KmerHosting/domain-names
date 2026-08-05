@@ -17,6 +17,7 @@ import "./customer-domain-tools";
 import "./transfer-page-fixes";
 import "./admin-super-tools";
 import "./auth-otp-guard";
+import "./environment-ui-guard";
 
 const queryClient = new QueryClient({
   defaultOptions: {
