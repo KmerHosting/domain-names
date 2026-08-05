@@ -122,8 +122,9 @@ function markVisibleOrder(order: OrderEnvironmentRow) {
 function addReadonlyWarning(domain: DomainEnvironmentRow) {
   if (!isTestEnvironment(domain.registrar_environment)) return;
   const path = window.location.pathname;
-  const visibleText = String(document.body.textContent || "").toLowerCase();
-  if (!path.includes(domain.id) && !visibleText.includes(String(domain.domain_name || "").toLowerCase())) return;
+  const detailPath = `/dashboard/domains/${domain.id}`;
+  const managePath = `/dashboard/domains/${domain.id}/manage`;
+  if (path !== detailPath && path !== managePath) return;
   const content = document.querySelector(".dashboard-content,.native-page-main .dashboard-content,main");
   if (!content || content.querySelector(".khd-env-warning")) return;
   const warning = document.createElement("div");
