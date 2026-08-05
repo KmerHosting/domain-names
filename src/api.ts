@@ -3,6 +3,7 @@ const PAYMENT_API_URL = import.meta.env.VITE_DOMAIN_PAYMENT_API_URL || "https://
 const WALLET_API_URL = import.meta.env.VITE_DOMAIN_WALLET_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-wallet";
 const ADMIN_API_URL = import.meta.env.VITE_DOMAIN_ADMIN_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-admin";
 const ADMIN_MONITOR_API_URL = import.meta.env.VITE_DOMAIN_ADMIN_MONITOR_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-admin-monitor";
+const OPERATIONS_MONITOR_API_URL = import.meta.env.VITE_DOMAIN_OPERATIONS_MONITOR_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-operations-monitor";
 const SEARCH_API_URL = import.meta.env.VITE_DOMAIN_SEARCH_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-search-fast";
 const OPS_API_URL = import.meta.env.VITE_DOMAIN_OPS_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-ops";
 const DOCUMENTS_API_URL = import.meta.env.VITE_DOMAIN_DOCUMENTS_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-documents";
@@ -113,6 +114,7 @@ export async function paymentApi<T>(path: string, options: ApiOptions = {}): Pro
 export async function walletApi<T>(path: string, options: ApiOptions = {}): Promise<T> { return request<T>(WALLET_API_URL, path, options); }
 export async function adminApi<T>(path: string, options: ApiOptions = {}): Promise<T> { return request<T>(ADMIN_API_URL, path, options); }
 export async function adminMonitorApi<T>(path: string, options: ApiOptions = {}): Promise<T> { return request<T>(ADMIN_MONITOR_API_URL, path, options); }
+export async function operationsMonitorApi<T>(path: string, options: ApiOptions = {}): Promise<T> { return request<T>(OPERATIONS_MONITOR_API_URL, path, options); }
 export async function domainSearchApi<T>(path = "", options: ApiOptions = {}): Promise<T> { return request<T>(SEARCH_API_URL, path, options); }
 export async function domainOpsApi<T>(path: string, options: ApiOptions = {}): Promise<T> { return request<T>(OPS_API_URL, path, options); }
 export async function domainDocumentsApi<T>(path: string, options: ApiOptions = {}): Promise<T> { return request<T>(DOCUMENTS_API_URL, path, options); }
