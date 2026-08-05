@@ -5,10 +5,10 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc -b --pretty false && vite build",
-    "build:strict": "tsc -b --pretty false && vite build",
+    "build": "tsc -p tsconfig.app.json --pretty false && vite build",
+    "build:strict": "tsc -p tsconfig.app.json --pretty false && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -b --pretty false"
+    "typecheck": "tsc -p tsconfig.app.json --pretty false"
   },
   "dependencies": {
     "@tanstack/react-query": "^5.83.0",
