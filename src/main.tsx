@@ -5,6 +5,7 @@ import { RouterProvider } from "@tanstack/react-router";
 import { router } from "./router";
 import AdminPage from "./admin";
 import { isNativePage, NativePageRouter } from "./native-pages";
+import { DnsSettingsPage, isDnsSettingsPage } from "./dns-settings-page";
 import "./styles.css";
 import "./admin.css";
 import "./runtime-button-fixes.css";
@@ -18,6 +19,7 @@ import "./transfer-page-fixes";
 import "./admin-super-tools";
 import "./auth-otp-guard";
 import "./environment-ui-guard";
+import "./dns-settings-link";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -31,11 +33,12 @@ const queryClient = new QueryClient({
 
 const isAdminRoute = window.location.pathname === "/admin";
 const isAuxiliaryNativeRoute = isNativePage();
+const isDnsRoute = isDnsSettingsPage();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      {isAuxiliaryNativeRoute ? <NativePageRouter /> : isAdminRoute ? <AdminPage /> : <RouterProvider router={router} />}
+      {isDnsRoute ? <DnsSettingsPage /> : isAuxiliaryNativeRoute ? <NativePageRouter /> : isAdminRoute ? <AdminPage /> : <RouterProvider router={router} />}
     </QueryClientProvider>
   </React.StrictMode>,
 );
