@@ -8,6 +8,7 @@ const OPS_API_URL = import.meta.env.VITE_DOMAIN_OPS_API_URL || "https://igihzeyf
 const DOCUMENTS_API_URL = import.meta.env.VITE_DOMAIN_DOCUMENTS_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-documents";
 const ORDER_GUARD_API_URL = import.meta.env.VITE_DOMAIN_ORDER_GUARD_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-order-guard";
 const CUSTOMER_TOOLS_API_URL = import.meta.env.VITE_DOMAIN_CUSTOMER_TOOLS_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-customer-tools";
+const DNS_TOOLS_API_URL = import.meta.env.VITE_DOMAIN_DNS_TOOLS_API_URL || "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1/domain-dns-tools";
 
 const PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 if (!PUBLISHABLE_KEY) throw new Error("Missing VITE_SUPABASE_PUBLISHABLE_KEY.");
@@ -117,6 +118,7 @@ export async function domainOpsApi<T>(path: string, options: ApiOptions = {}): P
 export async function domainDocumentsApi<T>(path: string, options: ApiOptions = {}): Promise<T> { return request<T>(DOCUMENTS_API_URL, path, options); }
 export async function orderGuardApi<T>(path = "", options: ApiOptions = {}): Promise<T> { return request<T>(ORDER_GUARD_API_URL, path, options); }
 export async function customerToolsApi<T>(path: string, options: ApiOptions = {}): Promise<T> { return request<T>(CUSTOMER_TOOLS_API_URL, path, options); }
+export async function dnsToolsApi<T>(path: string, options: ApiOptions = {}): Promise<T> { return request<T>(DNS_TOOLS_API_URL, path, options); }
 
 export async function downloadDomainDocument(path: string, filename: string): Promise<void> {
   const response = await fetch(`${DOCUMENTS_API_URL}${path}`, { headers: authHeaders({ Accept: "application/pdf" }) });
