@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState, type ReactNode } from "react";
 import { dnsToolsApi, formatDate } from "./api";
 
 type Row = Record<string, any>;
@@ -67,7 +67,7 @@ function payloadFromForm(form: Row) {
   return payload;
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label>{label}{children}</label>;
 }
 
@@ -83,7 +83,7 @@ function RecordForm({ form, setForm, editId, onSubmit, onCancel, busy }: { form:
     {type === "MX" && <div className="form-row"><Field label="Priority"><input type="number" min="0" max="65535" value={form.priority} onChange={(e) => set("priority", e.target.value)} required /></Field><Field label="Mail server"><input value={form.content} onChange={(e) => set("content", e.target.value)} placeholder="mail.example.com" required /></Field></div>}
     {type === "SRV" && <><div className="form-row"><Field label="Priority"><input type="number" min="0" max="65535" value={form.priority} onChange={(e) => set("priority", e.target.value)} required /></Field><Field label="Weight"><input type="number" min="0" max="65535" value={form.weight} onChange={(e) => set("weight", e.target.value)} required /></Field><Field label="Port"><input type="number" min="1" max="65535" value={form.port} onChange={(e) => set("port", e.target.value)} required /></Field></div><Field label="Target"><input value={form.target} onChange={(e) => set("target", e.target.value)} placeholder="server.example.com" required /></Field></>}
     {type === "CAA" && <div className="form-row"><Field label="Flag"><input type="number" min="0" max="255" value={form.flag} onChange={(e) => set("flag", e.target.value)} required /></Field><Field label="Tag"><select value={form.tag} onChange={(e) => set("tag", e.target.value)}>{["issue","issuewild","iodef","contactemail","contactphone","accounturi"].map((t) => <option key={t}>{t}</option>)}</select></Field><Field label="Value"><input value={form.value} onChange={(e) => set("value", e.target.value)} placeholder="letsencrypt.org" required /></Field></div>}
-    {!["MX","SRV","CAA"].includes(type) && <Field label={type === "TXT" ? "Value" : "Value(s)"}><textarea value={form.content} onChange={(e) => set("content", e.target.value)} placeholder={type === "A" ? "192.0.2.10" : type === "CNAME" ? "target.example.com" : "one value per line or comma separated"} required /></Field>}
+    {!["MX","SRV","CAA"].includes(type) && <Field label={type === "TXT" ? "Value" : "Value(s)"><textarea value={form.content} onChange={(e) => set("content", e.target.value)} placeholder={type === "A" ? "192.0.2.10" : type === "CNAME" ? "target.example.com" : "one value per line or comma separated"} required /></Field>}
     <div className="heading-actions"><button className="button button-primary" disabled={busy}>{editId ? "Save DNS record" : "Add DNS record"}</button>{editId && <button type="button" className="button button-secondary" onClick={onCancel}>Cancel edit</button>}</div>
   </form>;
 }
