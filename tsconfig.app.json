@@ -16,5 +16,17 @@
     "noEmit": true,
     "jsx": "react-jsx"
   },
-  "include": ["src"]
+  "include": ["src"],
+  "exclude": [
+    "src/runtime-fixes.ts",
+    "src/domain-control-patches.ts",
+    "src/provider-tools.ts",
+    "src/notifications-panel.ts",
+    "src/customer-domain-tools.ts",
+    "src/transfer-page-fixes.ts",
+    "src/admin-super-tools.ts",
+    "src/auth-otp-guard.ts",
+    "src/environment-ui-guard.ts",
+    "src/dns-settings-link.ts"
+  ]
 }
