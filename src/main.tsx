@@ -7,20 +7,9 @@ import AdminPage from "./admin";
 import { isNativePage, NativePageRouter } from "./native-pages";
 import { DnsSettingsPage, isDnsSettingsPage } from "./dns-settings-page";
 import { AdminOperationsPage, isAdminOperationsPage } from "./admin-operations-page";
+import { PlatformStatusBanner } from "./platform-status-banner";
 import "./styles.css";
 import "./admin.css";
-import "./runtime-button-fixes.css";
-import "./platform-status-banner";
-import "./runtime-fixes";
-import "./domain-control-patches";
-import "./provider-tools";
-import "./notifications-panel";
-import "./customer-domain-tools";
-import "./transfer-page-fixes";
-import "./admin-super-tools";
-import "./auth-otp-guard";
-import "./environment-ui-guard";
-import "./dns-settings-link";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -40,6 +29,7 @@ const isOperationsRoute = isAdminOperationsPage();
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
+      <PlatformStatusBanner />
       {isOperationsRoute ? <AdminOperationsPage /> : isDnsRoute ? <DnsSettingsPage /> : isAuxiliaryNativeRoute ? <NativePageRouter /> : isAdminRoute ? <AdminPage /> : <RouterProvider router={router} />}
     </QueryClientProvider>
   </React.StrictMode>,
