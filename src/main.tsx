@@ -6,6 +6,7 @@ import { router } from "./router";
 import AdminPage from "./admin";
 import { isNativePage, NativePageRouter } from "./native-pages";
 import { DnsSettingsPage, isDnsSettingsPage } from "./dns-settings-page";
+import { AdminOperationsPage, isAdminOperationsPage } from "./admin-operations-page";
 import "./styles.css";
 import "./admin.css";
 import "./runtime-button-fixes.css";
@@ -34,11 +35,12 @@ const queryClient = new QueryClient({
 const isAdminRoute = window.location.pathname === "/admin";
 const isAuxiliaryNativeRoute = isNativePage();
 const isDnsRoute = isDnsSettingsPage();
+const isOperationsRoute = isAdminOperationsPage();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
-      {isDnsRoute ? <DnsSettingsPage /> : isAuxiliaryNativeRoute ? <NativePageRouter /> : isAdminRoute ? <AdminPage /> : <RouterProvider router={router} />}
+      {isOperationsRoute ? <AdminOperationsPage /> : isDnsRoute ? <DnsSettingsPage /> : isAuxiliaryNativeRoute ? <NativePageRouter /> : isAdminRoute ? <AdminPage /> : <RouterProvider router={router} />}
     </QueryClientProvider>
   </React.StrictMode>,
 );
