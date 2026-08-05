@@ -1,4 +1,5 @@
 import { createElement, useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 
 const STATUS_API_URL =
   import.meta.env.VITE_DOMAIN_PLATFORM_STATUS_API_URL ||
@@ -9,7 +10,7 @@ type PlatformStatus = {
   message?: string;
 };
 
-const bannerStyle = {
+const bannerStyle: CSSProperties = {
   position: "relative",
   zIndex: 2,
   background: "#fff7ed",
@@ -20,16 +21,16 @@ const bannerStyle = {
   textAlign: "center",
   fontSize: "14px",
   lineHeight: 1.4,
-} as const;
+};
 
-const strongStyle = { color: "#7c2d12" } as const;
-const smallStyle = {
+const strongStyle: CSSProperties = { color: "#7c2d12" };
+const smallStyle: CSSProperties = {
   display: "block",
   fontWeight: 700,
   color: "#9a3412",
   opacity: 0.88,
   marginTop: "2px",
-} as const;
+};
 
 export function PlatformStatusBanner() {
   const [status, setStatus] = useState<PlatformStatus | null>(null);
