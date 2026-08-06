@@ -6,6 +6,7 @@ import {
   formatMoney,
   getSession,
   newIdempotencyKey,
+  orderGuardApi,
 } from "./api";
 
 type Row = Record<string, any>;
@@ -229,7 +230,7 @@ export function PurchasePageRouter() {
       if (useCustomNameservers) body.nameServers = nameservers.map((value) => value.trim()).filter(Boolean);
       if (type === "registration") body.tldAttributes = attributes;
 
-      const payload = await api<OrderResponse>(`/orders/${type}`, {
+      const payload = await orderGuardApi<OrderResponse>(`/${type}`, {
         method: "POST",
         body,
         idempotencyKey: newIdempotencyKey(type),
@@ -263,8 +264,7 @@ export function PurchasePageRouter() {
         <span className="kicker">{type === "registration" ? "Register domain" : "Transfer domain"}</span>
         <h1>{type === "registration" ? "Create a domain registration order" : "Transfer a domain to KmerHosting"}</h1>
         <p>
-          The provider is checked before the order is created. Creating an order does not debit DomainNameAPI.
-          Payment is made separately from your USD account balance.
+          Availability and exact pricing are checked before the order is created. Your balance is charged only when you pay the order.
         </p>
       </div>
 
