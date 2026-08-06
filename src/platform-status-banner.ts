@@ -7,7 +7,9 @@ const STATUS_API_URL =
 
 type PlatformStatus = {
   checkoutEnabled?: boolean;
+  maintenanceMode?: boolean;
   message?: string;
+  supportEmail?: string;
 };
 
 const bannerStyle: CSSProperties = {
@@ -23,7 +25,6 @@ const bannerStyle: CSSProperties = {
   lineHeight: 1.4,
 };
 
-const strongStyle: CSSProperties = { color: "#7c2d12" };
 const smallStyle: CSSProperties = {
   display: "block",
   fontWeight: 700,
@@ -38,9 +39,13 @@ export function PlatformStatusBanner() {
   useEffect(() => {
     let cancelled = false;
     fetch(STATUS_API_URL, { headers: { Accept: "application/json" }, credentials: "include" })
-      .then((response) => response.json())
+      .then(async (response) => {
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok) throw new Error(String(payload.message || "Platform status is unavailable."));
+        return payload as PlatformStatus;
+      })
       .then((payload) => {
-        if (!cancelled) setStatus(payload as PlatformStatus);
+        if (!cancelled) setStatus(payload);
       })
       .catch(() => undefined);
     return () => {
@@ -48,13 +53,13 @@ export function PlatformStatusBanner() {
     };
   }, []);
 
-  if (!status || status.checkoutEnabled) return null;
+  if (!status?.maintenanceMode || status.checkoutEnabled) return null;
+  const supportEmail = status.supportEmail || "support@kmerhosting.com";
 
   return createElement(
     "div",
     { id: "khd-platform-status-banner", className: "khd-platform-status-banner", style: bannerStyle },
-    createElement("strong", { style: strongStyle }, "Test mode. "),
-    String(status.message || "Domain purchases are temporarily paused."),
-    createElement("small", { style: smallStyle }, "Checkout is disabled until DomainNameAPI production and CamerPay live mode are enabled."),
+    String(status.message || "Domain ordering is temporarily unavailable during maintenance."),
+    createElement("small", { style: smallStyle }, `Support: ${supportEmail}`),
   );
 }
