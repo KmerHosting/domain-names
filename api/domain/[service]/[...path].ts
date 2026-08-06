@@ -12,6 +12,7 @@ const PUBLISHABLE_KEY =
   "";
 
 const COOKIE_NAME = "khd_domain_session";
+const SUPPORT_EMAIL = "support@kmerhosting.com";
 const AUTH_SUCCESS_PATHS = new Set([
   "/auth/login",
   "/auth/login/verify",
@@ -39,6 +40,17 @@ const ALLOWED_SERVICES = new Set([
   "domain-platform-status",
 ]);
 
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
 function cookieValue(cookieHeader: string | null, name: string): string {
   if (!cookieHeader) return "";
   for (const part of cookieHeader.split(";")) {
@@ -55,14 +67,13 @@ function cookieMaxAge(expiresAt: unknown): number {
 }
 
 function sessionCookie(token: string, expiresAt: unknown): string {
-  const maxAge = cookieMaxAge(expiresAt);
   return [
     `${COOKIE_NAME}=${encodeURIComponent(token)}`,
     "Path=/",
     "HttpOnly",
     "Secure",
     "SameSite=Lax",
-    `Max-Age=${maxAge}`,
+    `Max-Age=${cookieMaxAge(expiresAt)}`,
   ].join("; ");
 }
 
@@ -83,15 +94,12 @@ function parseRoute(url: URL): { service: string; upstreamPath: string } {
   const rest = index >= 0 ? url.pathname.slice(index + marker.length) : "";
   const [service, ...pathParts] = rest.split("/").filter(Boolean);
   if (!service || !ALLOWED_SERVICES.has(service)) {
-    throw new Response(JSON.stringify({ error: "service_not_allowed", message: "Domain API service is not allowed." }), {
-      status: 404,
-      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
-    });
+    throw jsonResponse({ error: "service_not_allowed", message: "Domain API service is not allowed." }, 404);
   }
   return { service, upstreamPath: `/${pathParts.join("/")}`.replace(/\/$/, "") || "/" };
 }
 
-async function responseFromUpstream(req: Request, upstream: Response, service: string, upstreamPath: string): Promise<Response> {
+async function responseFromUpstream(upstream: Response, service: string, upstreamPath: string): Promise<Response> {
   const headers = new Headers();
   headers.set("Cache-Control", "no-store");
   headers.set("X-Content-Type-Options", "nosniff");
@@ -119,7 +127,41 @@ async function responseFromUpstream(req: Request, upstream: Response, service: s
 export default async function handler(req: Request): Promise<Response> {
   try {
     const url = new URL(req.url);
-    const { service, upstreamPath } = parseRoute(url);
+    let { service, upstreamPath } = parseRoute(url);
+    const method = req.method.toUpperCase();
+    let requestBody = method === "GET" || method === "HEAD" ? undefined : await req.arrayBuffer();
+
+    // External checkout and payment callbacks were removed. Orders are paid only from account balance.
+    if (service === "domain-api" && (/^\/orders\/[0-9a-f-]+\/checkout$/i.test(upstreamPath) || upstreamPath === "/webhooks/camerpay")) {
+      return jsonResponse({
+        error: "external_payments_removed",
+        message: `External checkout has been removed. Pay from your account balance or contact ${SUPPORT_EMAIL} for a manual credit.`,
+        supportEmail: SUPPORT_EMAIL,
+      }, 410);
+    }
+
+    if (service === "domain-payment-status" && method !== "GET") {
+      return jsonResponse({
+        error: "external_payments_removed",
+        message: `External payment polling has been removed. Contact ${SUPPORT_EMAIL} if your balance needs to be credited.`,
+        supportEmail: SUPPORT_EMAIL,
+      }, 410);
+    }
+
+    // Keep the existing admin UI route, but execute the new atomic manual-wallet credit endpoint.
+    const adminCredit = service === "domain-admin" ? upstreamPath.match(/^\/users\/([0-9a-f-]+)\/wallet-credit$/i) : null;
+    if (adminCredit && method === "POST") {
+      let payload: Record<string, unknown> = {};
+      try {
+        payload = JSON.parse(new TextDecoder().decode(requestBody || new ArrayBuffer(0)) || "{}") as Record<string, unknown>;
+      } catch {
+        return jsonResponse({ error: "invalid_json", message: "A JSON object is required." }, 400);
+      }
+      service = "domain-wallet";
+      upstreamPath = "/admin/credit";
+      requestBody = new TextEncoder().encode(JSON.stringify({ ...payload, userId: adminCredit[1] })).buffer;
+    }
+
     const upstreamUrl = new URL(`${SUPABASE_FUNCTIONS_BASE.replace(/\/$/, "")}/${service}${upstreamPath}`);
     upstreamUrl.search = url.search;
 
@@ -137,20 +179,16 @@ export default async function handler(req: Request): Promise<Response> {
     if (cookieToken) headers.set("Authorization", `Bearer ${cookieToken}`);
     else if (suppliedAuth && !PUBLIC_SERVICES.has(service)) headers.set("Authorization", suppliedAuth);
 
-    const method = req.method.toUpperCase();
     const upstream = await fetch(upstreamUrl.toString(), {
       method,
       headers,
-      body: method === "GET" || method === "HEAD" ? undefined : await req.arrayBuffer(),
+      body: requestBody,
       redirect: "manual",
     });
 
-    return await responseFromUpstream(req, upstream, service, upstreamPath);
+    return await responseFromUpstream(upstream, service, upstreamPath);
   } catch (error) {
     if (error instanceof Response) return error;
-    return new Response(JSON.stringify({ error: "proxy_failed", message: error instanceof Error ? error.message : "Domain API proxy failed." }), {
-      status: 502,
-      headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
-    });
+    return jsonResponse({ error: "proxy_failed", message: error instanceof Error ? error.message : "Domain API proxy failed." }, 502);
   }
 }
