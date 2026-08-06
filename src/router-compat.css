@@ -298,3 +298,52 @@
   accent-color: var(--blue);
 }
 .form-stack label.checkbox span { line-height: 1.3; }
+
+
+/* Authentication field guidance and password visibility controls. */
+.auth-phone-row,
+.contact-phone-row {
+  grid-template-columns: minmax(130px, .42fr) minmax(220px, 1fr);
+  align-items: start;
+}
+.password-field {
+  position: relative;
+  display: block;
+  width: 100%;
+}
+.form-stack .password-field input {
+  padding-right: 46px;
+}
+.password-toggle {
+  width: 40px;
+  height: 40px;
+  position: absolute;
+  top: 2px;
+  right: 2px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: 8px;
+  color: #667085;
+  background: transparent;
+  cursor: pointer;
+}
+.password-toggle:hover,
+.password-toggle:focus-visible {
+  color: var(--blue);
+  background: #edf4ff;
+  outline: none;
+}
+.auth-card .form-stack label small,
+.contact-phone-row label small {
+  color: #7d8899;
+  font-size: 10px;
+  font-weight: 500;
+  line-height: 1.45;
+}
+@media (max-width: 560px) {
+  .auth-phone-row,
+  .contact-phone-row {
+    grid-template-columns: 1fr;
+  }
+}

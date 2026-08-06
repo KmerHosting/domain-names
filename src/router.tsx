@@ -13,6 +13,8 @@ import {
   Bell,
   Check,
   ChevronRight,
+  Eye,
+  EyeOff,
   FileText,
   Globe2,
   KeyRound,
@@ -256,6 +258,8 @@ function AuthPage() {
   const [mode, setMode] = useState<AuthMode>(initial);
   const [step, setStep] = useState<"form" | "otp">("form");
   const [email, setEmail] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
   const passwordLogin = useMutation({
     mutationFn: (body: Row) => api<{ user: User; session: Session }>("/auth/login", { method: "POST", body }),
     onSuccess: (data) => { setSession(data.session); window.location.href = "/dashboard"; },
@@ -302,22 +306,51 @@ function AuthPage() {
             <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setStep("form"); }}>Create account</button>
           </div>
           <h2>{mode === "login" ? "Sign in" : mode === "register" ? step === "form" ? "Create your account" : "Verify your email" : step === "form" ? "Reset your password" : "Enter the verification code"}</h2>
-          <p>{mode === "login" ? "Use your email and password." : step === "form" ? "A six-digit code will be sent by email." : `Enter the code sent to ${email}.`}</p>
+          <p>{mode === "login" ? "Enter the email and password linked to your account." : step === "form" ? "Complete the fields below. A six-digit verification code will be sent by email." : `Enter the code sent to ${email}.`}</p>
           <form className="form-stack" onSubmit={submit}>
             {step === "form" && <>
-              <label>Email<input name="email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" /></label>
+              <label>Email address
+                <input name="email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" autoComplete="email" />
+                <small>Use an address you can access for verification and password recovery.</small>
+              </label>
               {mode === "register" && <>
-                <label>Full name<input name="fullName" required autoComplete="name" /></label>
-                <div className="form-row"><label>Phone<input name="phone" autoComplete="tel" /></label><label>Country code<input name="countryCode" maxLength={2} placeholder="CM" /></label></div>
+                <label>Full name
+                  <input name="fullName" required placeholder="First and last name" autoComplete="name" />
+                </label>
+                <div className="form-row auth-phone-row">
+                  <label>Country code (ISO)
+                    <input name="countryCode" maxLength={2} minLength={2} pattern="[A-Za-z]{2}" placeholder="CM" autoCapitalize="characters" />
+                    <small>Two letters, for example CM.</small>
+                  </label>
+                  <label>Phone number
+                    <input name="phone" type="tel" inputMode="tel" placeholder="+237 6 70 00 00 00" autoComplete="tel" />
+                    <small>Include the international dialing prefix.</small>
+                  </label>
+                </div>
               </>}
-              <label>Password<input name="password" type="password" minLength={10} required autoComplete={mode === "register" ? "new-password" : "current-password"} /></label>
+              <label>Password
+                <span className="password-field">
+                  <input name="password" type={showPassword ? "text" : "password"} minLength={10} required placeholder="At least 10 characters" autoComplete={mode === "register" ? "new-password" : "current-password"} />
+                  <button type="button" className="password-toggle" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)}>
+                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </span>
+                <small>Use at least 10 characters.</small>
+              </label>
             </>}
             {step === "otp" && <>
               <input type="hidden" name="email" value={email} />
-              <label>Six-digit code<input name="code" className="otp-input" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoFocus /></label>
-              {mode === "reset" && <label>New password<input name="newPassword" type="password" minLength={10} required autoComplete="new-password" /></label>}
+              <label>Six-digit code<input name="code" className="otp-input" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} placeholder="000000" required autoFocus /></label>
+              {mode === "reset" && <label>New password
+                <span className="password-field">
+                  <input name="newPassword" type={showNewPassword ? "text" : "password"} minLength={10} required placeholder="At least 10 characters" autoComplete="new-password" />
+                  <button type="button" className="password-toggle" aria-label={showNewPassword ? "Hide new password" : "Show new password"} aria-pressed={showNewPassword} onClick={() => setShowNewPassword((visible) => !visible)}>
+                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </span>
+              </label>}
             </>}
-            <button className="button button-primary button-wide" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : mode === "login" ? "Sign in" : step === "form" ? "Send code" : "Verify"}</button>
+            <button className="button button-primary button-wide" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : mode === "login" ? "Sign in" : step === "form" ? "Send verification code" : "Verify"}</button>
           </form>
           {error && <div className="alert alert-error">{errorText(error)}</div>}
           {mode === "login" && <button type="button" className="text-button" onClick={() => { setMode("reset"); setStep("form"); }}>Forgot password?</button>}
@@ -444,7 +477,7 @@ function ContactsPage() {
     save.mutate({ id: editing?.id, body: { ...body, isDefault: body.isDefault === "on" } });
     if (!editing) event.currentTarget.reset();
   };
-  return <div className="dashboard-content"><div className="page-heading"><div><span className="kicker">WHOIS contacts</span><h1>Contacts</h1><p>Complete contact data is required for registration and transfer.</p></div></div>{(query.isError || save.isError || remove.isError) && <div className="alert alert-error">{errorText(query.error || save.error || remove.error)}</div>}<div className="dashboard-grid"><section className="card"><div className="card-heading"><div><h2>{editing ? "Edit contact" : "Create contact"}</h2></div></div><form className="form-stack" onSubmit={submit} key={editing?.id || "new"}><label>Label<input name="label" defaultValue={editing?.label || "Default"} required /></label><div className="form-row"><label>First name<input name="firstName" defaultValue={editing?.first_name || ""} required /></label><label>Last name<input name="lastName" defaultValue={editing?.last_name || ""} required /></label></div><label>Company<input name="companyName" defaultValue={editing?.company_name || ""} /></label><label>Email<input name="email" type="email" defaultValue={editing?.email || ""} required /></label><div className="form-row"><label>Phone country code<input name="phoneCountryCode" defaultValue={editing?.phone_country_code || "237"} required /></label><label>Phone<input name="phone" defaultValue={editing?.phone || ""} required /></label></div><label>Address<input name="address" defaultValue={editing?.address || ""} required /></label><div className="form-row"><label>City<input name="city" defaultValue={editing?.city || ""} required /></label><label>State/region<input name="state" defaultValue={editing?.state || ""} required /></label></div><div className="form-row"><label>Postal code<input name="postalCode" defaultValue={editing?.postal_code || ""} required /></label><label>Country code<input name="country" maxLength={2} defaultValue={editing?.country || "CM"} required /></label></div><label className="checkbox"><input name="isDefault" type="checkbox" defaultChecked={editing?.is_default ?? true} /><span>Default contact</span></label><div className="heading-actions"><button className="button button-primary" disabled={save.isPending}>{editing ? "Save contact" : "Create contact"}</button>{editing && <button type="button" className="button button-secondary" onClick={() => setEditing(null)}>Cancel</button>}</div></form></section><section className="card"><div className="card-heading"><div><h2>Saved contacts</h2></div></div>{query.isPending ? <LoadingBlock /> : query.data?.contacts.length ? <div className="activity-list">{query.data.contacts.map((contact) => <div className="activity-item" key={contact.id}><UserRound size={18} /><div><strong>{contactName(contact)}</strong><p>{contact.email} · {contact.country}</p><small>{contact.registrar_verified ? "Provider verified" : "Not yet provider verified"}</small><div className="heading-actions"><button onClick={() => setEditing(contact)}>Edit</button><button onClick={() => window.confirm("Delete this unused contact?") && remove.mutate(contact.id)}>Delete</button></div></div></div>)}</div> : <EmptyState icon={<UserRound />} title="No contacts" text="Create a WHOIS contact before ordering a domain." />}</section></div></div>;
+  return <div className="dashboard-content"><div className="page-heading"><div><span className="kicker">WHOIS contacts</span><h1>Contacts</h1><p>Complete contact data is required for registration and transfer.</p></div></div>{(query.isError || save.isError || remove.isError) && <div className="alert alert-error">{errorText(query.error || save.error || remove.error)}</div>}<div className="dashboard-grid"><section className="card"><div className="card-heading"><div><h2>{editing ? "Edit contact" : "Create contact"}</h2></div></div><form className="form-stack" onSubmit={submit} key={editing?.id || "new"}><label>Label<input name="label" defaultValue={editing?.label || "Default"} required /></label><div className="form-row"><label>First name<input name="firstName" defaultValue={editing?.first_name || ""} required /></label><label>Last name<input name="lastName" defaultValue={editing?.last_name || ""} required /></label></div><label>Company<input name="companyName" defaultValue={editing?.company_name || ""} /></label><label>Email<input name="email" type="email" defaultValue={editing?.email || ""} required /></label><div className="form-row contact-phone-row"><label>Dialing code<input name="phoneCountryCode" inputMode="numeric" pattern="[0-9]{1,3}" maxLength={3} placeholder="237" defaultValue={editing?.phone_country_code || "237"} required /><small>Digits only, without the + sign.</small></label><label>Phone number<input name="phone" type="tel" inputMode="tel" placeholder="670000000" defaultValue={editing?.phone || ""} required /><small>Local number only.</small></label></div><label>Address<input name="address" defaultValue={editing?.address || ""} required /></label><div className="form-row"><label>City<input name="city" defaultValue={editing?.city || ""} required /></label><label>State/region<input name="state" defaultValue={editing?.state || ""} required /></label></div><div className="form-row"><label>Postal code<input name="postalCode" defaultValue={editing?.postal_code || ""} required /></label><label>Country code<input name="country" maxLength={2} defaultValue={editing?.country || "CM"} required /></label></div><label className="checkbox"><input name="isDefault" type="checkbox" defaultChecked={editing?.is_default ?? true} /><span>Default contact</span></label><div className="heading-actions"><button className="button button-primary" disabled={save.isPending}>{editing ? "Save contact" : "Create contact"}</button>{editing && <button type="button" className="button button-secondary" onClick={() => setEditing(null)}>Cancel</button>}</div></form></section><section className="card"><div className="card-heading"><div><h2>Saved contacts</h2></div></div>{query.isPending ? <LoadingBlock /> : query.data?.contacts.length ? <div className="activity-list">{query.data.contacts.map((contact) => <div className="activity-item" key={contact.id}><UserRound size={18} /><div><strong>{contactName(contact)}</strong><p>{contact.email} · {contact.country}</p><small>{contact.registrar_verified ? "Provider verified" : "Not yet provider verified"}</small><div className="heading-actions"><button onClick={() => setEditing(contact)}>Edit</button><button onClick={() => window.confirm("Delete this unused contact?") && remove.mutate(contact.id)}>Delete</button></div></div></div>)}</div> : <EmptyState icon={<UserRound />} title="No contacts" text="Create a WHOIS contact before ordering a domain." />}</section></div></div>;
 }
 
 function InvoicesPage() {
