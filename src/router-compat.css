@@ -1,80 +1,4 @@
-/* Compatibility layer for the provider-aligned React routes.
-   Keeps the authenticated application on the established KmerHosting visual system. */
-
-.auth-page {
-  min-height: 100vh;
-  background: #f7f9fc;
-}
-
-.auth-page .auth-shell {
-  min-height: 100vh;
-  grid-template-columns: minmax(380px, 1fr) minmax(440px, 1fr);
-}
-
-.auth-page .auth-shell > a {
-  position: relative;
-  overflow: hidden;
-  display: flex;
-  align-items: flex-start;
-  padding: 45px clamp(35px, 6vw, 90px);
-  color: #fff;
-  background:
-    radial-gradient(circle at 78% 18%, rgba(71, 112, 238, .95) 0%, rgba(32, 70, 173, .72) 30%, transparent 58%),
-    linear-gradient(145deg, #102f83 0%, #0d1d48 56%, #0a142c 100%);
-}
-
-.auth-page .auth-shell > a::before {
-  content: "Your domains, contacts, DNS, transfers and renewals in one secure workspace.";
-  position: absolute;
-  left: clamp(35px, 6vw, 90px);
-  right: clamp(35px, 7vw, 110px);
-  top: 43%;
-  max-width: 620px;
-  color: #fff;
-  font-size: clamp(34px, 4.4vw, 62px);
-  font-weight: 800;
-  line-height: 1.04;
-  letter-spacing: -.045em;
-}
-
-.auth-page .auth-shell > a::after {
-  content: "Provider-backed availability, exact pricing and complete lifecycle controls.";
-  position: absolute;
-  left: clamp(35px, 6vw, 90px);
-  right: clamp(35px, 7vw, 110px);
-  top: 68%;
-  max-width: 560px;
-  color: #b9c9e9;
-  font-size: 15px;
-  line-height: 1.7;
-}
-
-.auth-page .auth-shell > a .brand {
-  position: relative;
-  z-index: 2;
-}
-
-.auth-page .auth-shell > a .brand strong { color: #fff; }
-.auth-page .auth-shell > a .brand small { color: #a9bce1; }
-
-.auth-page .auth-card {
-  align-self: center;
-  justify-self: center;
-  margin: 34px;
-}
-
-.auth-page .auth-card > h1 {
-  margin: 4px 0 10px;
-  font-size: 35px;
-  letter-spacing: -.04em;
-}
-
-.auth-page .auth-card > p {
-  margin: 0 0 24px;
-  color: var(--muted);
-  font-size: 13px;
-  line-height: 1.6;
-}
+/* Compatibility layer for provider-aligned authenticated routes. */
 
 .dashboard-sidebar {
   position: sticky;
@@ -353,3 +277,24 @@
   .auth-page .auth-card { padding: 26px 20px; }
   .header-account { align-items: flex-start; }
 }
+
+
+/* Native checkbox controls must remain compact and keep their visible label. */
+.form-stack label.checkbox {
+  display: inline-flex;
+  width: fit-content;
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+}
+.form-stack label.checkbox input[type="checkbox"],
+.form-section label > input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--blue);
+}
+.form-stack label.checkbox span { line-height: 1.3; }
