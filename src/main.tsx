@@ -8,6 +8,7 @@ import { isNativePage, NativePageRouter } from "./native-pages";
 import { DnsSettingsPage, isDnsSettingsPage } from "./dns-settings-page";
 import { AdminOperationsPage, isAdminOperationsPage } from "./admin-operations-page";
 import { PlatformStatusBanner } from "./platform-status-banner";
+import "./runtime-fixes";
 import "./styles.css";
 import "./admin.css";
 
