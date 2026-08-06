@@ -11,6 +11,7 @@ import { PlatformStatusBanner } from "./platform-status-banner";
 import "./styles.css";
 import "./admin.css";
 import "./router-compat.css";
+import "./platform-sync.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
