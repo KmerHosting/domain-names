@@ -1,0 +1,31 @@
+name: Enable OTE frontend flow
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - ".github/workflows/enable-ote-frontend.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Align purchase UI with OTE order guard
+        run: python scripts/enable_ote_frontend.py
+      - name: Commit frontend alignment
+        run: |
+          if git diff --quiet; then
+            echo "No changes required."
+            exit 0
+          fi
+          git config user.name "KmerHosting Automation"
+          git config user.email "support@kmerhosting.com"
+          git add src/router.tsx src/purchase-page.tsx src/native-pages.tsx
+          git commit -m "fix: enable isolated OTE order UX"
+          git push origin HEAD:main
