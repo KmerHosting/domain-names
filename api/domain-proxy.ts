@@ -28,6 +28,7 @@ const ALLOWED_SERVICES = new Set([
   "domain-api",
   "domain-wallet",
   "domain-admin",
+  "domain-admin-monitor",
   "domain-operations-monitor",
   "domain-search-fast",
   "domain-documents",
@@ -108,20 +109,13 @@ function routeFromRewrite(url: URL): { service: string; upstreamPath: string } {
   }
 
   if (!service || !ALLOWED_SERVICES.has(service)) {
-    throw jsonResponse({
-      error: "service_not_allowed",
-      message: "Domain API service is not allowed.",
-    }, 404);
+    throw jsonResponse({ error: "service_not_allowed", message: "Domain API service is not allowed." }, 404);
   }
 
   return { service, upstreamPath: path ? `/${path}` : "/" };
 }
 
-async function responseFromUpstream(
-  upstream: Response,
-  service: string,
-  upstreamPath: string,
-): Promise<Response> {
+async function responseFromUpstream(upstream: Response, service: string, upstreamPath: string): Promise<Response> {
   const headers = new Headers();
   headers.set("Cache-Control", "no-store");
   headers.set("X-Content-Type-Options", "nosniff");
@@ -129,17 +123,11 @@ async function responseFromUpstream(
 
   const contentType = upstream.headers.get("Content-Type") || "";
   if (contentType) headers.set("Content-Type", contentType);
-
   const isLogout = service === "domain-api" && upstreamPath === "/auth/logout";
-  const isJson = contentType.toLowerCase().includes("application/json");
 
-  if (isJson) {
+  if (contentType.toLowerCase().includes("application/json")) {
     const payload = await upstream.json().catch(() => ({})) as Record<string, any>;
-    if (
-      service === "domain-api" &&
-      AUTH_SUCCESS_PATHS.has(upstreamPath) &&
-      payload?.session?.token
-    ) {
+    if (service === "domain-api" && AUTH_SUCCESS_PATHS.has(upstreamPath) && payload?.session?.token) {
       headers.append("Set-Cookie", sessionCookie(String(payload.session.token), payload.session.expiresAt));
       payload.session = { expiresAt: payload.session.expiresAt, mode: "httpOnlyCookie" };
     }
@@ -170,12 +158,8 @@ export default async function handler(req: Request): Promise<Response> {
       }, 410);
     }
 
-    const requestBody = method === "GET" || method === "HEAD"
-      ? undefined
-      : await req.arrayBuffer();
-    const upstreamUrl = new URL(
-      `${SUPABASE_FUNCTIONS_BASE.replace(/\/$/, "")}/${service}${upstreamPath}`,
-    );
+    const requestBody = method === "GET" || method === "HEAD" ? undefined : await req.arrayBuffer();
+    const upstreamUrl = new URL(`${SUPABASE_FUNCTIONS_BASE.replace(/\/$/, "")}/${service}${upstreamPath}`);
     upstreamUrl.search = url.search;
 
     const headers = new Headers();
@@ -192,18 +176,10 @@ export default async function handler(req: Request): Promise<Response> {
     if (cookieToken) headers.set("Authorization", `Bearer ${cookieToken}`);
     else if (suppliedAuth && !PUBLIC_SERVICES.has(service)) headers.set("Authorization", suppliedAuth);
 
-    const upstream = await fetch(upstreamUrl.toString(), {
-      method,
-      headers,
-      body: requestBody,
-      redirect: "manual",
-    });
+    const upstream = await fetch(upstreamUrl.toString(), { method, headers, body: requestBody, redirect: "manual" });
     return await responseFromUpstream(upstream, service, upstreamPath);
   } catch (error) {
     if (error instanceof Response) return error;
-    return jsonResponse({
-      error: "proxy_failed",
-      message: error instanceof Error ? error.message : "Domain API proxy failed.",
-    }, 502);
+    return jsonResponse({ error: "proxy_failed", message: error instanceof Error ? error.message : "Domain API proxy failed." }, 502);
   }
 }
