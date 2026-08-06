@@ -10,6 +10,7 @@ import { AdminOperationsPage, isAdminOperationsPage } from "./admin-operations-p
 import { PlatformStatusBanner } from "./platform-status-banner";
 import "./styles.css";
 import "./admin.css";
+import "./router-compat.css";
 
 const queryClient = new QueryClient({
   defaultOptions: {
