@@ -1,0 +1,41 @@
+name: Fix purchase action
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Connect create-order button
+        shell: python
+        run: |
+          from pathlib import Path
+
+          path = Path("src/router.tsx")
+          source = path.read_text(encoding="utf-8")
+          old = '<button className="button button-primary" disabled={createOrder.isPending || !contactId}>{createOrder.isPending ? "Creating exact quote…" : "Create wallet order"}</button>'
+          new = '<button type="button" className="button button-primary" disabled={createOrder.isPending || !contactId} onClick={order}>{createOrder.isPending ? "Creating exact quote…" : "Create wallet order"}</button>'
+          if old not in source:
+              if new in source:
+                  print("Purchase action is already connected.")
+                  raise SystemExit(0)
+              raise SystemExit("Expected purchase button was not found; refusing an unsafe broad edit.")
+          path.write_text(source.replace(old, new, 1), encoding="utf-8")
+      - name: Commit patch
+        run: |
+          if git diff --quiet; then
+            echo "No changes required."
+            exit 0
+          fi
+          git config user.name "KmerHosting Automation"
+          git config user.email "support@kmerhosting.com"
+          git add src/router.tsx
+          git commit -m "fix: connect domain order creation action"
+          git push origin HEAD:main
