@@ -2,6 +2,14 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api/domain/:service",
+      "destination": "/api/domain-proxy?__service=:service"
+    },
+    {
+      "source": "/api/domain/:service/:path*",
+      "destination": "/api/domain-proxy?__service=:service&__path=:path*"
+    },
+    {
       "source": "/((?!api(?:/|$)).*)",
       "destination": "/index.html"
     }
