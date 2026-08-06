@@ -1,33 +1,253 @@
-import domainProxyHandler, { config } from "./domain/[service]/[...path]";
+export const config = { runtime: "edge" };
 
-export { config };
+declare const process: { env: Record<string, string | undefined> };
 
-/**
- * Vercel filesystem functions treat `[...path]` in this project as one path
- * segment. The rewrites in vercel.json therefore send every domain API call
- * to this flat function and pass the complete route as query parameters.
- */
-export default async function handler(req: Request): Promise<Response> {
-  const url = new URL(req.url);
-  const service = String(url.searchParams.get("__service") || "").trim();
-  const routePath = String(url.searchParams.get("__path") || "").replace(/^\/+|\/+$/g, "");
+const SUPABASE_FUNCTIONS_BASE =
+  process.env.SUPABASE_FUNCTIONS_BASE ||
+  "https://igihzeyfgwhnuiflamvn.supabase.co/functions/v1";
+const PUBLISHABLE_KEY =
+  process.env.VITE_SUPABASE_PUBLISHABLE_KEY ||
+  process.env.SUPABASE_ANON_KEY ||
+  process.env.SUPABASE_PUBLISHABLE_KEY ||
+  "";
 
-  if (!service) {
-    return new Response(JSON.stringify({
-      error: "service_required",
-      message: "Domain API service is missing.",
-    }), {
-      status: 404,
-      headers: {
-        "Content-Type": "application/json; charset=utf-8",
-        "Cache-Control": "no-store",
-      },
-    });
+const COOKIE_NAME = "khd_domain_session";
+const SUPPORT_EMAIL = "support@kmerhosting.com";
+const AUTH_SUCCESS_PATHS = new Set([
+  "/auth/login",
+  "/auth/login/verify",
+  "/auth/register/verify",
+  "/auth/password-reset/verify",
+]);
+const PUBLIC_SERVICES = new Set([
+  "domain-api",
+  "domain-platform-status",
+  "domain-search-fast",
+]);
+const ALLOWED_SERVICES = new Set([
+  "domain-api",
+  "domain-payment-status",
+  "domain-wallet",
+  "domain-admin",
+  "domain-admin-monitor",
+  "domain-operations-monitor",
+  "domain-search-fast",
+  "domain-ops",
+  "domain-documents",
+  "domain-order-guard",
+  "domain-customer-tools",
+  "domain-dns-tools",
+  "domain-platform-status",
+]);
+
+function jsonResponse(body: unknown, status = 200): Response {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: {
+      "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+      "X-Content-Type-Options": "nosniff",
+    },
+  });
+}
+
+function cookieValue(cookieHeader: string | null, name: string): string {
+  if (!cookieHeader) return "";
+  for (const part of cookieHeader.split(";")) {
+    const [rawKey, ...rest] = part.trim().split("=");
+    if (rawKey === name) return decodeURIComponent(rest.join("="));
   }
+  return "";
+}
+
+function cookieMaxAge(expiresAt: unknown): number {
+  const ms = new Date(String(expiresAt || "")).getTime() - Date.now();
+  if (!Number.isFinite(ms) || ms <= 0) return 0;
+  return Math.max(0, Math.floor(ms / 1000));
+}
+
+function sessionCookie(token: string, expiresAt: unknown): string {
+  return [
+    `${COOKIE_NAME}=${encodeURIComponent(token)}`,
+    "Path=/",
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+    `Max-Age=${cookieMaxAge(expiresAt)}`,
+  ].join("; ");
+}
+
+function clearCookie(): string {
+  return [
+    `${COOKIE_NAME}=`,
+    "Path=/",
+    "HttpOnly",
+    "Secure",
+    "SameSite=Lax",
+    "Max-Age=0",
+  ].join("; ");
+}
+
+function routeFromRewrite(url: URL): { service: string; upstreamPath: string } {
+  const service = String(url.searchParams.get("__service") || "").trim();
+  const rawPath = String(url.searchParams.get("__path") || "").trim();
+  const path = rawPath.replace(/^\/+|\/+$/g, "");
 
   url.searchParams.delete("__service");
   url.searchParams.delete("__path");
-  url.pathname = `/api/domain/${encodeURIComponent(service)}${routePath ? `/${routePath}` : ""}`;
 
-  return await domainProxyHandler(new Request(url.toString(), req));
+  if (!service || !ALLOWED_SERVICES.has(service)) {
+    throw jsonResponse({
+      error: "service_not_allowed",
+      message: "Domain API service is not allowed.",
+    }, 404);
+  }
+
+  return {
+    service,
+    upstreamPath: path ? `/${path}` : "/",
+  };
+}
+
+async function responseFromUpstream(
+  upstream: Response,
+  service: string,
+  upstreamPath: string,
+): Promise<Response> {
+  const headers = new Headers();
+  headers.set("Cache-Control", "no-store");
+  headers.set("X-Content-Type-Options", "nosniff");
+  headers.set("X-KHD-Session-Mode", "http-only-cookie");
+
+  const contentType = upstream.headers.get("Content-Type") || "";
+  if (contentType) headers.set("Content-Type", contentType);
+
+  const isLogout = service === "domain-api" && upstreamPath === "/auth/logout";
+  const isJson = contentType.toLowerCase().includes("application/json");
+
+  if (isJson) {
+    const payload = await upstream.json().catch(() => ({})) as Record<string, any>;
+    if (
+      service === "domain-api" &&
+      AUTH_SUCCESS_PATHS.has(upstreamPath) &&
+      payload?.session?.token
+    ) {
+      headers.append(
+        "Set-Cookie",
+        sessionCookie(String(payload.session.token), payload.session.expiresAt),
+      );
+      payload.session = {
+        expiresAt: payload.session.expiresAt,
+        mode: "httpOnlyCookie",
+      };
+    }
+    if (isLogout || upstream.status === 401) {
+      headers.append("Set-Cookie", clearCookie());
+    }
+    return new Response(JSON.stringify(payload), {
+      status: upstream.status,
+      headers,
+    });
+  }
+
+  if (isLogout || upstream.status === 401) {
+    headers.append("Set-Cookie", clearCookie());
+  }
+  return new Response(await upstream.arrayBuffer(), {
+    status: upstream.status,
+    headers,
+  });
+}
+
+export default async function handler(req: Request): Promise<Response> {
+  try {
+    const url = new URL(req.url);
+    let { service, upstreamPath } = routeFromRewrite(url);
+    const method = req.method.toUpperCase();
+    let requestBody = method === "GET" || method === "HEAD"
+      ? undefined
+      : await req.arrayBuffer();
+
+    if (
+      service === "domain-api" &&
+      (/^\/orders\/[0-9a-f-]+\/checkout$/i.test(upstreamPath) ||
+        upstreamPath === "/webhooks/camerpay")
+    ) {
+      return jsonResponse({
+        error: "external_payments_removed",
+        message: `External checkout has been removed. Pay from your account balance or contact ${SUPPORT_EMAIL} for a manual credit.`,
+        supportEmail: SUPPORT_EMAIL,
+      }, 410);
+    }
+
+    if (service === "domain-payment-status" && method !== "GET") {
+      return jsonResponse({
+        error: "external_payments_removed",
+        message: `External payment polling has been removed. Contact ${SUPPORT_EMAIL} if your balance needs to be credited.`,
+        supportEmail: SUPPORT_EMAIL,
+      }, 410);
+    }
+
+    const adminCredit = service === "domain-admin"
+      ? upstreamPath.match(/^\/users\/([0-9a-f-]+)\/wallet-credit$/i)
+      : null;
+    if (adminCredit && method === "POST") {
+      let payload: Record<string, unknown> = {};
+      try {
+        payload = JSON.parse(
+          new TextDecoder().decode(requestBody || new ArrayBuffer(0)) || "{}",
+        ) as Record<string, unknown>;
+      } catch {
+        return jsonResponse({
+          error: "invalid_json",
+          message: "A JSON object is required.",
+        }, 400);
+      }
+      service = "domain-wallet";
+      upstreamPath = "/admin/credit";
+      requestBody = new TextEncoder().encode(JSON.stringify({
+        ...payload,
+        userId: adminCredit[1],
+      })).buffer;
+    }
+
+    const upstreamUrl = new URL(
+      `${SUPABASE_FUNCTIONS_BASE.replace(/\/$/, "")}/${service}${upstreamPath}`,
+    );
+    upstreamUrl.search = url.search;
+
+    const headers = new Headers();
+    const accept = req.headers.get("Accept");
+    const contentType = req.headers.get("Content-Type");
+    const idempotencyKey = req.headers.get("Idempotency-Key");
+    if (accept) headers.set("Accept", accept);
+    if (contentType) headers.set("Content-Type", contentType);
+    if (idempotencyKey) headers.set("Idempotency-Key", idempotencyKey);
+    if (PUBLISHABLE_KEY) headers.set("apikey", PUBLISHABLE_KEY);
+
+    const cookieToken = cookieValue(req.headers.get("Cookie"), COOKIE_NAME);
+    const suppliedAuth = req.headers.get("Authorization");
+    if (cookieToken) {
+      headers.set("Authorization", `Bearer ${cookieToken}`);
+    } else if (suppliedAuth && !PUBLIC_SERVICES.has(service)) {
+      headers.set("Authorization", suppliedAuth);
+    }
+
+    const upstream = await fetch(upstreamUrl.toString(), {
+      method,
+      headers,
+      body: requestBody,
+      redirect: "manual",
+    });
+
+    return await responseFromUpstream(upstream, service, upstreamPath);
+  } catch (error) {
+    if (error instanceof Response) return error;
+    return jsonResponse({
+      error: "proxy_failed",
+      message: error instanceof Error
+        ? error.message
+        : "Domain API proxy failed.",
+    }, 502);
+  }
 }
