@@ -1,4 +1,4 @@
-name: Repair auth and checkbox layout
+name: Improve authentication UX
 
 on:
   workflow_dispatch:
@@ -16,9 +16,9 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Apply deterministic UI repair
-        run: python scripts/fix_auth_layout.py
-      - name: Commit repair
+      - name: Improve field guidance and password controls
+        run: python scripts/improve_auth_ux.py
+      - name: Commit UX improvements
         run: |
           if git diff --quiet; then
             echo "No changes required."
@@ -27,5 +27,5 @@ jobs:
           git config user.name "KmerHosting Automation"
           git config user.email "support@kmerhosting.com"
           git add src/router.tsx src/router-compat.css
-          git commit -m "fix: restore auth layout and labeled checkboxes"
+          git commit -m "fix: improve authentication form UX"
           git push origin HEAD:main
