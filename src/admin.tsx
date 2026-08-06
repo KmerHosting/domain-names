@@ -1,198 +1,121 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import {
-  AlertTriangle,
-  ArrowLeft,
-  CreditCard,
-  Database,
-  FileText,
-  Globe2,
-  LoaderCircle,
-  LockKeyhole,
-  RefreshCw,
-  RotateCcw,
-  Search,
-  Settings2,
-  ShieldCheck,
-  UserRound,
-  XCircle,
-} from "lucide-react";
-import { FormEvent, ReactNode, useMemo, useState } from "react";
-import { adminApi, api, clearSession, formatDate, formatMoney, getSession, type User } from "./api";
+import { FormEvent, useState } from "react";
+import { adminApi, formatDate, formatMoney, getSession, newIdempotencyKey } from "./api";
 
-type AdminSummary = {
-  counts: Record<string, number>;
-  revenue: { paidUsd: number; paidXaf: number };
-  orderStatus: Record<string, number>;
-  jobStatus: Record<string, number>;
-  issues: Array<{ issue: string; count: number | string }>;
-  recentOrders: Array<Record<string, any>>;
-  recentJobs: Array<Record<string, any>>;
-};
+type Row = Record<string, any>;
+type Tab = "overview" | "users" | "orders" | "domains" | "payments" | "jobs" | "settings";
 
-type AdminTab = "overview" | "users" | "orders" | "domains" | "payments" | "tlds" | "jobs" | "settings";
-
-function adminError(error: unknown) {
-  return error instanceof Error ? error.message : String(error || "Request failed.");
+function errorText(error: unknown) {
+  return error instanceof Error ? error.message : "Request failed.";
 }
 
-function StatusBadge({ value }: { value?: string | null }) {
-  const text = String(value || "unknown").replaceAll("_", " ");
-  const cls = String(value || "unknown").toLowerCase().replaceAll("_", "-");
-  return <span className={`status status-${cls}`}>{text}</span>;
+function Badge({ value }: { value?: string | null }) {
+  const text = String(value || "unknown");
+  return <span className={`status status-${text.toLowerCase().replaceAll("_", "-")}`}>{text.replaceAll("_", " ")}</span>;
 }
 
-function moneyOrDash(value: unknown) {
-  const n = Number(value || 0);
-  return Number.isFinite(n) && n > 0 ? formatMoney(n) : "—";
+function Loading() {
+  return <div className="loading">Loading…</div>;
 }
 
-function AdminMetric({ icon, label, value, hint }: { icon: ReactNode; label: string; value: ReactNode; hint?: string }) {
-  return <div className="admin-metric"><div className="admin-metric-icon">{icon}</div><span>{label}</span><strong>{value}</strong>{hint && <small>{hint}</small>}</div>;
+function Empty({ text }: { text: string }) {
+  return <div className="empty-state"><p>{text}</p></div>;
 }
 
-function AdminTable({ children }: { children: ReactNode }) {
-  return <div className="admin-table-wrap"><table>{children}</table></div>;
-}
-
-function AdminPanel({ title, description, children }: { title: string; description?: string; children: ReactNode }) {
-  return <section className="card admin-card"><div className="card-heading"><div><h2>{title}</h2>{description && <p>{description}</p>}</div></div>{children}</section>;
-}
-
-function useAdminGuard() {
-  return useQuery({ queryKey: ["me"], queryFn: () => api<{ user: User }>("/me"), enabled: Boolean(getSession()) });
-}
-
-function OverviewTab({ summary }: { summary?: AdminSummary }) {
-  if (!summary) return <div className="loading"><LoaderCircle className="spin" size={20} /> Loading admin summary</div>;
-  const issueCount = summary.issues.reduce((total, item) => total + Number(item.count || 0), 0);
+function Overview() {
+  const query = useQuery({ queryKey: ["admin-summary"], queryFn: () => adminApi<Row>("/summary"), refetchInterval: 30000 });
+  if (query.isPending) return <Loading />;
+  if (query.isError) return <div className="alert alert-error">{errorText(query.error)}</div>;
+  const counts = query.data?.counts || {};
+  const revenue = query.data?.revenue || {};
   return <>
-    <div className="admin-metrics-grid">
-      <AdminMetric icon={<UserRound />} label="Users" value={summary.counts.users || 0} />
-      <AdminMetric icon={<Globe2 />} label="Domains" value={summary.counts.domains || 0} />
-      <AdminMetric icon={<CreditCard />} label="Paid revenue" value={formatMoney(summary.revenue.paidUsd || 0)} hint={formatMoney(summary.revenue.paidXaf || 0, "XAF")} />
-      <AdminMetric icon={<AlertTriangle />} label="Open issues" value={issueCount} hint="jobs, DNS and delayed orders" />
+    <div className="stats-grid">
+      <div><span>Users</span><strong>{counts.users || 0}</strong></div>
+      <div><span>Domains</span><strong>{counts.domains || 0}</strong></div>
+      <div><span>Orders</span><strong>{counts.orders || 0}</strong></div>
+      <div><span>Jobs</span><strong>{counts.jobs || 0}</strong></div>
+      <div><span>Wallet revenue</span><strong>{formatMoney(revenue.paidUsd || 0)}</strong></div>
     </div>
+    {(query.data?.issues || []).length > 0 && <section className="card"><div className="card-heading"><div><h2>Operational issues</h2><p>Provider, automation and billing issues requiring attention.</p></div></div><div className="activity-list">{query.data.issues.map((item: Row) => <div className="activity-item" key={item.id || item.issue_key}><div className="activity-dot" /><div><strong>{item.title}</strong><p>{item.message}</p><small>{item.severity} · {formatDate(item.updated_at)}</small></div></div>)}</div></section>}
     <div className="dashboard-grid">
-      <AdminPanel title="Operational issues" description="Quick health view from the database.">
-        <div className="admin-issue-list">{summary.issues.map((item) => <div key={item.issue}><span>{item.issue.replaceAll("_", " ")}</span><strong>{item.count}</strong></div>)}</div>
-      </AdminPanel>
-      <AdminPanel title="Recent registrar jobs" description="Latest background jobs.">
-        {summary.recentJobs.length ? <AdminTable><thead><tr><th>Type</th><th>Status</th><th>Updated</th><th>Error</th></tr></thead><tbody>{summary.recentJobs.slice(0, 8).map((job) => <tr key={job.id}><td>{job.type}</td><td><StatusBadge value={job.status} /></td><td>{formatDate(job.updated_at)}</td><td className="admin-small-cell">{job.last_error || "—"}</td></tr>)}</tbody></AdminTable> : <p className="admin-empty">No recent jobs.</p>}
-      </AdminPanel>
+      <section className="card"><div className="card-heading"><div><h2>Recent orders</h2></div></div>{(query.data?.recentOrders || []).length ? <div className="activity-list">{query.data.recentOrders.map((item: Row) => <div className="activity-item" key={item.id}><div className="activity-dot" /><div><strong>{item.domain_name}</strong><p>{item.type} · {formatMoney(item.price_usd)}</p><Badge value={item.status} /></div></div>)}</div> : <Empty text="No orders." />}</section>
+      <section className="card"><div className="card-heading"><div><h2>Recent jobs</h2></div></div>{(query.data?.recentJobs || []).length ? <div className="activity-list">{query.data.recentJobs.map((item: Row) => <div className="activity-item" key={item.id}><div className="activity-dot" /><div><strong>{item.type}</strong><p>{item.last_error || "No error"}</p><Badge value={item.status} /></div></div>)}</div> : <Empty text="No background jobs." />}</section>
     </div>
   </>;
 }
 
-function UsersTab() {
-  const query = useQuery({ queryKey: ["admin", "users"], queryFn: () => adminApi<{ users: Array<Record<string, any>> }>("/users") });
+function Users() {
   const client = useQueryClient();
-  const update = useMutation({ mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) => adminApi(`/users/${id}`, { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "users"] }) });
-  if (query.isPending) return <div className="loading"><LoaderCircle className="spin" size={20} /> Loading users</div>;
-  if (query.isError) return <div className="alert alert-error">{adminError(query.error)}</div>;
-  return <AdminPanel title="Users" description="Suspend accounts, restore accounts and adjust wallet balance when needed.">
-    <AdminTable><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Balance</th><th>Last login</th><th>Actions</th></tr></thead><tbody>{query.data.users.map((user) => <tr key={user.id}><td><strong>{user.full_name}</strong><small>{user.email}</small></td><td>{user.role}</td><td><StatusBadge value={user.status} /></td><td>{formatMoney(user.balance_usd || 0)}</td><td>{formatDate(user.last_login_at)}</td><td><div className="admin-actions"><button disabled={user.role === "admin" && user.status === "active"} title={user.role === "admin" ? "The active admin account cannot suspend itself." : undefined} onClick={() => update.mutate({ id: user.id, body: { status: user.status === "active" ? "suspended" : "active" } })}>{user.status === "active" ? "Suspend" : "Activate"}</button><button onClick={() => { const v = prompt("New USD balance", String(user.balance_usd || 0)); if (v !== null) update.mutate({ id: user.id, body: { balanceUsd: Number(v) } }); }}>Set balance</button></div></td></tr>)}</tbody></AdminTable>
-    {update.isError && <div className="alert alert-error">{adminError(update.error)}</div>}
-  </AdminPanel>;
+  const query = useQuery({ queryKey: ["admin-users"], queryFn: () => adminApi<{ users: Row[] }>("/users") });
+  const update = useMutation({ mutationFn: ({ id, body }: { id: string; body: Row }) => adminApi(`/users/${id}`, { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-users"] }) });
+  const credit = useMutation({ mutationFn: ({ id, amountUsd, reason }: { id: string; amountUsd: number; reason: string }) => adminApi(`/users/${id}/wallet-credit`, { method: "POST", body: { amountUsd, reason }, idempotencyKey: newIdempotencyKey("manual-credit") }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-users"] }) });
+  const addCredit = (user: Row) => {
+    const amount = prompt(`USD amount to credit to ${user.email}`);
+    if (amount === null) return;
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) return alert("Enter a positive USD amount.");
+    const reason = prompt("Reason for this manual credit", "Manual support credit") || "Manual support credit";
+    credit.mutate({ id: user.id, amountUsd: value, reason });
+  };
+  return <section className="card"><div className="card-heading"><div><h2>Users and USD balances</h2><p>Balances can only be increased through an audited manual credit. Direct replacement is blocked.</p></div></div>{(query.isError || update.isError || credit.isError) && <div className="alert alert-error">{errorText(query.error || update.error || credit.error)}</div>}{query.isPending ? <Loading /> : <div className="table-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Status</th><th>Balance</th><th>Last login</th><th>Actions</th></tr></thead><tbody>{(query.data?.users || []).map((user) => <tr key={user.id}><td><strong>{user.full_name}</strong><small className="dns-meta">{user.email}</small></td><td><Badge value={user.role} /></td><td><Badge value={user.status} /></td><td>{formatMoney(user.balance_usd)}</td><td>{formatDate(user.last_login_at)}</td><td><div className="heading-actions"><button onClick={() => addCredit(user)}>Add credit</button><button onClick={() => update.mutate({ id: user.id, body: { status: user.status === "active" ? "suspended" : "active" } })}>{user.status === "active" ? "Suspend" : "Activate"}</button><button onClick={() => update.mutate({ id: user.id, body: { role: user.role === "admin" ? "customer" : "admin" } })}>{user.role === "admin" ? "Make customer" : "Make admin"}</button></div></td></tr>)}</tbody></table></div>}</section>;
 }
 
-function OrdersTab() {
-  const query = useQuery({ queryKey: ["admin", "orders"], queryFn: () => adminApi<{ orders: Array<Record<string, any>> }>("/orders") });
+function Orders() {
   const client = useQueryClient();
-  const retry = useMutation({ mutationFn: (id: string) => adminApi(`/orders/${id}/retry`, { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "orders"] }) });
-  const cancel = useMutation({ mutationFn: (id: string) => adminApi(`/orders/${id}/cancel`, { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "orders"] }) });
-  if (query.isPending) return <div className="loading"><LoaderCircle className="spin" size={20} /> Loading orders</div>;
-  if (query.isError) return <div className="alert alert-error">{adminError(query.error)}</div>;
-  return <AdminPanel title="Orders" description="Retry failed provisioning and cancel unpaid orders.">
-    <AdminTable><thead><tr><th>Order</th><th>Customer</th><th>Amount</th><th>Status</th><th>Payment</th><th>Actions</th></tr></thead><tbody>{query.data.orders.map((order) => { const payment = [...(order.domain_payments || [])].sort((a:any,b:any)=>new Date(b.created_at||0).getTime()-new Date(a.created_at||0).getTime())[0]; return <tr key={order.id}><td><strong>{order.domain_name}</strong><small>{order.order_number} · {order.type} · {formatDate(order.created_at)}</small>{order.failure_message && <small className="admin-error-text">{order.failure_message}</small>}</td><td>{order.domain_users?.email || "—"}</td><td>{formatMoney(order.price_usd)}<small>{formatMoney(order.amount_xaf, "XAF")}</small></td><td><StatusBadge value={order.status} /></td><td><StatusBadge value={payment?.status || "none"} /></td><td><div className="admin-actions"><button onClick={() => retry.mutate(order.id)} disabled={!['paid','processing','failed'].includes(order.status)}><RotateCcw size={14} /> Retry</button><button onClick={() => cancel.mutate(order.id)} disabled={['paid','processing','completed'].includes(order.status)}><XCircle size={14} /> Cancel</button></div></td></tr>; })}</tbody></AdminTable>
-    {(retry.isError || cancel.isError) && <div className="alert alert-error">{adminError(retry.error || cancel.error)}</div>}
-  </AdminPanel>;
+  const query = useQuery({ queryKey: ["admin-orders"], queryFn: () => adminApi<{ orders: Row[] }>("/orders"), refetchInterval: 20000 });
+  const action = useMutation({ mutationFn: ({ id, action, body }: { id: string; action: string; body?: Row }) => adminApi(`/orders/${id}/${action}`, { method: "POST", body: body || {} }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-orders"] }) });
+  return <section className="card"><div className="card-heading"><div><h2>Domain orders</h2><p>Only provider-quoted wallet orders can be retried. Paid failures can be explicitly refunded to the wallet.</p></div></div>{(query.isError || action.isError) && <div className="alert alert-error">{errorText(query.error || action.error)}</div>}{query.isPending ? <Loading /> : <div className="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Domain</th><th>Type</th><th>Environment</th><th>Price</th><th>Status</th><th>Provider quote</th><th>Actions</th></tr></thead><tbody>{(query.data?.orders || []).map((order) => <tr key={order.id}><td>{order.order_number}<small className="dns-meta">{formatDate(order.created_at)}</small></td><td>{order.domain_users?.email || "—"}</td><td><strong>{order.domain_name}</strong></td><td>{order.type}</td><td><Badge value={order.registrar_environment} /></td><td>{formatMoney(order.price_usd)}</td><td><Badge value={order.status} />{order.failure_message && <small className="dns-meta">{order.failure_message}</small>}</td><td>{order.provider_quote_id ? "yes" : "no"}</td><td><div className="heading-actions">{["failed", "processing", "paid"].includes(order.status) && order.provider_quote_id && <button onClick={() => action.mutate({ id: order.id, action: "retry" })}>Retry</button>}{["pending_payment", "payment_pending"].includes(order.status) && <button onClick={() => window.confirm("Cancel this unpaid order?") && action.mutate({ id: order.id, action: "cancel", body: { reason: "Cancelled by administrator" } })}>Cancel</button>}{["paid", "processing", "failed"].includes(order.status) && <button onClick={() => window.confirm("Refund this paid order to the customer wallet?") && action.mutate({ id: order.id, action: "refund", body: { reason: "Refunded by administrator" } })}>Refund</button>}</div></td></tr>)}</tbody></table></div>}</section>;
 }
 
-function DomainsTab() {
-  const query = useQuery({ queryKey: ["admin", "domains"], queryFn: () => adminApi<{ domains: Array<Record<string, any>> }>("/domains") });
+function Domains() {
   const client = useQueryClient();
-  const update = useMutation({ mutationFn: ({ id, body }: { id: string; body: Record<string, unknown> }) => adminApi(`/domains/${id}`, { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "domains"] }) });
-  if (query.isPending) return <div className="loading"><LoaderCircle className="spin" size={20} /> Loading domains</div>;
-  if (query.isError) return <div className="alert alert-error">{adminError(query.error)}</div>;
-  return <AdminPanel title="Domains" description="Manage local domain state, auto-renew and protection flags.">
-    <AdminTable><thead><tr><th>Domain</th><th>Owner</th><th>Status</th><th>Expires</th><th>Flags</th><th>Actions</th></tr></thead><tbody>{query.data.domains.map((domain) => <tr key={domain.id}><td><strong>{domain.domain_name}</strong><small>{domain.tld}</small></td><td>{domain.domain_users?.email || "—"}</td><td><StatusBadge value={domain.status} /></td><td>{formatDate(domain.expires_at)}</td><td><small>Renew: {domain.auto_renew ? "on" : "off"}</small><small>Lock: {domain.locked ? "on" : "off"}</small><small>Privacy: {domain.privacy_enabled ? "on" : "off"}</small></td><td><div className="admin-actions"><button onClick={() => update.mutate({ id: domain.id, body: { autoRenew: !domain.auto_renew } })}>Auto-renew</button><button onClick={() => update.mutate({ id: domain.id, body: { locked: !domain.locked } })}>Lock</button><button onClick={() => update.mutate({ id: domain.id, body: { privacyEnabled: !domain.privacy_enabled } })}>Privacy</button></div></td></tr>)}</tbody></AdminTable>
-  </AdminPanel>;
+  const query = useQuery({ queryKey: ["admin-domains"], queryFn: () => adminApi<{ domains: Row[] }>("/domains"), refetchInterval: 30000 });
+  const sync = useMutation({ mutationFn: (id: string) => adminApi(`/domains/${id}/sync`, { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-domains"] }) });
+  const update = useMutation({ mutationFn: ({ id, body }: { id: string; body: Row }) => adminApi(`/domains/${id}`, { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-domains"] }) });
+  return <section className="card"><div className="card-heading"><div><h2>Managed domains</h2><p>Lock, privacy and nameserver changes are provider-backed. There is no destructive local “delete domain” action.</p></div><a className="button button-secondary" href="/admin/provider">Reconcile provider</a></div>{(query.isError || sync.isError || update.isError) && <div className="alert alert-error">{errorText(query.error || sync.error || update.error)}</div>}{query.isPending ? <Loading /> : <div className="table-wrap"><table><thead><tr><th>Domain</th><th>Owner</th><th>Environment</th><th>Status</th><th>Expires</th><th>Lock</th><th>Privacy</th><th>Nameservers</th><th>Actions</th></tr></thead><tbody>{(query.data?.domains || []).map((domain) => <tr key={domain.id}><td><strong>{domain.domain_name}</strong><small className="dns-meta">{domain.registrar_domain_id || "no provider id"}</small></td><td>{domain.domain_users?.email || "—"}</td><td><Badge value={domain.registrar_environment} /></td><td><Badge value={domain.status} /></td><td>{formatDate(domain.expires_at)}</td><td>{domain.locked ? "on" : "off"}</td><td>{domain.privacy_enabled ? "on" : "off"}</td><td>{(domain.nameservers || []).join(", ")}</td><td><div className="heading-actions"><button onClick={() => sync.mutate(domain.id)}>Sync</button><button onClick={() => update.mutate({ id: domain.id, body: { locked: !domain.locked } })}>{domain.locked ? "Unlock" : "Lock"}</button><button onClick={() => update.mutate({ id: domain.id, body: { privacyEnabled: !domain.privacy_enabled } })}>{domain.privacy_enabled ? "Disable privacy" : "Enable privacy"}</button></div></td></tr>)}</tbody></table></div>}</section>;
 }
 
-function PaymentsTab() {
-  const query = useQuery({ queryKey: ["admin", "payments"], queryFn: () => adminApi<{ payments: Array<Record<string, any>> }>("/payments") });
-  const invoices = useQuery({ queryKey: ["admin", "invoices"], queryFn: () => adminApi<{ invoices: Array<Record<string, any>> }>("/invoices") });
-  if (query.isPending || invoices.isPending) return <div className="loading"><LoaderCircle className="spin" size={20} /> Loading billing</div>;
-  if (query.isError || invoices.isError) return <div className="alert alert-error">{adminError(query.error || invoices.error)}</div>;
-  return <div className="dashboard-grid"><AdminPanel title="Payments" description="Latest direct payments."><AdminTable><thead><tr><th>Payment</th><th>Order</th><th>Amount</th><th>Status</th><th>Date</th></tr></thead><tbody>{query.data.payments.map((payment) => <tr key={payment.id}><td>{payment.merchant_invoice_id || payment.provider_reference || payment.id}</td><td>{payment.domain_orders?.domain_name || "—"}</td><td>{formatMoney(payment.amount_xaf, "XAF")}</td><td><StatusBadge value={payment.status} /></td><td>{formatDate(payment.created_at)}</td></tr>)}</tbody></AdminTable></AdminPanel><AdminPanel title="Invoices" description="Server-generated billing documents."><AdminTable><thead><tr><th>Invoice</th><th>Order</th><th>Amount</th><th>Status</th></tr></thead><tbody>{invoices.data.invoices.map((invoice) => <tr key={invoice.id}><td>{invoice.invoice_number}</td><td>{invoice.domain_orders?.domain_name || "—"}</td><td>{formatMoney(invoice.amount_usd)}<small>{formatMoney(invoice.amount_xaf, "XAF")}</small></td><td><StatusBadge value={invoice.status} /></td></tr>)}</tbody></AdminTable></AdminPanel></div>;
+function Payments() {
+  const query = useQuery({ queryKey: ["admin-payments"], queryFn: () => adminApi<{ payments: Row[] }>("/payments") });
+  return <section className="card"><div className="card-heading"><div><h2>Wallet payment history</h2><p>New external payments are blocked. Historical provider rows may remain for accounting evidence.</p></div></div>{query.isPending ? <Loading /> : query.isError ? <div className="alert alert-error">{errorText(query.error)}</div> : <div className="table-wrap"><table><thead><tr><th>Date</th><th>Order</th><th>Provider</th><th>Method</th><th>USD amount</th><th>Status</th></tr></thead><tbody>{(query.data?.payments || []).map((payment) => <tr key={payment.id}><td>{formatDate(payment.created_at)}</td><td>{payment.domain_orders?.order_number || "—"}<small className="dns-meta">{payment.domain_orders?.domain_name}</small></td><td>{payment.provider}</td><td>{payment.payment_method || "—"}</td><td>{formatMoney(payment.amount_usd || 0)}</td><td><Badge value={payment.status} /></td></tr>)}</tbody></table></div>}</section>;
 }
 
-function TldsTab() {
-  const query = useQuery({ queryKey: ["admin", "tlds"], queryFn: () => adminApi<{ tlds: Array<Record<string, any>> }>("/tlds") });
+function Jobs() {
   const client = useQueryClient();
-  const update = useMutation({ mutationFn: ({ tld, body }: { tld: string; body: Record<string, unknown> }) => adminApi(`/tlds/${encodeURIComponent(tld)}`, { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "tlds"] }) });
-  if (query.isPending) return <div className="loading"><LoaderCircle className="spin" size={20} /> Loading provider TLD catalog</div>;
-  if (query.isError) return <div className="alert alert-error">{adminError(query.error)}</div>;
-  const rows = (query.data.tlds || []).filter((tld) => Boolean(tld.provider_available));
-  return <AdminPanel title="Provider TLD catalog" description="TLDs imported from DomainNameAPI. Customer prices are provider cost +30%."><AdminTable><thead><tr><th>TLD</th><th>Provider cost</th><th>Customer price</th><th>Sync</th><th>Sale status</th><th>Actions</th></tr></thead><tbody>{rows.map((tld) => {
-    const canEnable = Number(tld.registration_price_usd || 0) > 0;
-    return <tr key={tld.tld}><td><strong>{tld.tld}</strong><small>Provider product: {tld.provider_product_name || tld.tld.replace(".", "")}</small></td><td><small>Register: {moneyOrDash(tld.registration_cost_usd)}</small><small>Renew: {moneyOrDash(tld.renewal_cost_usd)}</small><small>Transfer: {moneyOrDash(tld.transfer_cost_usd)}</small></td><td><small>Register: {moneyOrDash(tld.registration_price_usd)}</small><small>Renew: {moneyOrDash(tld.renewal_price_usd)}</small><small>Transfer: {moneyOrDash(tld.transfer_price_usd)}</small></td><td><StatusBadge value={tld.registration_sync_status || "pending"} /> <small>{formatDate(tld.provider_catalog_seen_at || tld.last_synced_at)}</small></td><td><StatusBadge value={tld.enabled ? "enabled" : "disabled"} /> {tld.popular && <StatusBadge value="popular" />}</td><td><div className="admin-actions"><button disabled={!canEnable && !tld.enabled} title={!canEnable ? "Missing provider registration price." : undefined} onClick={() => update.mutate({ tld: tld.tld, body: { enabled: !tld.enabled } })}>{tld.enabled ? "Disable" : "Enable"}</button><button onClick={() => { const v = prompt(`Customer registration price for ${tld.tld}`, String(tld.registration_price_usd || 0)); if (v !== null) update.mutate({ tld: tld.tld, body: { registrationPriceUsd: Number(v) } }); }}>Set price</button></div></td></tr>;
-  })}</tbody></AdminTable>{!rows.length && <p className="admin-empty">No provider TLD catalog imported yet. Use “Import provider TLD catalog”.</p>}</AdminPanel>;
+  const query = useQuery({ queryKey: ["admin-jobs"], queryFn: () => adminApi<{ jobs: Row[] }>("/jobs"), refetchInterval: 15000 });
+  const retry = useMutation({ mutationFn: (id: string) => adminApi(`/jobs/${id}/retry`, { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-jobs"] }) });
+  return <section className="card"><div className="card-heading"><div><h2>Automation jobs</h2><p>Provider writes execute only after a valid wallet payment and production quote.</p></div><a className="button button-secondary" href="/admin/cron">Cron status</a></div>{(query.isError || retry.isError) && <div className="alert alert-error">{errorText(query.error || retry.error)}</div>}{query.isPending ? <Loading /> : <div className="table-wrap"><table><thead><tr><th>Job</th><th>Order</th><th>Status</th><th>Attempts</th><th>Run after</th><th>Error</th><th>Action</th></tr></thead><tbody>{(query.data?.jobs || []).map((job) => <tr key={job.id}><td>{job.type}</td><td>{job.domain_orders?.order_number || job.domain_orders?.domain_name || "—"}</td><td><Badge value={job.status} /></td><td>{job.attempts}/{job.max_attempts}</td><td>{formatDate(job.run_after)}</td><td>{job.last_error || "—"}</td><td>{["failed", "dead"].includes(job.status) && <button onClick={() => retry.mutate(job.id)}>Retry</button>}</td></tr>)}</tbody></table></div>}</section>;
 }
 
-function JobsTab() {
-  const query = useQuery({ queryKey: ["admin", "jobs"], queryFn: () => adminApi<{ jobs: Array<Record<string, any>> }>("/jobs") });
+function Settings() {
   const client = useQueryClient();
-  const retry = useMutation({ mutationFn: (id: string) => adminApi(`/jobs/${id}/retry`, { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "jobs"] }) });
-  const kill = useMutation({ mutationFn: (id: string) => adminApi(`/jobs/${id}/dead`, { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "jobs"] }) });
-  if (query.isPending) return <div className="loading"><LoaderCircle className="spin" size={20} /> Loading jobs</div>;
-  if (query.isError) return <div className="alert alert-error">{adminError(query.error)}</div>;
-  return <AdminPanel title="Registrar jobs" description="Retry stuck jobs or mark impossible jobs as dead."><AdminTable><thead><tr><th>Job</th><th>Status</th><th>Attempts</th><th>Run after</th><th>Error</th><th>Actions</th></tr></thead><tbody>{query.data.jobs.map((job) => <tr key={job.id}><td><strong>{job.type}</strong><small>{job.id}</small></td><td><StatusBadge value={job.status} /></td><td>{job.attempts}/{job.max_attempts}</td><td>{formatDate(job.run_after)}</td><td className="admin-small-cell">{job.last_error || "—"}</td><td><div className="admin-actions"><button onClick={() => retry.mutate(job.id)}>Retry</button><button onClick={() => kill.mutate(job.id)}>Mark dead</button></div></td></tr>)}</tbody></AdminTable></AdminPanel>;
-}
-
-function SettingsTab() {
-  const query = useQuery({ queryKey: ["admin", "config"], queryFn: () => adminApi<{ config: Record<string, any> }>("/config") });
-  const client = useQueryClient();
-  const update = useMutation({ mutationFn: (body: Record<string, unknown>) => adminApi("/config", { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin", "config"] }) });
-  if (query.isPending) return <div className="loading"><LoaderCircle className="spin" size={20} /> Loading settings</div>;
-  if (query.isError) return <div className="alert alert-error">{adminError(query.error)}</div>;
-  const cfg = query.data.config;
-  return <AdminPanel title="Settings" description="Safe platform settings. Secrets stay in Supabase Vault."><form className="admin-settings-form" onSubmit={(event: FormEvent<HTMLFormElement>) => { event.preventDefault(); const raw = Object.fromEntries(new FormData(event.currentTarget)); update.mutate({ registrarEnvironment: raw.registrarEnvironment, paymentSandbox: raw.paymentSandbox === "on", maintenanceMode: raw.maintenanceMode === "on", usdToXafRate: Number(raw.usdToXafRate), supportEmail: raw.supportEmail, defaultNameservers: String(raw.defaultNameservers || "").split(/[\s,]+/).filter(Boolean) }); }}><label>Registrar environment<select name="registrarEnvironment" defaultValue={cfg.registrar_environment}><option value="ote">OT&E / test</option><option value="production">Production</option></select></label><label>USD to XAF rate<input name="usdToXafRate" type="number" defaultValue={cfg.usd_to_xaf_rate} /></label><label>Support email<input name="supportEmail" type="email" defaultValue={cfg.support_email} /></label><label>Default nameservers<input name="defaultNameservers" defaultValue={(cfg.default_nameservers || []).join(", ")} /></label><label className="checkbox"><input type="checkbox" name="paymentSandbox" defaultChecked={Boolean(cfg.payment_sandbox)} /> CamerPay sandbox mode</label><label className="checkbox"><input type="checkbox" name="maintenanceMode" defaultChecked={Boolean(cfg.maintenance_mode)} /> Maintenance mode</label>{update.isError && <div className="alert alert-error">{adminError(update.error)}</div>}{update.isSuccess && <div className="alert alert-success">Settings saved.</div>}<button className="button button-primary" disabled={update.isPending}>{update.isPending && <LoaderCircle className="spin" size={16} />} Save settings</button></form></AdminPanel>;
-}
-
-function AdminContent({ tab, summary }: { tab: AdminTab; summary?: AdminSummary }) {
-  if (tab === "overview") return <OverviewTab summary={summary} />;
-  if (tab === "users") return <UsersTab />;
-  if (tab === "orders") return <OrdersTab />;
-  if (tab === "domains") return <DomainsTab />;
-  if (tab === "payments") return <PaymentsTab />;
-  if (tab === "tlds") return <TldsTab />;
-  if (tab === "jobs") return <JobsTab />;
-  return <SettingsTab />;
+  const query = useQuery({ queryKey: ["admin-settings"], queryFn: () => adminApi<{ settings: Row }>("/settings") });
+  const save = useMutation({ mutationFn: (body: Row) => adminApi("/settings", { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-settings"] }) });
+  const submit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const data = Object.fromEntries(new FormData(event.currentTarget));
+    save.mutate({ supportEmail: data.supportEmail, maintenanceMode: data.maintenanceMode === "on", providerLowBalanceThresholdUsd: Number(data.providerLowBalanceThresholdUsd), defaultNameservers: String(data.defaultNameservers || "").split(/[\n,]+/).map((item) => item.trim()).filter(Boolean) });
+  };
+  if (query.isPending) return <Loading />;
+  if (query.isError) return <div className="alert alert-error">{errorText(query.error)}</div>;
+  const settings = query.data?.settings || {};
+  return <section className="card"><div className="card-heading"><div><h2>Platform settings</h2><p>Registrar environment is intentionally locked to production. OTE tests use explicit test-only calls.</p></div></div><form className="form-stack" onSubmit={submit}><label>Support email<input name="supportEmail" type="email" defaultValue={settings.support_email} required /></label><label>Provider low-balance threshold (USD)<input name="providerLowBalanceThresholdUsd" type="number" min="0" step="0.01" defaultValue={settings.provider_low_balance_threshold_usd || 0} /></label><label>Default nameservers<textarea name="defaultNameservers" defaultValue={(settings.default_nameservers || []).join("\n")} required /></label><label><input name="maintenanceMode" type="checkbox" defaultChecked={Boolean(settings.maintenance_mode)} /> Maintenance mode</label><div className="stats-grid"><div><span>Registrar</span><strong>{settings.registrar_environment}</strong></div><div><span>Payments</span><strong>{settings.payment_mode}</strong></div><div><span>Top-up</span><strong>{settings.wallet_topup_mode}</strong></div></div><button className="button button-primary" disabled={save.isPending}>Save settings</button>{save.isSuccess && <div className="alert alert-success">Settings saved.</div>}{save.isError && <div className="alert alert-error">{errorText(save.error)}</div>}</form></section>;
 }
 
 export default function AdminPage() {
-  const me = useAdminGuard();
-  const [tab, setTab] = useState<AdminTab>("overview");
-  const summary = useQuery({ queryKey: ["admin", "summary"], queryFn: () => adminApi<AdminSummary>("/summary"), enabled: me.data?.user.role === "admin", refetchInterval: 30_000 });
-  const tabs = useMemo(() => [
-    ["overview", "Overview", ShieldCheck], ["users", "Users", UserRound], ["orders", "Orders", CreditCard], ["domains", "Domains", Globe2], ["payments", "Payments", FileText], ["tlds", "Provider TLDs", Database], ["jobs", "Jobs", RefreshCw], ["settings", "Settings", Settings2],
-  ] as const, []);
-
-  if (!getSession()) return <div className="return-page"><div className="return-card"><LockKeyhole /><h1>Admin access</h1><p>Sign in with the administrator account.</p><a href="/auth" className="button button-primary">Sign in</a></div></div>;
-  if (me.isPending) return <div className="return-page"><div className="return-card"><LoaderCircle className="spin" /><h1>Checking admin access</h1></div></div>;
-  if (me.isError || me.data?.user.role !== "admin") return <div className="return-page"><div className="return-card"><XCircle className="return-error" /><h1>Access denied</h1><p>This page is reserved for the single platform administrator.</p><a href="/dashboard" className="button button-primary">Open dashboard</a></div></div>;
-
-  return <div className="admin-shell">
-    <aside className="admin-sidebar">
-      <div className="admin-brand"><ShieldCheck /><div><strong>KmerHosting Admin</strong><small>{me.data.user.email}</small></div></div>
-      <nav>{tabs.map(([key, label, Icon]) => <button key={key} className={tab === key ? "active" : ""} onClick={() => setTab(key)}><Icon size={18} /> {label}</button>)}</nav>
-      <div className="admin-sidebar-bottom"><a href="/dashboard" className="button button-secondary"><ArrowLeft size={16} /> Customer dashboard</a><button className="button button-ghost" onClick={() => { clearSession(); window.location.assign("/"); }}>Sign out</button></div>
-    </aside>
-    <main className="admin-main">
-      <div className="page-heading"><div><span className="kicker">Single admin account</span><h1>Platform administration</h1><p>Manage users, orders, payments, domains, jobs, provider pricing and platform settings.</p></div><div className="heading-actions"><button className="button button-secondary" onClick={() => summary.refetch()}><RefreshCw size={16} /> Refresh</button><a href="/" className="button button-primary"><Search size={16} /> Search site</a></div></div>
-      {summary.isError && <div className="alert alert-error">{adminError(summary.error)}</div>}
-      <AdminContent tab={tab} summary={summary.data} />
-    </main>
-  </div>;
+  const [tab, setTab] = useState<Tab>("overview");
+  if (!getSession()) {
+    window.location.href = "/login";
+    return null;
+  }
+  const tabs: { id: Tab; label: string }[] = [
+    { id: "overview", label: "Overview" },
+    { id: "users", label: "Users" },
+    { id: "orders", label: "Orders" },
+    { id: "domains", label: "Domains" },
+    { id: "payments", label: "Wallet" },
+    { id: "jobs", label: "Jobs" },
+    { id: "settings", label: "Settings" },
+  ];
+  return <main className="admin-main"><div className="admin-topbar"><a href="/dashboard">← Customer dashboard</a><nav className="admin-nav-inline"><a href="/admin/provider">Provider</a><a href="/admin/tlds">TLDs</a><a href="/admin/logs">Logs</a><a href="/admin/cron">Crons</a></nav></div><div className="page-heading"><div><span className="kicker">KmerHosting Domains</span><h1>Administration</h1><p>Wallet-only billing and production DomainNameAPI operations.</p></div></div><div className="admin-tabs">{tabs.map((item) => <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>{item.label}</button>)}</div>{tab === "overview" && <Overview />}{tab === "users" && <Users />}{tab === "orders" && <Orders />}{tab === "domains" && <Domains />}{tab === "payments" && <Payments />}{tab === "jobs" && <Jobs />}{tab === "settings" && <Settings />}</main>;
 }
