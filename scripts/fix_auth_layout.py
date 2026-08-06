@@ -1,0 +1,108 @@
+from pathlib import Path
+import re
+
+router_path = Path("src/router.tsx")
+source = router_path.read_text(encoding="utf-8")
+
+start_token = '  return <div className="auth-page">'
+end_token = '  </div></div></div>;'
+
+if start_token in source:
+    start = source.index(start_token)
+    end = source.index(end_token, start) + len(end_token)
+    replacement = '''  return (
+    <div className="auth-shell">
+      <div className="auth-brand-pane">
+        <Brand />
+        <div className="auth-brand-copy">
+          <span className="eyebrow dark"><ShieldCheck size={15} /> Secure customer portal</span>
+          <h1>Control your domains from one dashboard.</h1>
+          <p>Provider-backed availability, exact pricing and complete lifecycle controls.</p>
+        </div>
+        <div className="auth-points">
+          <span><Check /> Protected account access</span>
+          <span><Check /> USD wallet-only billing</span>
+          <span><Check /> Domain lifecycle controls</span>
+        </div>
+      </div>
+      <div className="auth-form-pane">
+        <div className="auth-card">
+          <Link to="/" className="back-link">← Back to domain search</Link>
+          <div className="auth-tabs">
+            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setStep("form"); }}>Sign in</button>
+            <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setStep("form"); }}>Create account</button>
+          </div>
+          <h2>{mode === "login" ? "Sign in" : mode === "register" ? step === "form" ? "Create your account" : "Verify your email" : step === "form" ? "Reset your password" : "Enter the verification code"}</h2>
+          <p>{mode === "login" ? "Use your email and password." : step === "form" ? "A six-digit code will be sent by email." : `Enter the code sent to ${email}.`}</p>
+          <form className="form-stack" onSubmit={submit}>
+            {step === "form" && <>
+              <label>Email<input name="email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} autoComplete="email" /></label>
+              {mode === "register" && <>
+                <label>Full name<input name="fullName" required autoComplete="name" /></label>
+                <div className="form-row"><label>Phone<input name="phone" autoComplete="tel" /></label><label>Country code<input name="countryCode" maxLength={2} placeholder="CM" /></label></div>
+              </>}
+              <label>Password<input name="password" type="password" minLength={10} required autoComplete={mode === "register" ? "new-password" : "current-password"} /></label>
+            </>}
+            {step === "otp" && <>
+              <input type="hidden" name="email" value={email} />
+              <label>Six-digit code<input name="code" className="otp-input" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} required autoFocus /></label>
+              {mode === "reset" && <label>New password<input name="newPassword" type="password" minLength={10} required autoComplete="new-password" /></label>}
+            </>}
+            <button className="button button-primary button-wide" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : mode === "login" ? "Sign in" : step === "form" ? "Send code" : "Verify"}</button>
+          </form>
+          {error && <div className="alert alert-error">{errorText(error)}</div>}
+          {mode === "login" && <button type="button" className="text-button" onClick={() => { setMode("reset"); setStep("form"); }}>Forgot password?</button>}
+          {step === "otp" && <button type="button" className="text-button" onClick={() => setStep("form")}>Use a different email</button>}
+        </div>
+      </div>
+    </div>
+  );'''
+    source = source[:start] + replacement + source[end:]
+elif '<div className="auth-brand-pane">' not in source:
+    raise SystemExit("Auth layout marker not found; refusing broad edit.")
+
+replacements = {
+    '<label><input name="isDefault" type="checkbox" defaultChecked={editing?.is_default ?? true} /> Default contact</label>': '<label className="checkbox"><input name="isDefault" type="checkbox" defaultChecked={editing?.is_default ?? true} /><span>Default contact</span></label>',
+    '<label><input type="checkbox" checked={customNameservers} onChange={(event) => setCustomNameservers(event.target.checked)} /> Use custom nameservers</label>': '<label className="checkbox"><input type="checkbox" checked={customNameservers} onChange={(event) => setCustomNameservers(event.target.checked)} /><span>Use custom nameservers</span></label>',
+    '<button className="button button-primary" disabled={createOrder.isPending || !contactId}>{createOrder.isPending ? "Creating exact quote…" : "Create wallet order"}</button>': '<button type="button" className="button button-primary" disabled={createOrder.isPending || !contactId} onClick={order}>{createOrder.isPending ? "Creating exact quote…" : "Create wallet order"}</button>',
+}
+for old, new in replacements.items():
+    if old in source:
+        source = source.replace(old, new, 1)
+
+router_path.write_text(source, encoding="utf-8")
+
+css_path = Path("src/router-compat.css")
+css = css_path.read_text(encoding="utf-8")
+css = re.sub(
+    r'/\* Compatibility layer.*?(?=\.dashboard-sidebar \{)',
+    '/* Compatibility layer for provider-aligned authenticated routes. */\n\n',
+    css,
+    count=1,
+    flags=re.S,
+)
+extra = '''
+
+/* Native checkbox controls must remain compact and keep their visible label. */
+.form-stack label.checkbox {
+  display: inline-flex;
+  width: fit-content;
+  flex-direction: row;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+}
+.form-stack label.checkbox input[type="checkbox"],
+.form-section label > input[type="checkbox"] {
+  width: 17px;
+  height: 17px;
+  flex: 0 0 17px;
+  margin: 0;
+  padding: 0;
+  accent-color: var(--blue);
+}
+.form-stack label.checkbox span { line-height: 1.3; }
+'''
+if "Native checkbox controls must remain compact" not in css:
+    css += extra
+css_path.write_text(css, encoding="utf-8")
