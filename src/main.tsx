@@ -8,7 +8,6 @@ import { isNativePage, NativePageRouter } from "./native-pages";
 import { DnsSettingsPage, isDnsSettingsPage } from "./dns-settings-page";
 import { AdminOperationsPage, isAdminOperationsPage } from "./admin-operations-page";
 import { PlatformStatusBanner } from "./platform-status-banner";
-import "./runtime-fixes";
 import "./styles.css";
 import "./admin.css";
 
@@ -31,7 +30,17 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <PlatformStatusBanner />
-      {isOperationsRoute ? <AdminOperationsPage /> : isDnsRoute ? <DnsSettingsPage /> : isAuxiliaryNativeRoute ? <NativePageRouter /> : isAdminRoute ? <AdminPage /> : <RouterProvider router={router} />}
+      {isOperationsRoute ? (
+        <AdminOperationsPage />
+      ) : isDnsRoute ? (
+        <DnsSettingsPage />
+      ) : isAuxiliaryNativeRoute ? (
+        <NativePageRouter />
+      ) : isAdminRoute ? (
+        <AdminPage />
+      ) : (
+        <RouterProvider router={router} />
+      )}
     </QueryClientProvider>
   </React.StrictMode>,
 );
