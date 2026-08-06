@@ -1,17 +1,22 @@
-const API_URL = import.meta.env.VITE_DOMAIN_API_URL || "/api/domain/domain-api";
-const PAYMENT_API_URL = import.meta.env.VITE_DOMAIN_PAYMENT_API_URL || "/api/domain/domain-payment-status";
-const WALLET_API_URL = import.meta.env.VITE_DOMAIN_WALLET_API_URL || "/api/domain/domain-wallet";
-const ADMIN_API_URL = import.meta.env.VITE_DOMAIN_ADMIN_API_URL || "/api/domain/domain-admin";
-const ADMIN_MONITOR_API_URL = import.meta.env.VITE_DOMAIN_ADMIN_MONITOR_API_URL || "/api/domain/domain-admin-monitor";
-const OPERATIONS_MONITOR_API_URL = import.meta.env.VITE_DOMAIN_OPERATIONS_MONITOR_API_URL || "/api/domain/domain-operations-monitor";
-const SEARCH_API_URL = import.meta.env.VITE_DOMAIN_SEARCH_API_URL || "/api/domain/domain-search-fast";
-const OPS_API_URL = import.meta.env.VITE_DOMAIN_OPS_API_URL || "/api/domain/domain-ops";
-const DOCUMENTS_API_URL = import.meta.env.VITE_DOMAIN_DOCUMENTS_API_URL || "/api/domain/domain-documents";
-const ORDER_GUARD_API_URL = import.meta.env.VITE_DOMAIN_ORDER_GUARD_API_URL || "/api/domain/domain-order-guard";
-const CUSTOMER_TOOLS_API_URL = import.meta.env.VITE_DOMAIN_CUSTOMER_TOOLS_API_URL || "/api/domain/domain-customer-tools";
-const DNS_TOOLS_API_URL = import.meta.env.VITE_DOMAIN_DNS_TOOLS_API_URL || "/api/domain/domain-dns-tools";
+const configuredProxyBase = String(import.meta.env.VITE_DOMAIN_PROXY_BASE || "/api/domain").trim();
+const DOMAIN_PROXY_BASE = configuredProxyBase.startsWith("/")
+  ? configuredProxyBase.replace(/\/+$/, "")
+  : "/api/domain";
+const serviceUrl = (service: string): string => `${DOMAIN_PROXY_BASE}/${service}`;
 
-const PUBLISHABLE_KEY = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || "";
+const API_URL = serviceUrl("domain-api");
+const PAYMENT_API_URL = serviceUrl("domain-payment-status");
+const WALLET_API_URL = serviceUrl("domain-wallet");
+const ADMIN_API_URL = serviceUrl("domain-admin");
+const ADMIN_MONITOR_API_URL = serviceUrl("domain-admin-monitor");
+const OPERATIONS_MONITOR_API_URL = serviceUrl("domain-operations-monitor");
+const SEARCH_API_URL = serviceUrl("domain-search-fast");
+const OPS_API_URL = serviceUrl("domain-ops");
+const DOCUMENTS_API_URL = serviceUrl("domain-documents");
+const ORDER_GUARD_API_URL = serviceUrl("domain-order-guard");
+const CUSTOMER_TOOLS_API_URL = serviceUrl("domain-customer-tools");
+const DNS_TOOLS_API_URL = serviceUrl("domain-dns-tools");
+
 const SESSION_META_KEY = "kmerhosting-domain-session-meta";
 const LEGACY_SESSION_KEY = "kmerhosting-domain-session";
 const SESSION_EVENT = "kmerhosting-domain-session-change";
@@ -76,7 +81,6 @@ export function subscribeSession(listener: () => void): () => void {
 function authHeaders(extra?: HeadersInit): Headers {
   const headers = new Headers(extra || {});
   if (!headers.has("Accept")) headers.set("Accept", "application/json");
-  if (PUBLISHABLE_KEY && !headers.has("apikey")) headers.set("apikey", PUBLISHABLE_KEY);
   return headers;
 }
 
