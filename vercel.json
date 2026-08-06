@@ -2,6 +2,10 @@
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
     {
+      "source": "/api/domain/domain-api/domains/check",
+      "destination": "/api/domain-proxy?__service=domain-search-fast"
+    },
+    {
       "source": "/api/domain/:service",
       "destination": "/api/domain-proxy?__service=:service"
     },
