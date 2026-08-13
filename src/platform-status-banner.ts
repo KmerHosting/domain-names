@@ -1,9 +1,7 @@
 import { createElement, useEffect, useState } from "react";
 import type { CSSProperties } from "react";
 
-const STATUS_API_URL =
-  import.meta.env.VITE_DOMAIN_PLATFORM_STATUS_API_URL ||
-  "/api/domain/domain-platform-status";
+const STATUS_API_URL = import.meta.env.VITE_DOMAIN_PLATFORM_STATUS_API_URL || "/api/domain/domain-platform-status";
 
 type PlatformStatus = {
   checkoutEnabled?: boolean;
@@ -33,35 +31,29 @@ export function PlatformStatusBanner() {
   if (!status) return null;
   const live = status.registrarEnvironment === "production" || status.liveMode === true;
   const maintenance = Boolean(status.maintenanceMode);
+  const adminRoute = window.location.pathname.startsWith("/admin");
   const style: CSSProperties = {
-    position: "relative",
-    zIndex: 20,
+    position: "relative", zIndex: 20,
     background: maintenance ? "#fef2f2" : live ? "#f0fdf4" : "#fff7ed",
     color: maintenance ? "#991b1b" : live ? "#166534" : "#9a3412",
     borderBottom: `1px solid ${maintenance ? "#fecaca" : live ? "#bbf7d0" : "#fed7aa"}`,
-    padding: "9px 16px",
-    fontWeight: 900,
-    textAlign: "center",
-    fontSize: "13px",
-    lineHeight: 1.4,
+    padding: "9px 16px", fontWeight: 900, textAlign: "center", fontSize: "13px", lineHeight: 1.4,
   };
   const small: CSSProperties = { display: "block", fontWeight: 700, opacity: 0.86, marginTop: "2px" };
+  const link: CSSProperties = { marginLeft: "10px", color: "inherit", textDecoration: "underline", fontWeight: 900 };
 
-  const title = maintenance
-    ? "MAINTENANCE"
-    : live
-      ? "LIVE / PRODUCTION"
-      : "TEST / OTE";
+  const title = maintenance ? "MAINTENANCE" : live ? "LIVE / PRODUCTION" : "TEST / OTE";
   const detail = maintenance
     ? String(status.message || "Domain ordering is temporarily unavailable.")
     : live
-      ? "New domain orders and registrar operations can use the real DomainNameAPI production balance. TEST records remain isolated."
-      : "New domain orders and registrar operations stay in DomainNameAPI OTE. The LIVE provider balance is not used by TEST records.";
+      ? "New orders use DomainNameAPI production. TEST records remain isolated."
+      : "New orders use DomainNameAPI OTE. LIVE provider funds are not used by TEST records.";
 
   return createElement(
     "div",
     { id: "khd-platform-status-banner", className: `khd-platform-status-banner ${live ? "is-live" : "is-test"}`, style },
     `${title} — ${detail}`,
+    adminRoute ? createElement("a", { href: "/admin/environments", style: link }, "Environment & balances") : null,
     maintenance ? createElement("small", { style: small }, `Support: ${status.supportEmail || "support@kmerhosting.com"}`) : null,
   );
 }
