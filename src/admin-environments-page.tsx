@@ -1,123 +1,87 @@
 import { useEffect, useState } from "react";
 
-type EnvironmentName = "ote" | "production";
-type EnvironmentRow = {
-  environment: EnvironmentName;
-  display_name: string;
-  is_test: boolean;
-  enabled: boolean;
-  customer_checkout_enabled: boolean;
-  domains: number;
-  orders: number;
-  open_jobs: number;
-  dns_records: number;
-};
-type RegistrarAccount = {
-  environment: EnvironmentName;
-  label: string;
-  source: "DomainNameAPI";
-  sourceOfTruth: boolean;
-  httpStatus?: number;
-  usdBalance?: number | null;
-  tryBalance?: number | null;
-  tryBalanceCurrency?: string;
-  endpoint?: string;
-  error?: string;
-};
-type CustomerCreditRow = {
-  user_id: string;
-  email: string;
-  role: string;
-  status: string;
-  ote_balance_usd: number | string;
-  production_balance_usd: number | string;
-  checkout_environment: EnvironmentName;
-  checkout_balance_usd: number | string;
-};
+type Env = "ote" | "production";
+type Provider = { environment: Env; usdBalance?: number | null; tryBalance?: number | null; error?: string };
+type Environment = { environment: Env; display_name: string; is_test: boolean; enabled: boolean; customer_checkout_enabled: boolean; domains: number; orders: number; open_jobs: number; dns_records: number };
+type Credit = { user_id: string; email: string; role: string; status: string; ote_balance_usd: number | string; production_balance_usd: number | string; checkout_environment: Env; checkout_balance_usd: number | string };
 type Payload = {
-  config: {
-    customer_checkout_environment: EnvironmentName;
-    registrar_environment: EnvironmentName;
-    maintenance_mode: boolean;
-    payment_mode: string;
-    wallet_topup_mode: string;
-  };
-  environments: EnvironmentRow[];
-  registrarAccounts: RegistrarAccount[];
-  customerCredits: {
-    source: string;
-    sourceOfTruthForCustomerBilling: boolean;
-    notDomainNameApiBalance: boolean;
-    rows: CustomerCreditRow[];
-  };
-  semantics: {
-    oteProviderBalance: string;
-    liveProviderBalance: string;
-    tryBalance: string;
-    customerCredit: string;
-  };
-  generatedAt: string;
+  config: { customer_checkout_environment: Env; registrar_environment: Env; maintenance_mode: boolean; payment_mode: string; wallet_topup_mode: string };
+  environments: Environment[];
+  registrarAccounts: Provider[];
+  customerCredits: { rows: Credit[]; notDomainNameApiBalance: boolean };
+  semantics: { oteProviderBalance: string; liveProviderBalance: string; tryBalance: string; customerCredit: string };
 };
 
-export function isAdminEnvironmentsPage(pathname = window.location.pathname) {
-  return pathname === "/admin/environments";
-}
+export function isAdminEnvironmentsPage(pathname = window.location.pathname) { return pathname === "/admin/environments"; }
+const money = (value: unknown) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value || 0));
+const label = (env: Env) => env === "ote" ? "TEST / OTE" : "LIVE / PRODUCTION";
 
-const money = (value: number | string | null | undefined) =>
-  new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(Number(value || 0));
-
-function EnvBadge({ env }: { env: EnvironmentName }) {
-  return <span className={env === "ote" ? "khd-env-tag khd-env-test" : "khd-env-tag khd-env-live"}>{env === "ote" ? "TEST / OTE" : "LIVE / PRODUCTION"}</span>;
+async function request(path: string, init?: RequestInit) {
+  const response = await fetch(path, { credentials: "include", ...init });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(payload.message || `Request failed (${response.status})`);
+  return payload;
 }
 
 export function AdminEnvironmentsPage() {
   const [data, setData] = useState<Payload | null>(null);
-  const [error, setError] = useState<string | null>(null);
-  const [loading, setLoading] = useState(true);
-
-  const load = async () => {
-    setLoading(true);
-    setError(null);
-    try {
-      const response = await fetch("/api/environment-status", { credentials: "include", headers: { Accept: "application/json" } });
-      const payload = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(payload.message || `Request failed (${response.status})`);
-      setData(payload as Payload);
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Unable to load environment status.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
+  const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  const load = async () => { setError(""); try { setData(await request("/api/environment-status")); } catch (e) { setError(e instanceof Error ? e.message : "Unable to load environments."); } };
   useEffect(() => { void load(); }, []);
 
-  return <main className="admin-main"><style>{`
-    .env-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:18px;margin:18px 0}.env-card{border:1px solid #e2e8f0;border-radius:16px;padding:20px;background:#fff}.env-card.test{background:#fffaf5;border-color:#fed7aa}.env-card.live{background:#f7fff9;border-color:#bbf7d0}.env-top{display:flex;align-items:flex-start;justify-content:space-between;gap:12px}.env-balance{font-size:30px;font-weight:800;margin:18px 0 4px}.env-meta{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;margin-top:16px}.env-meta div{padding:12px;border-radius:12px;background:rgba(255,255,255,.72);border:1px solid #e2e8f0}.env-meta span{display:block;font-size:12px;color:#64748b}.env-meta strong{display:block;margin-top:4px}.khd-env-tag{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900}.khd-env-test{background:#ffedd5;color:#9a3412}.khd-env-live{background:#dcfce7;color:#166534}.checkout-note{padding:14px 16px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px}.credit-live{font-weight:800;color:#166534}.credit-test{font-weight:800;color:#9a3412}.source-label{display:inline-flex;padding:4px 8px;border-radius:999px;background:#eef2ff;color:#3730a3;font-size:11px;font-weight:800}.explain{color:#475569;line-height:1.55}.provider-field{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:12px}`}</style>
-    <div className="page-heading"><div><span className="kicker">Environment isolation</span><h1>DomainNameAPI TEST vs LIVE</h1><p>Registrar funds come only from DomainNameAPI. Customer credits are a separate KmerHosting billing ledger and are never treated as registrar funds.</p></div><div className="heading-actions"><a className="button button-secondary" href="/admin">Admin</a><button className="button button-primary" onClick={() => void load()} disabled={loading}>Refresh from DNA</button></div></div>
-    {error && <div className="alert alert-error">{error}</div>}
-    {loading && !data ? <div className="loading">Reading DomainNameAPI balances…</div> : data && <>
-      <div className="checkout-note"><strong>Environment for new orders:</strong> <EnvBadge env={data.config.customer_checkout_environment} />. Existing domains, orders, DNS records and jobs keep their original immutable environment.</div>
+  const switchTo = async (environment: Env) => {
+    if (!data || data.config.customer_checkout_environment === environment) return;
+    const text = environment === "production"
+      ? "Use LIVE / PRODUCTION for NEW orders? Future paid orders can use real DomainNameAPI funds. Existing TEST records remain TEST."
+      : "Use TEST / OTE for NEW orders? Existing LIVE records remain LIVE.";
+    if (!confirm(text)) return;
+    setBusy(true); setError("");
+    try {
+      await request("/api/environment-switch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ environment, confirm: environment }) });
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Environment switch failed."); }
+    finally { setBusy(false); }
+  };
 
-      <div className="env-grid">{data.environments.map((env) => {
-        const registrar = data.registrarAccounts.find((item) => item.environment === env.environment);
-        return <section className={`env-card ${env.is_test ? "test" : "live"}`} key={env.environment}>
-          <div className="env-top"><div><EnvBadge env={env.environment} /><h2>{env.display_name}</h2></div><span className="source-label">DomainNameAPI source</span></div>
-          {registrar?.error ? <div className="alert alert-error">{registrar.error}</div> : <>
-            <div className="env-balance">{money(registrar?.usdBalance)}</div>
-            <small><strong>DNA reseller USD balance</strong> · field <span className="provider-field">usdBalance</span> · read directly from {env.environment === "ote" ? "OTE" : "production"} API</small>
-            <p className="explain">DNA also returned <span className="provider-field">tryBalance</span> = {Number(registrar?.tryBalance || 0).toFixed(2)} TRY. This is the Turkish-lira balance, not a TEST balance.</p>
-          </>}
-          <div className="env-meta"><div><span>Domains</span><strong>{env.domains}</strong></div><div><span>Orders</span><strong>{env.orders}</strong></div><div><span>DNS records</span><strong>{env.dns_records}</strong></div><div><span>Open jobs</span><strong>{env.open_jobs}</strong></div></div>
+  const addCredit = async (user: Credit, environment: Env) => {
+    const raw = prompt(`KmerHosting customer credit in USD for ${user.email} — ${label(environment)}`);
+    if (raw === null) return;
+    const amountUsd = Number(raw);
+    if (!Number.isFinite(amountUsd) || amountUsd <= 0) { setError("Enter a positive USD amount."); return; }
+    if (!confirm(`Add ${money(amountUsd)} of KmerHosting customer credit to ${label(environment)}? This does NOT modify the DomainNameAPI reseller balance.`)) return;
+    const reason = prompt("Reason", "Manual support credit") || "Manual support credit";
+    setBusy(true); setError("");
+    try {
+      await request("/api/environment-credit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "Idempotency-Key": `credit-${environment}-${Date.now()}` },
+        body: JSON.stringify({ userId: user.user_id, environment, amountUsd, reason }),
+      });
+      await load();
+    } catch (e) { setError(e instanceof Error ? e.message : "Customer credit failed."); }
+    finally { setBusy(false); }
+  };
+
+  return <main className="admin-main"><style>{`
+    .env-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:18px;margin:18px 0}.env-card{border:1px solid #e2e8f0;border-radius:16px;padding:20px}.env-card.test{background:#fffaf5;border-color:#fed7aa}.env-card.live{background:#f7fff9;border-color:#bbf7d0}.env-tag{display:inline-flex;padding:5px 9px;border-radius:999px;font-size:11px;font-weight:900}.env-tag.test{background:#ffedd5;color:#9a3412}.env-tag.live{background:#dcfce7;color:#166534}.dna-balance{font-size:30px;font-weight:800;margin:16px 0 4px}.env-meta{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:14px}.env-meta>div{padding:10px;border:1px solid #e2e8f0;border-radius:10px;background:#fff}.env-meta span{display:block;font-size:12px;color:#64748b}.env-actions{margin-top:14px}.note{padding:14px;border:1px solid #bfdbfe;background:#eff6ff;border-radius:12px}.test-credit{font-weight:800;color:#9a3412}.live-credit{font-weight:800;color:#166534}`}</style>
+    <div className="page-heading"><div><span className="kicker">Registrar isolation</span><h1>TEST / OTE and LIVE / Production</h1><p>DomainNameAPI reseller funds and KmerHosting customer credits are separate concepts.</p></div><div className="heading-actions"><a className="button button-secondary" href="/admin">Admin</a><button className="button button-primary" disabled={busy} onClick={() => void load()}>Refresh DNA</button></div></div>
+    {error && <div className="alert alert-error">{error}</div>}
+    {!data ? <div className="loading">Loading…</div> : <>
+      <div className="note"><strong>New orders:</strong> {label(data.config.customer_checkout_environment)}. Existing orders, domains, DNS records and jobs keep their immutable original environment.</div>
+      <div className="env-grid">{data.environments.map((environment) => {
+        const provider = data.registrarAccounts.find((item) => item.environment === environment.environment);
+        const current = data.config.customer_checkout_environment === environment.environment;
+        return <section key={environment.environment} className={`env-card ${environment.is_test ? "test" : "live"}`}>
+          <span className={`env-tag ${environment.is_test ? "test" : "live"}`}>{label(environment.environment)}</span>
+          <h2>{environment.display_name}</h2>
+          {provider?.error ? <div className="alert alert-error">{provider.error}</div> : <><div className="dna-balance">{money(provider?.usdBalance)}</div><strong>DomainNameAPI reseller USD balance</strong><p><code>usdBalance</code> from the {environment.environment === "ote" ? "OTE" : "production"} API host.</p><small><code>tryBalance</code>: {Number(provider?.tryBalance || 0).toFixed(2)} TRY/TL — currency balance, not TEST balance.</small></>}
+          <div className="env-meta"><div><span>Domains</span><strong>{environment.domains}</strong></div><div><span>Orders</span><strong>{environment.orders}</strong></div><div><span>DNS records</span><strong>{environment.dns_records}</strong></div><div><span>Open jobs</span><strong>{environment.open_jobs}</strong></div></div>
+          <div className="env-actions">{current ? <span className="status status-active">Current environment for new orders</span> : <button className="button button-secondary" disabled={busy || !environment.enabled} onClick={() => void switchTo(environment.environment)}>Use for new orders</button>}</div>
         </section>;
       })}</div>
-
-      <section className="card"><div className="card-heading"><div><h2>KmerHosting customer credits</h2><p>These are customer billing credits, not DomainNameAPI reseller balances. They exist because DNA exposes the reseller account balance, not a balance for each KmerHosting customer.</p></div><span className="source-label">KmerHosting ledger</span></div>
-        <div className="alert alert-info"><strong>Important:</strong> a TEST customer credit cannot fund a LIVE order. A LIVE customer credit cannot fund an OTE order. Provider capacity is checked separately against the real DNA <span className="provider-field">usdBalance</span>.</div>
-        <div className="table-wrap"><table><thead><tr><th>User</th><th>TEST customer credit</th><th>LIVE customer credit</th><th>Credit used by current checkout</th><th>Status</th></tr></thead><tbody>{data.customerCredits.rows.map((credit) => <tr key={credit.user_id}><td><strong>{credit.email}</strong><small>{credit.role}</small></td><td className="credit-test">{money(credit.ote_balance_usd)}</td><td className="credit-live">{money(credit.production_balance_usd)}</td><td>{money(credit.checkout_balance_usd)} <small>{credit.checkout_environment}</small></td><td>{credit.status}</td></tr>)}</tbody></table></div>
-      </section>
-
-      <section className="card"><h2>Balance rules</h2><div className="activity-list"><div className="activity-item"><div className="activity-dot" /><div><strong>OTE provider funds</strong><p>{data.semantics.oteProviderBalance}</p></div></div><div className="activity-item"><div className="activity-dot" /><div><strong>LIVE provider funds</strong><p>{data.semantics.liveProviderBalance}</p></div></div><div className="activity-item"><div className="activity-dot" /><div><strong>tryBalance</strong><p>{data.semantics.tryBalance}</p></div></div><div className="activity-item"><div className="activity-dot" /><div><strong>Customer credit</strong><p>{data.semantics.customerCredit}</p></div></div></div></section>
+      <section className="card"><div className="card-heading"><div><h2>KmerHosting customer credits</h2><p>These credits pay customer orders. They are not DomainNameAPI reseller funds.</p></div></div><div className="alert alert-info">TEST credit pays only OTE orders. LIVE credit pays only production orders. Every order is also independently checked against the real DomainNameAPI <code>usdBalance</code>.</div><div className="table-wrap"><table><thead><tr><th>User</th><th>TEST credit</th><th>LIVE credit</th><th>Actions</th></tr></thead><tbody>{data.customerCredits.rows.map((user) => <tr key={user.user_id}><td><strong>{user.email}</strong><small>{user.role} · {user.status}</small></td><td className="test-credit">{money(user.ote_balance_usd)}</td><td className="live-credit">{money(user.production_balance_usd)}</td><td><div className="heading-actions"><button disabled={busy} onClick={() => void addCredit(user, "ote")}>Add TEST credit</button><button disabled={busy} onClick={() => void addCredit(user, "production")}>Add LIVE credit</button></div></td></tr>)}</tbody></table></div></section>
+      <section className="card"><h2>Source-of-truth rules</h2><p><strong>OTE registrar funds:</strong> {data.semantics.oteProviderBalance}</p><p><strong>LIVE registrar funds:</strong> {data.semantics.liveProviderBalance}</p><p><strong>tryBalance:</strong> {data.semantics.tryBalance}</p><p><strong>Customer credit:</strong> {data.semantics.customerCredit}</p></section>
     </>}
   </main>;
 }
