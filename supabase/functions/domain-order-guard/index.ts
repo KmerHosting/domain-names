@@ -35,9 +35,7 @@ function allowedOrigin(origin: string | null) {
   try {
     const host = new URL(origin).hostname.toLowerCase();
     if (host === "domain.kmerhosting.com" || host === "localhost" || host === "127.0.0.1" || host.endsWith(".vercel.app")) return origin;
-  } catch {
-    // Fall through to the production origin.
-  }
+  } catch {}
   return "https://domain.kmerhosting.com";
 }
 
@@ -94,17 +92,13 @@ async function encryptSensitive(value: string) {
 
 async function authenticatedUser(req: Request) {
   const authorization = clean(req.headers.get("authorization"));
-  if (!authorization.toLowerCase().startsWith("bearer ")) {
-    throw new HttpError(401, "authentication_required", "Sign in is required.");
-  }
+  if (!authorization.toLowerCase().startsWith("bearer ")) throw new HttpError(401, "authentication_required", "Sign in is required.");
   const tokenHash = await sha256(authorization.slice(7).trim());
   const { data: session } = await db.from("domain_sessions").select("*")
     .eq("token_hash", tokenHash).is("revoked_at", null).gt("expires_at", now()).maybeSingle();
   if (!session) throw new HttpError(401, "invalid_session", "Session expired or invalid.");
   const { data: user } = await db.from("domain_users").select("*").eq("id", session.user_id).maybeSingle();
-  if (!user || user.status !== "active" || Number(user.session_version) !== Number(session.session_version)) {
-    throw new HttpError(401, "invalid_session", "Session expired or invalid.");
-  }
+  if (!user || user.status !== "active" || Number(user.session_version) !== Number(session.session_version)) throw new HttpError(401, "invalid_session", "Session expired or invalid.");
   return user as Json;
 }
 
@@ -112,24 +106,17 @@ async function platformConfig() {
   const { data, error } = await db.from("domain_config").select("*").eq("id", true).single();
   if (error || !data) throw new HttpError(500, "configuration_missing", "Domain platform configuration is missing.");
   if (data.maintenance_mode) throw new HttpError(503, "maintenance_mode", clean(data.checkout_pause_message) || "Domain orders are temporarily paused.");
-  const environment = clean(data.registrar_environment).toLowerCase();
-  if (environment !== "production" && environment !== "ote") {
-    throw new HttpError(503, "registrar_environment_invalid", "The domain environment is not configured correctly.");
-  }
-  if (data.payment_mode !== "wallet_only" || data.wallet_topup_mode !== "manual_support") {
-    throw new HttpError(503, "billing_configuration_invalid", "The account-balance billing configuration is invalid.");
-  }
-  return { ...data, registrar_environment: environment as Environment } as Json & { registrar_environment: Environment };
+  const environment = clean(data.customer_checkout_environment || data.registrar_environment).toLowerCase();
+  if (environment !== "production" && environment !== "ote") throw new HttpError(503, "registrar_environment_invalid", "The domain environment is not configured correctly.");
+  if (data.payment_mode !== "wallet_only" || data.wallet_topup_mode !== "manual_support") throw new HttpError(503, "billing_configuration_invalid", "The account-balance billing configuration is invalid.");
+  return { ...data, registrar_environment: environment as Environment, customer_checkout_environment: environment as Environment } as Json & { registrar_environment: Environment; customer_checkout_environment: Environment };
 }
 
 function pick(object: any, paths: string[]) {
   for (const path of paths) {
     let current = object;
     for (const key of path.split(".")) {
-      if (!current || typeof current !== "object") {
-        current = undefined;
-        break;
-      }
+      if (!current || typeof current !== "object") { current = undefined; break; }
       current = current[key];
     }
     if (current !== undefined && current !== null && clean(current) !== "") return current;
@@ -141,20 +128,8 @@ function providerMessage(body: Json, status: number) {
   return clean(pick(body, ["error.message", "error.details", "message", "operationMessage", "reason", "title", "raw"])) || `Domain service request failed (${status}).`;
 }
 
-async function providerRequest(
-  environment: Environment,
-  path: string,
-  method = "GET",
-  body: Json | Json[] | null = null,
-  query: Json = {},
-) {
-  const { data, error } = await db.rpc("domain_registrar_proxy_env", {
-    p_path: path,
-    p_method: method,
-    p_body: body,
-    p_query: query,
-    p_environment: environment,
-  });
+async function providerRequest(environment: Environment, path: string, method = "GET", body: Json | Json[] | null = null, query: Json = {}) {
+  const { data, error } = await db.rpc("domain_registrar_proxy_env", { p_path: path, p_method: method, p_body: body, p_query: query, p_environment: environment });
   if (error) throw new HttpError(502, "provider_proxy_failed", error.message, error);
   const response = data as Json;
   if (!response || Number(response.status) >= 400) {
@@ -164,71 +139,52 @@ async function providerRequest(
   return response.body as Json;
 }
 
-function searchInfo(payload: Json) {
-  return (payload.info || payload.data?.info || payload.data || payload) as Json;
-}
-
-function isAvailable(payload: Json) {
-  const info = searchInfo(payload);
-  const status = clean(info.status ?? payload.status ?? info.available ?? payload.available).toLowerCase().replace(/[\s_-]+/g, "");
-  return ["available", "true", "1", "free"].includes(status);
-}
-
-function booleanValue(value: unknown) {
-  return [true, 1, "1", "true", "yes", "enabled", "active"].includes(value as any);
-}
-
-function positive(value: unknown) {
-  const number = Number(value);
-  return Number.isFinite(number) && number > 0 ? round2(number) : null;
-}
+function searchInfo(payload: Json) { return (payload.info || payload.data?.info || payload.data || payload) as Json; }
+function isAvailable(payload: Json) { const info = searchInfo(payload); const status = clean(info.status ?? payload.status ?? info.available ?? payload.available).toLowerCase().replace(/[\s_-]+/g, ""); return ["available", "true", "1", "free"].includes(status); }
+function booleanValue(value: unknown) { return [true, 1, "1", "true", "yes", "enabled", "active"].includes(value as any); }
+function positive(value: unknown) { const number = Number(value); return Number.isFinite(number) && number > 0 ? round2(number) : null; }
 
 async function providerBalance(environment: Environment, requiredUsd: number) {
-  if (environment === "ote") {
-    try {
-      const payload = await providerRequest("ote", "/api/v1/deposit/accounts/me");
-      const testBalance = positive(pick(payload, ["tryBalance", "data.tryBalance", "account.tryBalance", "result.tryBalance", "usdBalance", "data.usdBalance"]));
-      return { amount: testBalance, verifiedAt: now(), skipped: testBalance === null };
-    } catch (error) {
-      console.warn("OTE balance check skipped", error);
-      return { amount: null, verifiedAt: now(), skipped: true };
-    }
-  }
-  const payload = await providerRequest("production", "/api/v1/deposit/accounts/me");
-  const usdBalance = positive(pick(payload, ["usdBalance", "data.usdBalance", "account.usdBalance", "result.usdBalance"])) ?? 0;
-  if (usdBalance < requiredUsd) {
-    throw new HttpError(409, "provider_balance_too_low", "The live registrar balance is currently too low to fulfill this order.", {
-      requiredUsd,
-      availableUsd: usdBalance,
+  const payload = await providerRequest(environment, "/api/v1/deposit/accounts/me", "GET", null, { currency: "USD" });
+  const raw = pick(payload, ["usdBalance", "data.usdBalance", "account.usdBalance", "result.usdBalance"]);
+  const usdBalance = Number(raw);
+  if (!Number.isFinite(usdBalance) || usdBalance < 0) {
+    throw new HttpError(502, "provider_usd_balance_unreadable", "DomainNameAPI did not return a readable usdBalance.", {
+      registrarEnvironment: environment,
+      providerField: "usdBalance",
     });
   }
-  return { amount: usdBalance, verifiedAt: now(), skipped: false };
+  const amount = round2(usdBalance);
+  if (amount < requiredUsd) {
+    throw new HttpError(409, "provider_usd_balance_low", environment === "ote" ? "The OTE registrar USD balance is too low for this test order." : "The live registrar USD balance is too low to fulfill this order.", {
+      registrarEnvironment: environment,
+      requiredUsd,
+      availableUsd: amount,
+      providerField: "usdBalance",
+      providerSource: "DomainNameAPI",
+    });
+  }
+  return {
+    amount,
+    verifiedAt: now(),
+    skipped: false,
+    source: "DomainNameAPI",
+    field: "usdBalance",
+    tryBalanceMeaning: "TRY/TL currency balance; not test balance",
+  };
 }
 
 async function tldData(tld: string) {
-  const { data, error } = await db.from("domain_tld_prices").select("*")
-    .eq("tld", tld).eq("enabled", true).eq("provider_available", true).maybeSingle();
+  const { data, error } = await db.from("domain_tld_prices").select("*").eq("tld", tld).eq("enabled", true).eq("provider_available", true).maybeSingle();
   if (error) throw error;
   if (!data) throw new HttpError(409, "tld_not_sellable", "This extension is not currently available for sale.", { tld });
   return data as Json;
 }
 
 async function exactPeriodPrice(tld: string, operation: Operation, years: number, environment: Environment) {
-  const { data, error } = await db.from("domain_tld_period_prices").select("*")
-    .eq("tld", tld)
-    .eq("operation", operation)
-    .eq("period_years", years)
-    .eq("registrar_environment", environment)
-    .maybeSingle();
+  const { data, error } = await db.from("domain_tld_period_prices").select("*").eq("tld", tld).eq("operation", operation).eq("period_years", years).eq("registrar_environment", environment).maybeSingle();
   if (error) throw error;
-  if (!data || Number(data.provider_cost_usd) <= 0 || Number(data.customer_price_usd) <= 0) {
-    throw new HttpError(409, "period_price_missing", "An exact price is not available for this operation and period in the current environment.", {
-      tld,
-      operation,
-      years,
-      registrarEnvironment: environment,
-    });
-  }
+  if (!data || Number(data.provider_cost_usd) <= 0 || Number(data.customer_price_usd) <= 0) throw new HttpError(409, "period_price_missing", "An exact price is not available for this operation and period in the current environment.", { tld, operation, years, registrarEnvironment: environment });
   return data as Json;
 }
 
@@ -244,15 +200,9 @@ function validateAttributes(tld: Json, raw: unknown) {
   for (const definition of definitions) {
     const key = clean(definition.key);
     const value = clean(result[key]);
-    if (definition.isRequired && !value) {
-      throw new HttpError(400, "tld_attribute_required", `${definition.description || key} is required for this extension.`, { key });
-    }
-    const options = Array.isArray(definition.options)
-      ? definition.options.map((option: any) => clean(option?.value ?? option)).filter(Boolean)
-      : [];
-    if (value && options.length && !options.includes(value)) {
-      throw new HttpError(400, "invalid_tld_attribute", `${definition.description || key} has an invalid value.`, { key, options });
-    }
+    if (definition.isRequired && !value) throw new HttpError(400, "tld_attribute_required", `${definition.description || key} is required for this extension.`, { key });
+    const options = Array.isArray(definition.options) ? definition.options.map((option: any) => clean(option?.value ?? option)).filter(Boolean) : [];
+    if (value && options.length && !options.includes(value)) throw new HttpError(400, "invalid_tld_attribute", `${definition.description || key} has an invalid value.`, { key, options });
   }
   return result;
 }
@@ -260,55 +210,25 @@ function validateAttributes(tld: Json, raw: unknown) {
 function normalizeNameservers(values: unknown, defaults: unknown) {
   const source = Array.isArray(values) && values.length ? values : Array.isArray(defaults) ? defaults : [];
   const nameservers = [...new Set(source.map(clean).map((value) => value.toLowerCase().replace(/\.$/, "")).filter(Boolean))];
-  if (nameservers.length < 2 || nameservers.length > 13) {
-    throw new HttpError(400, "invalid_nameservers", "Provide between 2 and 13 nameservers.");
-  }
-  if (!nameservers.every((host) => host.length <= 253 && host.split(".").every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)))) {
-    throw new HttpError(400, "invalid_nameservers", "One or more nameservers are invalid.");
-  }
+  if (nameservers.length < 2 || nameservers.length > 13) throw new HttpError(400, "invalid_nameservers", "Provide between 2 and 13 nameservers.");
+  if (!nameservers.every((host) => host.length <= 253 && host.split(".").every((label) => /^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label)))) throw new HttpError(400, "invalid_nameservers", "One or more nameservers are invalid.");
   return nameservers;
 }
 
-async function ownedContact(id: string, userId: string) {
-  const { data } = await db.from("domain_contacts").select("*").eq("id", id).eq("user_id", userId).maybeSingle();
-  if (!data) throw new HttpError(400, "contact_required", "A valid registrant contact is required.");
-  return data as Json;
-}
-
-async function ownedDomain(id: string, userId: string, environment: Environment) {
-  const { data } = await db.from("domain_domains").select("*").eq("id", id).eq("user_id", userId).maybeSingle();
-  if (!data) throw new HttpError(404, "domain_not_found", "Domain not found.");
-  if (clean(data.registrar_environment).toLowerCase() !== environment) {
-    throw new HttpError(409, "domain_environment_mismatch", "This domain belongs to a different environment.");
-  }
-  return data as Json;
-}
-
-function contactSnapshot(contact: Json) {
-  const { registrar_metadata: _metadata, ...safe } = contact;
-  return safe;
-}
-
-async function insertQuote(input: Json, environment: Environment) {
-  const { data, error } = await db.from("domain_provider_quotes").insert({
-    ...input,
-    registrar_environment: environment,
-    expires_at: new Date(Date.now() + 15 * 60_000).toISOString(),
-  }).select("*").single();
-  if (error || !data) throw new HttpError(500, "quote_create_failed", "Unable to create the exact quote.", error);
-  return data as Json;
-}
+async function ownedContact(id: string, userId: string) { const { data } = await db.from("domain_contacts").select("*").eq("id", id).eq("user_id", userId).maybeSingle(); if (!data) throw new HttpError(400, "contact_required", "A valid registrant contact is required."); return data as Json; }
+async function ownedDomain(id: string, userId: string, environment: Environment) { const { data } = await db.from("domain_domains").select("*").eq("id", id).eq("user_id", userId).maybeSingle(); if (!data) throw new HttpError(404, "domain_not_found", "Domain not found."); if (clean(data.registrar_environment).toLowerCase() !== environment) throw new HttpError(409, "domain_environment_mismatch", "This domain belongs to a different environment."); return data as Json; }
+function contactSnapshot(contact: Json) { const { registrar_metadata: _metadata, ...safe } = contact; return safe; }
+async function insertQuote(input: Json, environment: Environment) { const { data, error } = await db.from("domain_provider_quotes").insert({ ...input, registrar_environment: environment, expires_at: new Date(Date.now() + 15 * 60_000).toISOString() }).select("*").single(); if (error || !data) throw new HttpError(500, "quote_create_failed", "Unable to create the exact quote.", error); return data as Json; }
 
 async function createOrder(req: Request, operation: Operation) {
   const user = await authenticatedUser(req);
   const cfg = await platformConfig();
-  const environment = cfg.registrar_environment;
+  const environment = cfg.customer_checkout_environment;
   const testMode = environment === "ote";
   const body = await req.json().catch(() => ({})) as Json;
   const idempotencyKey = clean(req.headers.get("idempotency-key") || body.idempotencyKey) || `${environment}:${operation}:${crypto.randomUUID()}`;
 
-  const { data: existing } = await db.from("domain_orders").select("*")
-    .eq("user_id", user.id).eq("idempotency_key", idempotencyKey).maybeSingle();
+  const { data: existing } = await db.from("domain_orders").select("*").eq("user_id", user.id).eq("idempotency_key", idempotencyKey).maybeSingle();
   if (existing) {
     if (existing.registrar_environment !== environment) throw new HttpError(409, "idempotency_environment_mismatch", "This request key was already used in another environment.");
     return json(req, { order: existing, reused: true, registrarEnvironment: environment, testMode });
@@ -377,9 +297,7 @@ async function createOrder(req: Request, operation: Operation) {
       years = 1;
       providerPayload = await providerRequest(environment, "/api/v1/domains/info", "GET", null, { DomainName: domainName });
       const providerStatus = clean(providerPayload.status || providerPayload.statusCode || domain.status).toLowerCase();
-      if (!/redemption|expired|pendingdelete|restore/.test(providerStatus)) {
-        throw new HttpError(409, "restore_not_eligible", "This domain is not currently eligible for restoration.", { status: providerStatus });
-      }
+      if (!/redemption|expired|pendingdelete|restore/.test(providerStatus)) throw new HttpError(409, "restore_not_eligible", "This domain is not currently eligible for restoration.", { status: providerStatus });
       const price = await exactPeriodPrice(tld.tld, operation, 1, environment);
       providerCost = round2(Number(price.provider_cost_usd));
       customerPrice = round2(Number(price.customer_price_usd));
@@ -388,9 +306,7 @@ async function createOrder(req: Request, operation: Operation) {
   }
 
   if (!(providerCost > 0) || !(customerPrice > 0)) throw new HttpError(409, "price_missing", "The exact price is unavailable for this operation.");
-  if (customerPrice + 0.001 < providerCost * 1.30) {
-    throw new HttpError(409, "price_margin_invalid", "The customer price is below the configured minimum margin.", { providerCost, customerPrice });
-  }
+  if (customerPrice + 0.001 < providerCost * 1.30) throw new HttpError(409, "price_margin_invalid", "The customer price is below the configured minimum margin.", { providerCost, customerPrice });
 
   const balance = await providerBalance(environment, providerCost);
   const quote = await insertQuote({
@@ -416,6 +332,9 @@ async function createOrder(req: Request, operation: Operation) {
       registrarEnvironment: environment,
       testMode,
       balanceCheckSkipped: balance.skipped,
+      providerBalanceSource: balance.source,
+      providerBalanceField: balance.field,
+      tryBalanceIsTestBalance: false,
       attributes,
       providerLifecycle: tld!.provider_lifecycle || {},
       providerAttributes: tld!.provider_attributes || [],
@@ -445,6 +364,8 @@ async function createOrder(req: Request, operation: Operation) {
       supportEmail: cfg.support_email,
       registrarEnvironment: environment,
       testMode,
+      customerBalanceKind: "KmerHosting customer credit",
+      providerBalanceKind: "DomainNameAPI reseller usdBalance",
     },
   }, 201);
 }
@@ -458,9 +379,10 @@ Deno.serve(async (req) => {
       return json(req, {
         ok: true,
         service: "KmerHosting Domain Order Guard",
-        version: 6,
-        registrarEnvironment: cfg.registrar_environment,
-        testMode: cfg.registrar_environment === "ote",
+        version: 7,
+        registrarEnvironment: cfg.customer_checkout_environment,
+        testMode: cfg.customer_checkout_environment === "ote",
+        providerBalanceSource: "DomainNameAPI deposit/accounts/me usdBalance",
         paymentMode: "wallet_only",
         timestamp: now(),
       });
