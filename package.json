@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "check:styles": "node scripts/check-style-contract.mjs",
+    "check:styles": "node scripts/check-carbon-style-contract.mjs",
     "build": "npm run check:styles && vite build",
     "build:strict": "npm run check:styles && tsc -p tsconfig.app.json --pretty false && vite build",
     "preview": "vite preview",
