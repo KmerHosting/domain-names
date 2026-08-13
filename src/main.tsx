@@ -7,6 +7,7 @@ import AdminPage from "./admin";
 import { isNativePage, NativePageRouter } from "./native-pages";
 import { DnsSettingsPage, isDnsSettingsPage } from "./dns-settings-page";
 import { AdminOperationsPage, isAdminOperationsPage } from "./admin-operations-page";
+import { AdminEnvironmentsPage, isAdminEnvironmentsPage } from "./admin-environments-page";
 import { PlatformStatusBanner } from "./platform-status-banner";
 import "./styles.css";
 import "./admin.css";
@@ -24,6 +25,7 @@ const queryClient = new QueryClient({
 });
 
 const isAdminRoute = window.location.pathname === "/admin";
+const isEnvironmentsRoute = isAdminEnvironmentsPage();
 const isAuxiliaryNativeRoute = isNativePage();
 const isDnsRoute = isDnsSettingsPage();
 const isOperationsRoute = isAdminOperationsPage();
@@ -32,7 +34,9 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <QueryClientProvider client={queryClient}>
       <PlatformStatusBanner />
-      {isOperationsRoute ? (
+      {isEnvironmentsRoute ? (
+        <AdminEnvironmentsPage />
+      ) : isOperationsRoute ? (
         <AdminOperationsPage />
       ) : isDnsRoute ? (
         <DnsSettingsPage />
