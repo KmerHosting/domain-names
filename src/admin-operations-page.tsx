@@ -3,6 +3,28 @@ import type { ReactNode } from "react";
 import { adminApi, formatDate, formatMoney, operationsMonitorApi } from "./api";
 
 type Row = Record<string, any>;
+type ProviderBalance = {
+  environment: "ote" | "production";
+  label: string;
+  currency: string;
+  rawBalanceKey: "usdBalance";
+  balance: number | null;
+  balanceText: string | null;
+  httpStatus?: number;
+  dnaVersion: string;
+  error?: string;
+};
+type ProviderBalanceSnapshot = {
+  ok: boolean;
+  dnaVersion: string;
+  credentialModel: string;
+  currentEnvironment: "ote" | "production";
+  paymentSandbox: boolean;
+  maintenanceMode: boolean;
+  lowBalanceThresholdUsd: number;
+  balances: ProviderBalance[];
+  generatedAt: string;
+};
 
 export function isAdminOperationsPage(pathname = window.location.pathname): boolean {
   return pathname === "/admin/operations" || pathname === "/admin/provider";
@@ -12,30 +34,16 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : "Request failed.";
 }
 
-function valueAt(source: any, paths: string[]): unknown {
-  for (const path of paths) {
-    let current = source;
-    for (const key of path.split(".")) current = current?.[key];
-    if (current !== undefined && current !== null && String(current).trim() !== "") return current;
-  }
-  return undefined;
-}
-
-function realUsdBalance(source: any): number | null {
-  const value = valueAt(source, ["usdBalance", "provider.usdBalance", "data.usdBalance", "provider.data.usdBalance"]);
-  const n = Number(String(value ?? "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : null;
-}
-
-function realTryBalance(source: any): number | null {
-  const value = valueAt(source, ["tryBalance", "provider.tryBalance", "data.tryBalance", "provider.data.tryBalance"]);
-  const n = Number(String(value ?? "").replace(/[^0-9.-]/g, ""));
-  return Number.isFinite(n) ? n : null;
+async function providerBalances(): Promise<ProviderBalanceSnapshot> {
+  const response = await fetch("/api/domain-provider-balances", { credentials: "include", headers: { Accept: "application/json" } });
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(String(payload.message || `Provider balance request failed (${response.status}).`));
+  return payload as ProviderBalanceSnapshot;
 }
 
 function Badge({ value }: { value?: string | null }) {
   const v = String(value || "unknown");
-  return <span className={`status status-${v.toLowerCase().replaceAll("_", "-")}`}>{v.replaceAll("_", " ")}</span>;
+  return <span className={`status status-${v.toLowerCase().replaceAll("_", "-").replaceAll(" / ", "-")}`}>{v.replaceAll("_", " ")}</span>;
 }
 
 function AdminShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
@@ -49,21 +57,36 @@ function AdminShell({ title, subtitle, children }: { title: string; subtitle: st
 
 function Loading() { return <div className="loading">Loading…</div>; }
 
+function BalanceCard({ item, active }: { item?: ProviderBalance; active: boolean }) {
+  if (!item) return <div className="stat-card"><span>Unavailable</span><strong>—</strong></div>;
+  return <div className="stat-card">
+    <span>{item.label} {active ? "· CURRENT" : ""}</span>
+    <strong>{item.balance === null ? "Unavailable" : formatMoney(item.balance)}</strong>
+    <small>DomainNameAPI V{item.dnaVersion} · field: {item.rawBalanceKey}{item.error ? ` · ${item.error}` : ""}</small>
+  </div>;
+}
+
 function ProviderPage() {
-  const account = useQuery({ queryKey: ["admin-provider-real-balance"], queryFn: () => adminApi<Row>("/provider/account"), refetchInterval: 60_000 });
+  const balance = useQuery({ queryKey: ["admin-provider-separated-balances"], queryFn: providerBalances, refetchInterval: 60_000 });
   const tx = useQuery({ queryKey: ["admin-provider-transactions-real"], queryFn: () => adminApi<Row>("/provider/transactions?limit=20"), refetchInterval: 120_000 });
-  const usd = realUsdBalance(account.data);
-  const tryBalance = realTryBalance(account.data);
+  const test = balance.data?.balances.find((item) => item.environment === "ote");
+  const live = balance.data?.balances.find((item) => item.environment === "production");
   const txRows = Array.isArray(tx.data?.provider?.items) ? tx.data.provider.items : Array.isArray(tx.data?.provider) ? tx.data.provider : Array.isArray(tx.data?.items) ? tx.data.items : [];
-  return <AdminShell title="Provider account" subtitle="DomainNameAPI production account using real response field names.">
+  return <AdminShell title="Provider environments" subtitle="DomainNameAPI TEST/OTE and LIVE/production are displayed as separate accounts and balances.">
     <div className="dashboard-grid">
-      <section className="card"><div className="card-heading"><div><h2>Real balances</h2><p>No aliases are used here. The UI reads DomainNameAPI field names directly.</p></div></div>
-        {account.isPending ? <Loading /> : account.isError ? <div className="alert alert-error">{errorText(account.error)}</div> : <div className="stats-grid">
-          <div className="stat-card"><span>usdBalance</span><strong>{usd === null ? "not returned" : formatMoney(usd)}</strong></div>
-          <div className="stat-card"><span>tryBalance</span><strong>{tryBalance === null ? "not returned" : String(tryBalance)}</strong></div>
-        </div>}
+      <section className="card full-width">
+        <div className="card-heading"><div><h2>Environment separation</h2><p>Balances are fetched independently from OTE and production. No alias is used: USD is read from the real DomainNameAPI field <code>usdBalance</code>.</p></div><Badge value={balance.data?.currentEnvironment === "production" ? "LIVE" : "TEST / OTE"} /></div>
+        {balance.isPending ? <Loading /> : balance.isError ? <div className="alert alert-error">{errorText(balance.error)}</div> : <>
+          <div className="stats-grid">
+            <BalanceCard item={test} active={balance.data.currentEnvironment === "ote"} />
+            <BalanceCard item={live} active={balance.data.currentEnvironment === "production"} />
+            <div className="stat-card"><span>Payment sandbox</span><strong>{balance.data.paymentSandbox ? "ON" : "OFF"}</strong><small>Independent from registrar environment.</small></div>
+            <div className="stat-card"><span>Maintenance</span><strong>{balance.data.maintenanceMode ? "ON" : "OFF"}</strong><small>Low balance threshold: {formatMoney(balance.data.lowBalanceThresholdUsd)}</small></div>
+          </div>
+          <div className="alert alert-warning"><strong>Important:</strong> TEST/OTE balance and LIVE balance are unrelated. A test balance can never be used to authorize a production order.</div>
+        </>}
       </section>
-      <section className="card"><div className="card-heading"><div><h2>Provider transactions</h2><p>Recent provider-side account history when returned by the API.</p></div></div>
+      <section className="card full-width"><div className="card-heading"><div><h2>LIVE provider transactions</h2><p>Transaction history remains explicitly production-only.</p></div><Badge value="LIVE" /></div>
         {tx.isPending ? <Loading /> : tx.isError ? <div className="alert alert-error">{errorText(tx.error)}</div> : <div className="table-wrap"><table><thead><tr><th>Date</th><th>Description</th><th>Amount</th><th>Status</th></tr></thead><tbody>{txRows.map((r: Row, i: number) => <tr key={r.id || i}><td>{formatDate(r.createdAt || r.date || r.transactionDate)}</td><td>{r.description || r.type || r.transactionType || "transaction"}</td><td>{r.amount ?? r.usdAmount ?? r.price ?? "—"}</td><td><Badge value={r.status || "returned"} /></td></tr>)}</tbody></table></div>}
       </section>
     </div>
@@ -75,7 +98,7 @@ function OperationsPage() {
   const data = q.data;
   return <AdminShell title="Operations" subtitle="Read-only operational cockpit for jobs, payments, DNS, crons and readiness.">
     {q.isPending ? <Loading /> : q.isError ? <div className="alert alert-error">{errorText(q.error)}</div> : <div className="dashboard-grid">
-      <section className="card full-width"><div className="card-heading"><div><h2>Readiness</h2><p>Excludes Supabase Advisor security and production-domain absence checks by request.</p></div><Badge value={data?.config?.registrar_environment} /></div>
+      <section className="card full-width"><div className="card-heading"><div><h2>Readiness</h2><p>Operational state by current registrar environment.</p></div><Badge value={data?.config?.registrar_environment} /></div>
         <div className="stats-grid">{(data?.readiness || []).map((r: Row) => <div className="stat-card" key={r.key}><span>{r.key}</span><strong>{r.ok ? "OK" : `Attention${r.count !== undefined ? `: ${r.count}` : ""}`}</strong><small>{r.message}</small></div>)}</div>
       </section>
       <section className="card"><h2>Counts</h2><pre className="khd-admin-tools-output">{JSON.stringify(data?.counts || {}, null, 2)}</pre></section>
