@@ -17,7 +17,7 @@ function cookieValue(header: string | null, name: string): string {
 function json(body: unknown, status = 200): Response {
   return new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store" },
+    headers: { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" },
   });
 }
 
@@ -25,19 +25,40 @@ export default async function handler(req: Request): Promise<Response> {
   if (req.method !== "GET") return json({ error: "method_not_allowed" }, 405);
   const session = cookieValue(req.headers.get("Cookie"), COOKIE_NAME);
   if (!session) return json({ error: "authentication_required", message: "Administrator access is required." }, 401);
-  const anonJwt = process.env.SUPABASE_ANON_KEY || "";
-  if (!anonJwt) return json({ error: "server_configuration", message: "SUPABASE_ANON_KEY is not configured." }, 503);
-  const upstream = await fetch(FUNCTION_URL, {
-    method: "GET",
-    headers: {
-      Authorization: `Bearer ${anonJwt}`,
-      apikey: anonJwt,
-      "X-KHD-Session": session,
-      Accept: "application/json",
-    },
-  });
-  return new Response(await upstream.arrayBuffer(), {
-    status: upstream.status,
-    headers: { "Content-Type": upstream.headers.get("Content-Type") || "application/json; charset=utf-8", "Cache-Control": "no-store" },
+
+  const headers = new Headers({ Authorization: `Bearer ${session}`, Accept: "application/json" });
+  const publishable = process.env.VITE_SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_PUBLISHABLE_KEY || process.env.SUPABASE_ANON_KEY || "";
+  if (publishable) headers.set("apikey", publishable);
+
+  const upstream = await fetch(FUNCTION_URL, { method: "GET", headers, redirect: "manual" });
+  const payload = await upstream.json().catch(() => ({})) as Record<string, any>;
+  if (!upstream.ok) return json(payload, upstream.status);
+
+  const balances = Array.isArray(payload.balances)
+    ? payload.balances.map((item: Record<string, any>) => ({
+        environment: item.environment,
+        label: item.label || (item.environment === "ote" ? "TEST / OTE" : "LIVE / Production"),
+        currency: "USD",
+        rawBalanceKey: "usdBalance",
+        balance: Number.isFinite(Number(item.usdBalance)) ? Number(item.usdBalance) : null,
+        balanceText: item.Balance ?? null,
+        httpStatus: item.httpStatus,
+        dnaVersion: payload.dnaVersion || "3.0.1",
+        error: item.OperationResult === "FAILED" ? item.message || item.OperationMessage || "Balance unavailable" : undefined,
+        tryBalance: Number.isFinite(Number(item.tryBalance)) ? Number(item.tryBalance) : null,
+        tryBalanceMeaning: "TRY/TL currency balance; not a test balance",
+        source: "DomainNameAPI",
+      }))
+    : [];
+
+  return json({
+    ok: true,
+    dnaVersion: payload.dnaVersion || "3.0.1",
+    credentialModel: "REST_RESELLER_UUID_PLUS_API_KEY",
+    currentEnvironment: payload.checkoutEnvironment || "ote",
+    maintenanceMode: Boolean(payload.maintenanceMode),
+    balances,
+    authoritativeSource: "DomainNameAPI deposit/accounts/me usdBalance",
+    generatedAt: payload.generatedAt || new Date().toISOString(),
   });
 }
