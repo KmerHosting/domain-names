@@ -8,29 +8,10 @@ const STATUS_API_URL =
 type PlatformStatus = {
   checkoutEnabled?: boolean;
   maintenanceMode?: boolean;
+  liveMode?: boolean;
+  registrarEnvironment?: "ote" | "production";
   message?: string;
   supportEmail?: string;
-};
-
-const bannerStyle: CSSProperties = {
-  position: "relative",
-  zIndex: 2,
-  background: "#fff7ed",
-  color: "#9a3412",
-  borderBottom: "1px solid #fed7aa",
-  padding: "10px 16px",
-  fontWeight: 800,
-  textAlign: "center",
-  fontSize: "14px",
-  lineHeight: 1.4,
-};
-
-const smallStyle: CSSProperties = {
-  display: "block",
-  fontWeight: 700,
-  color: "#9a3412",
-  opacity: 0.88,
-  marginTop: "2px",
 };
 
 export function PlatformStatusBanner() {
@@ -44,22 +25,43 @@ export function PlatformStatusBanner() {
         if (!response.ok) throw new Error(String(payload.message || "Platform status is unavailable."));
         return payload as PlatformStatus;
       })
-      .then((payload) => {
-        if (!cancelled) setStatus(payload);
-      })
+      .then((payload) => { if (!cancelled) setStatus(payload); })
       .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  if (!status?.maintenanceMode || status.checkoutEnabled) return null;
-  const supportEmail = status.supportEmail || "support@kmerhosting.com";
+  if (!status) return null;
+  const live = status.registrarEnvironment === "production" || status.liveMode === true;
+  const maintenance = Boolean(status.maintenanceMode);
+  const style: CSSProperties = {
+    position: "relative",
+    zIndex: 20,
+    background: maintenance ? "#fef2f2" : live ? "#f0fdf4" : "#fff7ed",
+    color: maintenance ? "#991b1b" : live ? "#166534" : "#9a3412",
+    borderBottom: `1px solid ${maintenance ? "#fecaca" : live ? "#bbf7d0" : "#fed7aa"}`,
+    padding: "9px 16px",
+    fontWeight: 900,
+    textAlign: "center",
+    fontSize: "13px",
+    lineHeight: 1.4,
+  };
+  const small: CSSProperties = { display: "block", fontWeight: 700, opacity: 0.86, marginTop: "2px" };
+
+  const title = maintenance
+    ? "MAINTENANCE"
+    : live
+      ? "LIVE / PRODUCTION"
+      : "TEST / OTE";
+  const detail = maintenance
+    ? String(status.message || "Domain ordering is temporarily unavailable.")
+    : live
+      ? "New domain orders and registrar operations can use the real DomainNameAPI production balance. TEST records remain isolated."
+      : "New domain orders and registrar operations stay in DomainNameAPI OTE. The LIVE provider balance is not used by TEST records.";
 
   return createElement(
     "div",
-    { id: "khd-platform-status-banner", className: "khd-platform-status-banner", style: bannerStyle },
-    String(status.message || "Domain ordering is temporarily unavailable during maintenance."),
-    createElement("small", { style: smallStyle }, `Support: ${supportEmail}`),
+    { id: "khd-platform-status-banner", className: `khd-platform-status-banner ${live ? "is-live" : "is-test"}`, style },
+    `${title} — ${detail}`,
+    maintenance ? createElement("small", { style: small }, `Support: ${status.supportEmail || "support@kmerhosting.com"}`) : null,
   );
 }
