@@ -1,0 +1,21 @@
+name: Carbon frontend check
+
+on:
+  push:
+    branches: [frontend-carbon-refresh]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: npm install --ignore-scripts
+      - run: npm run check:styles
+      - run: npm run typecheck
+      - run: npm run build:strict
