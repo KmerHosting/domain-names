@@ -41,3 +41,10 @@
 .footer p,
 .footer span,
 .footer-bottom { color: var(--cds-text-secondary-on-color, #c6c6c6); }
+
+@media (max-width: 760px) {
+  .trust-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 580px) {
+  .trust-grid { grid-template-columns: 1fr; }
+}
