@@ -1,12 +1,105 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "npm:@supabase/supabase-js@2.49.8";
-const db=createClient(Deno.env.get("SUPABASE_URL")!,Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,{auth:{persistSession:false,autoRefreshToken:false}});
-const enc=new TextEncoder();
-type Json=Record<string,any>; type Env="ote"|"production";
-const clean=(v:unknown)=>String(v??"").trim();
-const headers={"Content-Type":"application/json; charset=utf-8","Cache-Control":"no-store","X-Content-Type-Options":"nosniff"};
-const json=(v:unknown,s=200)=>new Response(JSON.stringify(v),{status:s,headers});
-async function sha(v:string){const d=new Uint8Array(await crypto.subtle.digest("SHA-256",enc.encode(v)));return Array.from(d).map(x=>x.toString(16).padStart(2,"0")).join("");}
-async function admin(req:Request){const raw=clean(req.headers.get("authorization"));if(!raw.toLowerCase().startsWith("bearer "))throw new Error("authentication_required");const{data:s}=await db.from("domain_sessions").select("user_id,session_version").eq("token_hash",await sha(raw.slice(7).trim())).is("revoked_at",null).gt("expires_at",new Date().toISOString()).maybeSingle();if(!s)throw new Error("invalid_session");const{data:u}=await db.from("domain_users").select("id,role,status,session_version").eq("id",s.user_id).maybeSingle();if(!u||u.role!=="admin"||u.status!=="active"||Number(u.session_version)!==Number(s.session_version))throw new Error("admin_required");}
-async function dnaBalance(environment:Env){const{data,error}=await db.rpc("domain_registrar_proxy_env",{p_path:"/api/v1/deposit/accounts/me",p_method:"GET",p_body:null,p_query:{currency:"USD"},p_environment:environment});if(error)throw error;const out=data as Json;const body=(out?.body||{}) as Json;const usd=Number(body.usdBalance),tryAmount=Number(body.tryBalance);return{environment,label:environment==="ote"?"TEST / OTE":"LIVE / Production",source:"DomainNameAPI",sourceOfTruth:true,httpStatus:Number(out?.status||0),usdBalance:Number.isFinite(usd)?usd:null,tryBalance:Number.isFinite(tryAmount)?tryAmount:null,tryBalanceCurrency:"TRY/TL",endpoint:environment==="ote"?"https://ote.domainresellerapi.com/api/v1/deposit/accounts/me":"https://api.domainresellerapi.com/api/v1/deposit/accounts/me"};}
-Deno.serve(async req=>{if(req.method==="OPTIONS")return new Response(null,{status:204,headers});if(req.method!=="GET")return json({error:"method_not_allowed"},405);try{await admin(req);const[{data:cfg},{data:summary},{data:credits}]=await Promise.all([db.from("domain_config").select("customer_checkout_environment,registrar_environment,maintenance_mode,payment_mode,wallet_topup_mode").eq("id",true).single(),db.from("domain_environment_summary").select("environment,display_name,is_test,enabled,customer_checkout_enabled,domains,orders,open_jobs,dns_records"),db.from("domain_user_balance_matrix").select("user_id,email,role,status,ote_balance_usd,production_balance_usd,checkout_environment,checkout_balance_usd").order("email")]);const registrarAccounts=[];for(const env of ["ote","production"] as Env[]){try{registrarAccounts.push(await dnaBalance(env));}catch(e){registrarAccounts.push({environment:env,label:env==="ote"?"TEST / OTE":"LIVE / Production",source:"DomainNameAPI",sourceOfTruth:true,error:e instanceof Error?e.message:"balance_unavailable"});}}return json({ok:true,config:cfg,environments:summary||[],registrarAccounts,customerCredits:{source:"KmerHosting customer ledger",sourceOfTruthForCustomerBilling:true,notDomainNameApiBalance:true,rows:credits||[]},semantics:{oteProviderBalance:"usdBalance returned by the OTE API host",liveProviderBalance:"usdBalance returned by the production API host",tryBalance:"TRY/TL currency balance; never a test-mode balance",customerCredit:"KmerHosting per-user billing credit; DomainNameAPI does not represent this reseller application's end-customer wallet"},generatedAt:new Date().toISOString()});}catch(e){const m=e instanceof Error?e.message:"internal_error";const s=m==="authentication_required"||m==="invalid_session"?401:m==="admin_required"?403:500;return json({error:m,message:m},s);}});
+
+const db = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!, {
+  auth: { persistSession: false, autoRefreshToken: false },
+});
+const encoder = new TextEncoder();
+type Json = Record<string, any>;
+type Environment = "ote" | "production";
+const clean = (value: unknown) => String(value ?? "").trim();
+const responseHeaders = { "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" };
+const json = (value: unknown, status = 200) => new Response(JSON.stringify(value), { status, headers: responseHeaders });
+
+async function sha256(value: string) {
+  const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value)));
+  return Array.from(digest).map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+async function requireAdmin(req: Request) {
+  const authorization = clean(req.headers.get("authorization"));
+  if (!authorization.toLowerCase().startsWith("bearer ")) throw new Error("authentication_required");
+  const { data: session } = await db.from("domain_sessions")
+    .select("user_id,session_version")
+    .eq("token_hash", await sha256(authorization.slice(7).trim()))
+    .is("revoked_at", null)
+    .gt("expires_at", new Date().toISOString())
+    .maybeSingle();
+  if (!session) throw new Error("invalid_session");
+  const { data: user } = await db.from("domain_users")
+    .select("id,role,status,session_version")
+    .eq("id", session.user_id)
+    .maybeSingle();
+  if (!user || user.role !== "admin" || user.status !== "active" || Number(user.session_version) !== Number(session.session_version)) {
+    throw new Error("admin_required");
+  }
+}
+
+function providerAccountFromSummary(row: Json) {
+  const environment = row.environment as Environment;
+  const balance = row.provider_balance_usd === null || row.provider_balance_usd === undefined
+    ? null
+    : Number(row.provider_balance_usd);
+  return {
+    environment,
+    label: environment === "ote" ? "TEST / OTE" : "LIVE / Production",
+    source: "DomainNameAPI verified snapshot",
+    sourceOfTruth: true,
+    balanceSource: "snapshot",
+    cached: true,
+    usdBalance: Number.isFinite(balance) ? balance : null,
+    tryBalance: null,
+    tryBalanceCurrency: "TRY/TL",
+    checkedAt: row.provider_balance_checked_at || null,
+    endpoint: environment === "ote"
+      ? "https://ote.domainresellerapi.com/api/v1/deposit/accounts/me"
+      : "https://api.domainresellerapi.com/api/v1/deposit/accounts/me",
+  };
+}
+
+Deno.serve(async (req: Request) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: responseHeaders });
+  if (req.method !== "GET") return json({ error: "method_not_allowed" }, 405);
+  try {
+    await requireAdmin(req);
+    const [{ data: config }, { data: summary }, { data: credits }] = await Promise.all([
+      db.from("domain_config")
+        .select("customer_checkout_environment,registrar_environment,maintenance_mode,payment_mode,wallet_topup_mode")
+        .eq("id", true)
+        .single(),
+      db.from("domain_environment_summary")
+        .select("environment,display_name,is_test,enabled,customer_checkout_enabled,domains,orders,open_jobs,dns_records,provider_balance_usd,provider_balance_checked_at")
+        .order("is_test", { ascending: false }),
+      db.from("domain_user_balance_matrix")
+        .select("user_id,email,role,status,ote_balance_usd,production_balance_usd,checkout_environment,checkout_balance_usd")
+        .order("email"),
+    ]);
+
+    const environments = summary || [];
+    const registrarAccounts = environments.map(providerAccountFromSummary);
+    return json({
+      ok: true,
+      config,
+      environments,
+      registrarAccounts,
+      customerCredits: {
+        source: "KmerHosting customer ledger",
+        sourceOfTruthForCustomerBilling: true,
+        notDomainNameApiBalance: true,
+        rows: credits || [],
+      },
+      semantics: {
+        oteProviderBalance: "last verified usdBalance from the OTE API host",
+        liveProviderBalance: "last verified usdBalance from the production API host",
+        tryBalance: "TRY/TL currency balance; never a test-mode balance",
+        customerCredit: "KmerHosting per-user billing credit; separate from DomainNameAPI reseller funds",
+      },
+      note: "Environment status reads the verified provider snapshot cache and does not make another DomainNameAPI request. Use the provider balance endpoint for an explicit refresh.",
+      generatedAt: new Date().toISOString(),
+    });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "internal_error";
+    const status = message === "authentication_required" || message === "invalid_session" ? 401 : message === "admin_required" ? 403 : 500;
+    return json({ error: message, message }, status);
+  }
+});
