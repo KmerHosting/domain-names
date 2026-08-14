@@ -162,6 +162,14 @@ export default async function handler(req: Request): Promise<Response> {
       requestBody = new TextEncoder().encode(JSON.stringify({ ...payload, userId: adminCredit[1] })).buffer;
     }
 
+    // The public UI historically calls /domain-api/domains/check. Route that stable
+    // contract to the dedicated bulk-search service so one user action produces one
+    // DomainNameAPI bulk-search request instead of N sequential availability calls.
+    if (service === "domain-api" && upstreamPath === "/domains/check" && method === "POST") {
+      service = "domain-search-fast";
+      upstreamPath = "/";
+    }
+
     const upstreamUrl = new URL(`${SUPABASE_FUNCTIONS_BASE.replace(/\/$/, "")}/${service}${upstreamPath}`);
     upstreamUrl.search = url.search;
 
