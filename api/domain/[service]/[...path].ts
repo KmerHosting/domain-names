@@ -29,6 +29,7 @@ const ALLOWED_SERVICES = new Set([
   "domain-payment-status",
   "domain-wallet",
   "domain-admin",
+  "domain-admin-user-safety",
   "domain-admin-monitor",
   "domain-operations-monitor",
   "domain-search-fast",
@@ -160,6 +161,12 @@ export default async function handler(req: Request): Promise<Response> {
       service = "domain-wallet";
       upstreamPath = "/admin/credit";
       requestBody = new TextEncoder().encode(JSON.stringify({ ...payload, userId: adminCredit[1] })).buffer;
+    }
+
+    // Sensitive administrator user mutations use the hardened endpoint. This prevents
+    // self-suspension/self-demotion and protects the last administrator at the API layer.
+    if (service === "domain-admin" && /^\/users\/[0-9a-f-]{36}$/i.test(upstreamPath) && (method === "PATCH" || method === "DELETE")) {
+      service = "domain-admin-user-safety";
     }
 
     // The public UI historically calls /domain-api/domains/check. Route that stable

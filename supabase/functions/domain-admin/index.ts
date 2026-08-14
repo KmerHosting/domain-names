@@ -55,8 +55,65 @@ async function summary(req: Request) {
   return json(req, { counts: { users: users.count || 0, domains: domains.count || 0, tlds: tlds.count || 0, providerTlds: providerTlds.count || 0, orders: orderRows.length, payments: payments.data?.length || 0, jobs: jobs.data?.length || 0, failedDns: dns.count || 0 }, revenue: { paidUsd: invoiceRows.filter((i:any)=>i.status === "paid").reduce((s:number,i:any)=>s+Number(i.amount_usd||0),0), paidXaf: invoiceRows.filter((i:any)=>i.status === "paid").reduce((s:number,i:any)=>s+Number(i.amount_xaf||0),0) }, orderStatus: orderRows.reduce((acc:Json,o:any)=>{ acc[o.status]=(acc[o.status]||0)+1; return acc; },{}), jobStatus: (jobs.data || []).reduce((acc:Json,j:any)=>{ acc[j.status]=(acc[j.status]||0)+1; return acc; },{}), issues: issues.data || [], recentOrders: orderRows.slice(0, 10), recentJobs: jobs.data || [] });
 }
 async function users(req: Request) { const { data, error } = await db.from("domain_users").select("id,email,full_name,phone,country_code,role,status,balance_usd,email_verified_at,last_login_at,created_at,updated_at").order("created_at", { ascending:false }).limit(1000); if (error) throw error; return json(req, { users: data || [] }); }
-async function updateUser(req: Request, admin: Json, id: string) { const b = await body(req), patch: Json = {}; if (b.status !== undefined) { const s = clean(b.status); if (!["active","suspended","deleted"].includes(s)) throw new HttpError(400,"invalid_status","Invalid user status."); if (id === admin.id && s !== "active") throw new HttpError(409,"admin_cannot_suspend_self","The active admin account cannot suspend itself."); patch.status = s; } if (b.role !== undefined) { const r = clean(b.role); if (!["customer","admin"].includes(r)) throw new HttpError(400,"invalid_role","Invalid user role."); if (r === "admin" && id !== admin.id) throw new HttpError(409,"single_admin_only","Only one admin account is allowed."); if (id === admin.id && r !== "admin") throw new HttpError(409,"admin_cannot_demote_self","The only admin account cannot be demoted."); patch.role = r; } if (b.balanceUsd !== undefined) patch.balance_usd = Math.max(0, Number(b.balanceUsd || 0)); if (b.fullName !== undefined) patch.full_name = clean(b.fullName); if (b.phone !== undefined) patch.phone = clean(b.phone); if (b.countryCode !== undefined) patch.country_code = clean(b.countryCode).toUpperCase(); patch.updated_at = now(); const { data, error } = await db.from("domain_users").update(patch).eq("id", id).select("id,email,full_name,role,status,balance_usd").single(); if (error) throw error; await audit(admin,"admin.user.update","user",id,patch); return json(req,{ user:data }); }
-async function deleteUser(req: Request, admin: Json, id: string) { if (id === admin.id) throw new HttpError(409,"cannot_delete_self","The admin account cannot delete itself."); const { data, error } = await db.from("domain_users").update({ status:"deleted", updated_at: now() }).eq("id", id).select("id,email,status").single(); if (error) throw error; await db.from("domain_sessions").update({ revoked_at: now() }).eq("user_id", id).is("revoked_at", null); await audit(admin,"admin.user.delete","user",id); return json(req,{ user:data }); }
+async function adminContinuityCounts(excludingId?: string) {
+  let adminQuery = db.from("domain_users").select("id", { count: "exact", head: true }).eq("role", "admin");
+  let activeQuery = db.from("domain_users").select("id", { count: "exact", head: true }).eq("role", "admin").eq("status", "active");
+  if (excludingId) { adminQuery = adminQuery.neq("id", excludingId); activeQuery = activeQuery.neq("id", excludingId); }
+  const [admins, activeAdmins] = await Promise.all([adminQuery, activeQuery]);
+  return { admins: admins.count || 0, activeAdmins: activeAdmins.count || 0 };
+}
+async function updateUser(req: Request, admin: Json, id: string) {
+  const b = await body(req), patch: Json = {};
+  const { data: target, error: targetError } = await db.from("domain_users").select("id,email,role,status").eq("id", id).maybeSingle();
+  if (targetError || !target) throw new HttpError(404, "user_not_found", "User not found.");
+  if (b.status !== undefined) {
+    const s = clean(b.status);
+    if (!["active", "suspended", "deleted"].includes(s)) throw new HttpError(400, "invalid_status", "Invalid user status.");
+    if (id === admin.id && s !== "active") throw new HttpError(409, "admin_cannot_suspend_self", "An administrator cannot suspend or delete their own account.");
+    if (target.role === "admin" && target.status === "active" && s !== "active") {
+      const counts = await adminContinuityCounts(id);
+      if (counts.activeAdmins < 1) throw new HttpError(409, "last_active_admin_protected", "The last active administrator cannot be suspended or deleted.");
+    }
+    patch.status = s;
+  }
+  if (b.role !== undefined) {
+    const r = clean(b.role);
+    if (!["customer", "admin"].includes(r)) throw new HttpError(400, "invalid_role", "Invalid user role.");
+    if (id === admin.id && r !== "admin") throw new HttpError(409, "admin_cannot_demote_self", "An administrator cannot convert their own account to a customer.");
+    if (target.role === "admin" && r !== "admin") {
+      const counts = await adminContinuityCounts(id);
+      if (counts.admins < 1) throw new HttpError(409, "last_admin_protected", "The last administrator cannot be converted to a customer.");
+      if (target.status === "active" && counts.activeAdmins < 1) throw new HttpError(409, "last_active_admin_protected", "The last active administrator cannot be converted to a customer.");
+    }
+    patch.role = r;
+  }
+  if (b.balanceUsd !== undefined) patch.balance_usd = Math.max(0, Number(b.balanceUsd || 0));
+  if (b.fullName !== undefined) patch.full_name = clean(b.fullName);
+  if (b.phone !== undefined) patch.phone = clean(b.phone);
+  if (b.countryCode !== undefined) patch.country_code = clean(b.countryCode).toUpperCase();
+  if (!Object.keys(patch).length) throw new HttpError(400, "no_changes", "No supported changes were provided.");
+  patch.updated_at = now();
+  const { data, error } = await db.from("domain_users").update(patch).eq("id", id).select("id,email,full_name,role,status,balance_usd").single();
+  if (error) throw error;
+  if (patch.status && patch.status !== "active") await db.from("domain_sessions").update({ revoked_at: now() }).eq("user_id", id).is("revoked_at", null);
+  await audit(admin, "admin.user.update", "user", id, patch);
+  return json(req, { user: data });
+}
+async function deleteUser(req: Request, admin: Json, id: string) {
+  if (id === admin.id) throw new HttpError(409, "cannot_delete_self", "An administrator cannot delete their own account.");
+  const { data: target } = await db.from("domain_users").select("id,role,status").eq("id", id).maybeSingle();
+  if (!target) throw new HttpError(404, "user_not_found", "User not found.");
+  if (target.role === "admin") {
+    const counts = await adminContinuityCounts(id);
+    if (counts.admins < 1) throw new HttpError(409, "last_admin_protected", "The last administrator cannot be deleted.");
+    if (target.status === "active" && counts.activeAdmins < 1) throw new HttpError(409, "last_active_admin_protected", "The last active administrator cannot be deleted.");
+  }
+  const { data, error } = await db.from("domain_users").update({ status: "deleted", updated_at: now() }).eq("id", id).select("id,email,status").single();
+  if (error) throw error;
+  await db.from("domain_sessions").update({ revoked_at: now() }).eq("user_id", id).is("revoked_at", null);
+  await audit(admin, "admin.user.delete", "user", id);
+  return json(req, { user: data });
+}
 async function creditUserWallet(req: Request, admin: Json, id: string){ const b = await body(req); const amount = round2(Number(b.amountUsd || b.amount || 0)); if (!Number.isFinite(amount) || amount <= 0) throw new HttpError(400,"invalid_amount","Enter a positive USD amount."); const reason = clean(b.reason || "Manual admin wallet credit").slice(0,250); const { data: user, error: ue } = await db.from("domain_users").select("id,balance_usd").eq("id", id).single(); if (ue || !user) throw new HttpError(404,"user_not_found","User not found."); const before = Number(user.balance_usd || 0); const after = round2(before + amount); const { data, error } = await db.from("domain_users").update({ balance_usd: after, updated_at: now() }).eq("id", id).select("id,email,balance_usd").single(); if (error) throw error; await db.from("domain_wallet_transactions").insert({ user_id:id, type:"manual_credit", amount_usd:amount, balance_before_usd:before, balance_after_usd:after, description:reason, metadata:{ adminId: admin.id } }).then(()=>undefined).catch(()=>undefined); await audit(admin,"admin.wallet.credit","user",id,{ amountUsd:amount, reason }); return json(req,{ user:data, amountUsd:amount, balanceBeforeUsd:before, balanceAfterUsd:after }); }
 async function orders(req: Request) { const { data, error } = await db.from("domain_orders").select("*,domain_users(email,full_name),domain_payments(id,status,amount_xaf,checkout_url,provider_reference,paid_at,created_at),domain_invoices(id,invoice_number,status,amount_usd,amount_xaf)").order("created_at", { ascending:false }).limit(1000); if (error) throw error; return json(req,{ orders:data || [] }); }
 async function updateOrder(req: Request, admin: Json, id: string) { const b = await body(req), patch: Json = {}; if (b.status !== undefined) { const s = clean(b.status); if (!["pending_payment","payment_pending","paid","processing","completed","failed","cancelled","refunded"].includes(s)) throw new HttpError(400,"invalid_status","Invalid order status."); patch.status = s; if (s === "completed") patch.completed_at = now(); } if (b.failureMessage !== undefined) patch.failure_message = clean(b.failureMessage) || null; patch.updated_at = now(); const { data, error } = await db.from("domain_orders").update(patch).eq("id", id).select("*").single(); if (error) throw error; await audit(admin,"admin.order.update","order",id,patch); return json(req,{ order:data }); }

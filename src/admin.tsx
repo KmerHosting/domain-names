@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { FormEvent, useState } from "react";
-import { adminApi, formatDate, formatMoney, getSession, newIdempotencyKey } from "./api";
+import { adminApi, api, formatDate, formatMoney, getSession, newIdempotencyKey } from "./api";
 
 type Row = Record<string, any>;
 type Tab = "overview" | "users" | "orders" | "domains" | "payments" | "jobs" | "settings";
@@ -81,8 +81,15 @@ function Overview() {
 function Users() {
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["admin-users"], queryFn: () => adminApi<{ users: Row[] }>("/users") });
+  const meQuery = useQuery({ queryKey: ["admin-me"], queryFn: () => api<{ user: Row }>("/me") });
   const envQuery = useQuery({ queryKey: ["admin-environment-status"], queryFn: environmentStatus, refetchInterval: 30000 });
-  const update = useMutation({ mutationFn: ({ id, body }: { id: string; body: Row }) => adminApi(`/users/${id}`, { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-users"] }) });
+  const update = useMutation({
+    mutationFn: ({ id, body }: { id: string; body: Row }) => adminApi(`/users/${id}`, { method: "PATCH", body }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["admin-users"] });
+      client.invalidateQueries({ queryKey: ["admin-me"] });
+    },
+  });
   const credit = useMutation({
     mutationFn: addEnvironmentCredit,
     onSuccess: () => {
@@ -91,6 +98,10 @@ function Users() {
     },
   });
   const credits = new Map((envQuery.data?.customerCredits?.rows || []).map((row) => [row.user_id, row]));
+  const users = query.data?.users || [];
+  const adminCount = users.filter((user) => user.role === "admin").length;
+  const activeAdminCount = users.filter((user) => user.role === "admin" && user.status === "active").length;
+  const currentAdminId = meQuery.data?.user?.id;
   const addCredit = (user: Row, environment: EnvName) => {
     const label = environment === "ote" ? "TEST / OTE" : "LIVE / PRODUCTION";
     const amount = prompt(`KmerHosting customer credit for ${user.email}\nEnvironment: ${label}\nUSD amount:`);
@@ -101,7 +112,19 @@ function Users() {
     if (!window.confirm(`Credit ${formatMoney(value)} to ${user.email} in ${label}?\n\nThis changes KmerHosting customer credit only. It does NOT change the DomainNameAPI reseller balance.`)) return;
     credit.mutate({ userId: user.id, environment, amountUsd: value, reason });
   };
-  return <section className="card"><div className="card-heading"><div><h2>Users and customer credits</h2><p>KmerHosting customer credits are separate from the DomainNameAPI reseller account. DNA reseller balances are read only from the DNA API.</p></div><a className="button button-secondary" href="/admin/environments">DNA balances</a></div>{(query.isError || envQuery.isError || update.isError || credit.isError) && <div className="alert alert-error">{errorText(query.error || envQuery.error || update.error || credit.error)}</div>}<div className="alert alert-info"><strong>Balance semantics:</strong> TEST/LIVE values below are KmerHosting customer billing credits. They are not <code>usdBalance</code> from DomainNameAPI.</div>{query.isPending || envQuery.isPending ? <Loading /> : <div className="table-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Status</th><th>TEST customer credit</th><th>LIVE customer credit</th><th>Last login</th><th>Actions</th></tr></thead><tbody>{(query.data?.users || []).map((user) => { const row = credits.get(user.id); return <tr key={user.id}><td><strong>{user.full_name}</strong><small className="dns-meta">{user.email}</small></td><td><Badge value={user.role} /></td><td><Badge value={user.status} /></td><td>{formatMoney(Number(row?.ote_balance_usd || 0))}</td><td>{formatMoney(Number(row?.production_balance_usd || 0))}</td><td>{formatDate(user.last_login_at)}</td><td><div className="heading-actions"><button onClick={() => addCredit(user, "ote")}>Credit TEST</button><button onClick={() => addCredit(user, "production")}>Credit LIVE</button><button onClick={() => update.mutate({ id: user.id, body: { status: user.status === "active" ? "suspended" : "active" } })}>{user.status === "active" ? "Suspend" : "Activate"}</button><button onClick={() => update.mutate({ id: user.id, body: { role: user.role === "admin" ? "customer" : "admin" } })}>{user.role === "admin" ? "Make customer" : "Make admin"}</button></div></td></tr>; })}</tbody></table></div>}</section>;
+  const pending = query.isPending || envQuery.isPending || meQuery.isPending;
+  const error = query.error || envQuery.error || meQuery.error || update.error || credit.error;
+  return <section className="card"><div className="card-heading"><div><h2>Users and customer credits</h2><p>KmerHosting customer credits are separate from the DomainNameAPI reseller account. DNA reseller balances are read only from the DNA API.</p></div><a className="button button-secondary" href="/admin/environments">DNA balances</a></div>{error && <div className="alert alert-error">{errorText(error)}</div>}<div className="alert alert-info"><strong>Administrator safety:</strong> an administrator cannot suspend or demote their own account. The last administrator and the last active administrator are protected by the backend as well as this interface.</div><div className="alert alert-info"><strong>Balance semantics:</strong> TEST/LIVE values below are KmerHosting customer billing credits. They are not <code>usdBalance</code> from DomainNameAPI.</div>{pending ? <Loading /> : <div className="table-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Status</th><th>TEST customer credit</th><th>LIVE customer credit</th><th>Last login</th><th>Actions</th></tr></thead><tbody>{users.map((user) => {
+    const row = credits.get(user.id);
+    const self = user.id === currentAdminId;
+    const lastAdmin = user.role === "admin" && adminCount <= 1;
+    const lastActiveAdmin = user.role === "admin" && user.status === "active" && activeAdminCount <= 1;
+    const cannotSuspend = user.status === "active" && (self || lastActiveAdmin);
+    const cannotDemote = user.role === "admin" && (self || lastAdmin || lastActiveAdmin);
+    const suspendTitle = self ? "You cannot suspend your own administrator account." : lastActiveAdmin ? "The last active administrator cannot be suspended." : undefined;
+    const demoteTitle = self ? "You cannot convert your own administrator account to a customer." : lastAdmin ? "The last administrator cannot be converted to a customer." : lastActiveAdmin ? "The last active administrator cannot be converted to a customer." : undefined;
+    return <tr key={user.id}><td><strong>{user.full_name}</strong><small className="dns-meta">{user.email}{self ? " · current admin" : ""}</small></td><td><Badge value={user.role} /></td><td><Badge value={user.status} /></td><td>{formatMoney(Number(row?.ote_balance_usd || 0))}</td><td>{formatMoney(Number(row?.production_balance_usd || 0))}</td><td>{formatDate(user.last_login_at)}</td><td><div className="heading-actions"><button onClick={() => addCredit(user, "ote")}>Credit TEST</button><button onClick={() => addCredit(user, "production")}>Credit LIVE</button><button disabled={cannotSuspend || update.isPending} title={suspendTitle} onClick={() => update.mutate({ id: user.id, body: { status: user.status === "active" ? "suspended" : "active" } })}>{user.status === "active" ? "Suspend" : "Activate"}</button><button disabled={cannotDemote || update.isPending} title={demoteTitle} onClick={() => update.mutate({ id: user.id, body: { role: user.role === "admin" ? "customer" : "admin" } })}>{user.role === "admin" ? "Make customer" : "Make admin"}</button></div></td></tr>;
+  })}</tbody></table></div>}</section>;
 }
 
 function Orders() {
@@ -134,17 +157,43 @@ function Jobs() {
 function Settings() {
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["admin-settings"], queryFn: () => adminApi<{ settings: Row }>("/settings") });
+  const envQuery = useQuery({ queryKey: ["admin-settings-environment"], queryFn: environmentStatus, refetchInterval: 30000 });
   const save = useMutation({ mutationFn: (body: Row) => adminApi("/settings", { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-settings"] }) });
+  const switchEnvironment = useMutation({
+    mutationFn: async (environment: EnvName) => {
+      const response = await fetch("/api/environment-switch", {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", Accept: "application/json" },
+        body: JSON.stringify({ environment, confirm: environment }),
+      });
+      const payload = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(payload.message || payload.error || `Environment switch failed (${response.status}).`);
+      return payload;
+    },
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["admin-settings"] });
+      client.invalidateQueries({ queryKey: ["admin-settings-environment"] });
+      client.invalidateQueries({ queryKey: ["admin-environment-status"] });
+    },
+  });
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const data = Object.fromEntries(new FormData(event.currentTarget));
     save.mutate({ supportEmail: data.supportEmail, maintenanceMode: data.maintenanceMode === "on", providerLowBalanceThresholdUsd: Number(data.providerLowBalanceThresholdUsd), defaultNameservers: String(data.defaultNameservers || "").split(/[\n,]+/).map((item) => item.trim()).filter(Boolean) });
   };
-  if (query.isPending) return <Loading />;
-  if (query.isError) return <div className="alert alert-error">{errorText(query.error)}</div>;
+  if (query.isPending || envQuery.isPending) return <Loading />;
+  if (query.isError || envQuery.isError) return <div className="alert alert-error">{errorText(query.error || envQuery.error)}</div>;
   const settings = query.data?.settings || {};
-  const checkoutEnvironment = settings.customer_checkout_environment || settings.registrar_environment;
-  return <section className="card"><div className="card-heading"><div><h2>Platform settings</h2><p>New orders use the explicit checkout environment. Existing domains, orders, DNS and jobs keep their original environment and are never converted by a mode change.</p></div><a className="button button-secondary" href="/admin/environments">Open TEST / LIVE control</a></div><form className="form-stack" onSubmit={submit}><label>Support email<input name="supportEmail" type="email" defaultValue={settings.support_email} required /></label><label>Provider low-balance threshold (USD)<input name="providerLowBalanceThresholdUsd" type="number" min="0" step="0.01" defaultValue={settings.provider_low_balance_threshold_usd || 0} /></label><label>Default nameservers<textarea name="defaultNameservers" defaultValue={(settings.default_nameservers || []).join("\n")} required /></label><label><input name="maintenanceMode" type="checkbox" defaultChecked={Boolean(settings.maintenance_mode)} /> Maintenance mode</label><div className="stats-grid"><div><span>New-order environment</span><strong>{checkoutEnvironment === "ote" ? "TEST / OTE" : "LIVE / PRODUCTION"}</strong></div><div><span>Provider balance source</span><strong>DomainNameAPI usdBalance</strong></div><div><span>Customer billing</span><strong>KmerHosting customer credit</strong></div></div><div className="alert alert-info"><code>tryBalance</code> is the DNA TRY/TL currency balance. It is never used to represent TEST mode.</div><button className="button button-primary" disabled={save.isPending}>Save settings</button>{save.isSuccess && <div className="alert alert-success">Settings saved.</div>}{save.isError && <div className="alert alert-error">{errorText(save.error)}</div>}</form></section>;
+  const checkoutEnvironment = envQuery.data?.config?.customer_checkout_environment || settings.customer_checkout_environment || settings.registrar_environment || "production";
+  const switchTo = (environment: EnvName) => {
+    if (environment === checkoutEnvironment || switchEnvironment.isPending) return;
+    const message = environment === "ote"
+      ? "Switch the full NEW-ORDER platform to TEST / OTE?\n\nAvailability search, bulk search, quotes, new registrations, transfers, renewals/restores and provider balance checks for NEW operations will use DomainNameAPI OTE. Existing LIVE domains, orders, DNS records and jobs remain LIVE. Maintenance mode is not changed."
+      : "Switch the full NEW-ORDER platform to LIVE / PRODUCTION?\n\nAvailability search, bulk search, quotes and NEW paid registrar operations will use DomainNameAPI production and can spend REAL provider funds. Existing TEST records remain TEST. Maintenance mode is not changed.";
+    if (window.confirm(message)) switchEnvironment.mutate(environment);
+  };
+  return <section className="card"><div className="card-heading"><div><h2>Platform settings</h2><p>New operations use one explicit platform environment. Existing domains, orders, DNS records and jobs keep their immutable original environment.</p></div><a className="button button-secondary" href="/admin/environments">Environment details & balances</a></div><form className="form-stack" onSubmit={submit}><label>Support email<input name="supportEmail" type="email" defaultValue={settings.support_email} required /></label><label>Provider low-balance threshold (USD)<input name="providerLowBalanceThresholdUsd" type="number" min="0" step="0.01" defaultValue={settings.provider_low_balance_threshold_usd || 0} /></label><label>Default nameservers<textarea name="defaultNameservers" defaultValue={(settings.default_nameservers || []).join("\n")} required /></label><label><input name="maintenanceMode" type="checkbox" defaultChecked={Boolean(settings.maintenance_mode)} /> Maintenance mode</label><section className="card"><div className="card-heading"><div><h3>Full platform environment</h3><p>This switch changes the registrar environment used for all NEW availability searches, bulk searches, quotes and orders. It does not convert existing records and does not change maintenance mode.</p></div></div><div className="heading-actions"><button type="button" className={checkoutEnvironment === "ote" ? "button button-primary" : "button button-secondary"} disabled={checkoutEnvironment === "ote" || switchEnvironment.isPending} onClick={() => switchTo("ote")}>{checkoutEnvironment === "ote" ? "TEST / OTE — CURRENT" : "Switch full platform to TEST / OTE"}</button><button type="button" className={checkoutEnvironment === "production" ? "button button-primary" : "button button-secondary"} disabled={checkoutEnvironment === "production" || switchEnvironment.isPending} onClick={() => switchTo("production")}>{checkoutEnvironment === "production" ? "LIVE / PRODUCTION — CURRENT" : "Switch full platform to LIVE / PRODUCTION"}</button></div>{switchEnvironment.isSuccess && <div className="alert alert-success">Platform environment switched successfully.</div>}{switchEnvironment.isError && <div className="alert alert-error">{errorText(switchEnvironment.error)}</div>}</section><div className="stats-grid"><div><span>New-operation environment</span><strong>{checkoutEnvironment === "ote" ? "TEST / OTE" : "LIVE / PRODUCTION"}</strong></div><div><span>Provider balance source</span><strong>DomainNameAPI usdBalance</strong></div><div><span>Customer billing</span><strong>KmerHosting customer credit</strong></div></div><div className="alert alert-info"><code>tryBalance</code> is the DNA TRY/TL currency balance. It is never used to represent TEST mode.</div><button className="button button-primary" disabled={save.isPending}>Save settings</button>{save.isSuccess && <div className="alert alert-success">Settings saved.</div>}{save.isError && <div className="alert alert-error">{errorText(save.error)}</div>}</form></section>;
 }
 
 export default function AdminPage() {
