@@ -153,6 +153,17 @@ function useEscapeToClose(open: boolean, close: () => void) {
   }, [open, close]);
 }
 
+function useBodyScrollLock(locked: boolean) {
+  useEffect(() => {
+    if (!locked) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => {
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [locked]);
+}
+
 function errorText(error: unknown): string {
   return error instanceof ApiClientError
     ? error.message
@@ -194,11 +205,13 @@ function PublicHeader() {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   useEscapeToClose(open, close);
+  useBodyScrollLock(open);
+  const homeAnchor = (section: string) => window.location.pathname === "/" ? "#" + section : "/#" + section;
   return <header className="public-header"><div className="container header-row">
     <Brand />
     <button type="button" className="icon-button mobile-only" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-controls="public-navigation" aria-label={open ? "Close navigation" : "Open navigation"}>{open ? <X /> : <Menu />}</button>
     <nav id="public-navigation" aria-label="Public navigation" className={open ? "public-nav open" : "public-nav"}>
-      <a href="#search" onClick={close}>Search</a><a href="#pricing" onClick={close}>Pricing</a><a href="#features" onClick={close}>Features</a><Link to="/transfer-domain" onClick={close}>Transfer</Link>
+      <a href={homeAnchor("search")} onClick={close}>Search</a><a href={homeAnchor("pricing")} onClick={close}>Pricing</a><a href={homeAnchor("features")} onClick={close}>Features</a><Link to="/transfer-domain" onClick={close}>Transfer</Link>
       {session ? <Link to="/dashboard" className="button button-primary" onClick={close}>Dashboard</Link> : <><Link to="/auth" search={{ mode: undefined }} className="button button-ghost" onClick={close}>Sign in</Link><Link to="/auth" search={{ mode: "register" }} className="button button-primary" onClick={close}>Create account</Link></>}
     </nav>
   </div>{open && <button type="button" className="nav-scrim public-nav-scrim" aria-label="Close navigation" onClick={close} />}</header>;
@@ -440,6 +453,7 @@ function DashboardLayout() {
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   useEscapeToClose(open, close);
+  useBodyScrollLock(open);
   if (!session) { window.location.href = "/auth"; return null; }
   return <div className="dashboard-shell"><aside className={open ? "dashboard-sidebar open" : "dashboard-sidebar"}><div className="sidebar-brand"><Brand /></div><nav id="dashboard-navigation" aria-label="Dashboard navigation" className="sidebar-nav"><Link to="/dashboard" activeOptions={{ exact: true }} onClick={close}><LayoutDashboard size={18} />Overview</Link><Link to="/dashboard/domains" onClick={close}><Globe2 size={18} />Domains</Link><Link to="/dashboard/orders" onClick={close}><FileText size={18} />Orders</Link><Link to="/dashboard/wallet" onClick={close}><WalletCards size={18} />Wallet</Link><Link to="/dashboard/contacts" onClick={close}><UserRound size={18} />Contacts</Link><Link to="/dashboard/invoices" onClick={close}><FileText size={18} />Invoices</Link><Link to="/dashboard/profile" onClick={close}><Settings2 size={18} />Profile</Link><a href="/dashboard/notifications" onClick={close}><Bell size={18} />Notifications</a>{me.data?.user.role === "admin" && <a href="/admin" onClick={close}><ShieldCheck size={18} />Administration</a>}</nav><button type="button" className="sidebar-logout" onClick={() => logout.mutate()}><LogOut size={18} />Sign out</button></aside>{open && <button type="button" className="nav-scrim dashboard-nav-scrim" aria-label="Close dashboard navigation" onClick={close} />}<main className="dashboard-main"><header className="dashboard-header"><button type="button" className="icon-button mobile-only" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-controls="dashboard-navigation" aria-label={open ? "Close dashboard navigation" : "Open dashboard navigation"}>{open ? <X /> : <Menu />}</button><div /><div className="header-account"><span>{me.data?.user.fullName || "Customer"}</span><small>{me.data?.user.email}</small></div></header><Outlet /></main></div>;
 }

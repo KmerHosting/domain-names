@@ -25,7 +25,7 @@ const missing = requiredClasses.filter((className) => {
 });
 
 const carbon = fs.readFileSync(path.join(root, "src/platform-sync.css"), "utf8");
-for (const token of ["#0f62fe", "#161616", "IBM Plex Sans"]) {
+for (const token of ["#1A73E8", "#161616", "IBM Plex Sans"]) {
   if (!carbon.includes(token)) missing.push(`Carbon token ${token}`);
 }
 
