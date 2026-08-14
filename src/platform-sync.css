@@ -98,3 +98,19 @@
 @media (prefers-reduced-motion: reduce) {
   .dashboard-sidebar { transition: none !important; }
 }
+/* Trust strip must remain a continuous Carbon surface */
+.trust-grid {
+  align-items: stretch;
+  background: #fff;
+}
+.trust-grid > div {
+  min-height: 6.25rem;
+}
+@media (max-width: 900px) {
+  .trust-grid {
+    padding-block: 0 !important;
+  }
+  .trust-grid > div {
+    min-height: 5rem;
+  }
+}
