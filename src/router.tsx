@@ -212,7 +212,7 @@ function PublicHeader() {
     <button type="button" className="icon-button mobile-only" onClick={() => setOpen((value) => !value)} aria-expanded={open} aria-controls="public-navigation" aria-label={open ? "Close navigation" : "Open navigation"}>{open ? <X /> : <Menu />}</button>
     <nav id="public-navigation" aria-label="Public navigation" className={open ? "public-nav open" : "public-nav"}>
       <a href={homeAnchor("search")} onClick={close}>Search</a><a href={homeAnchor("pricing")} onClick={close}>Pricing</a><a href={homeAnchor("features")} onClick={close}>Features</a><Link to="/transfer-domain" onClick={close}>Transfer</Link>
-      {session ? <Link to="/dashboard" className="button button-primary" onClick={close}>Dashboard</Link> : <><Link to="/auth" search={{ mode: undefined }} className="button button-ghost" onClick={close}>Sign in</Link><Link to="/auth" search={{ mode: "register" }} className="button button-primary" onClick={close}>Create account</Link></>}
+      {session ? <Link to="/dashboard" className="button button-primary" onClick={close}>Dashboard</Link> : <><a href="https://dashboard.kmerhosting.com/login?service=domain" className="button button-ghost" onClick={close}>Sign in</a><a href="https://dashboard.kmerhosting.com/register" className="button button-primary" onClick={close}>Create account</a></>}
     </nav>
   </div>{open && <button type="button" className="nav-scrim public-nav-scrim" aria-label="Close navigation" onClick={close} />}</header>;
 }
@@ -274,7 +274,7 @@ function HomePage() {
       [<UserRound />, "WHOIS contacts", "Provider handles, verification and four registry contact roles."],
       [<Bell />, "Lifecycle automation", "Reminders, balance-aware auto-renewal and provider synchronization."],
     ].map(([icon, title, text]) => <article className="feature-card" key={String(title)}><div className="feature-icon">{icon}</div><h3>{title}</h3><p>{text}</p></article>)}</div></div></section>
-    <section className="cta-section"><div className="container cta-card"><div><span className="kicker light">Start now</span><h2>Your next domain is one search away.</h2><p>Create an account, add a WHOIS contact and pay from your USD account balance.</p></div><Link to="/auth" search={{ mode: "register" }} className="button button-light">Create account <ArrowRight size={18} /></Link></div></section>
+    <section className="cta-section"><div className="container cta-card"><div><span className="kicker light">Start now</span><h2>Your next domain is one search away.</h2><p>Create one KmerHosting Account, add a WHOIS contact and pay from your shared USD balance.</p></div><a href="https://dashboard.kmerhosting.com/register" className="button button-light">Create account <ArrowRight size={18} /></a></div></section>
   </main><PublicFooter /></>;
 }
 
@@ -287,6 +287,8 @@ function AuthPage() {
   const [email, setEmail] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [showNewPassword, setShowNewPassword] = useState(false);
+  const [ssoError, setSsoError] = useState("");
+  const [ssoBusy, setSsoBusy] = useState(false);
   const passwordLogin = useMutation({
     mutationFn: (body: Row) => api<{ user: User; session: Session }>("/auth/login", { method: "POST", body }),
     onSuccess: (data) => { setSession(data.session); window.location.href = "/dashboard"; },
@@ -310,82 +312,24 @@ function AuthPage() {
   };
   const busy = passwordLogin.isPending || requestOtp.isPending || verifyOtp.isPending;
   const error = passwordLogin.error || requestOtp.error || verifyOtp.error;
-  return (
-    <div className="auth-shell">
-      <div className="auth-brand-pane">
-        <Brand />
-        <div className="auth-brand-copy">
-          <span className="eyebrow dark"><ShieldCheck size={15} /> Secure customer portal</span>
-          <h1>Control your domains from one dashboard.</h1>
-          <p>Provider-backed availability, exact pricing and complete lifecycle controls.</p>
-        </div>
-        <div className="auth-points">
-          <span><Check /> Protected account access</span>
-          <span><Check /> USD wallet-only billing</span>
-          <span><Check /> Domain lifecycle controls</span>
-        </div>
-      </div>
-      <div className="auth-form-pane">
-        <div className="auth-card">
-          <Link to="/" className="back-link">← Back to domain search</Link>
-          <div className="auth-tabs">
-            <button type="button" className={mode === "login" ? "active" : ""} onClick={() => { setMode("login"); setStep("form"); }}>Sign in</button>
-            <button type="button" className={mode === "register" ? "active" : ""} onClick={() => { setMode("register"); setStep("form"); }}>Create account</button>
-          </div>
-          <h2>{mode === "login" ? "Sign in" : mode === "register" ? step === "form" ? "Create your account" : "Verify your email" : step === "form" ? "Reset your password" : "Enter the verification code"}</h2>
-          <p>{mode === "login" ? "Enter the email and password linked to your account." : step === "form" ? "Complete the fields below. A six-digit verification code will be sent by email." : `Enter the code sent to ${email}.`}</p>
-          <form className="form-stack" onSubmit={submit}>
-            {step === "form" && <>
-              <label>Email address
-                <input name="email" type="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="name@example.com" autoComplete="email" />
-                <small>Use an address you can access for verification and password recovery.</small>
-              </label>
-              {mode === "register" && <>
-                <label>Full name
-                  <input name="fullName" required placeholder="First and last name" autoComplete="name" />
-                </label>
-                <div className="form-row auth-phone-row">
-                  <label>Country code (ISO)
-                    <input name="countryCode" maxLength={2} minLength={2} pattern="[A-Za-z]{2}" placeholder="CM" autoCapitalize="characters" />
-                    <small>Two letters, for example CM.</small>
-                  </label>
-                  <label>Phone number
-                    <input name="phone" type="tel" inputMode="tel" placeholder="+237 6 70 00 00 00" autoComplete="tel" />
-                    <small>Include the international dialing prefix.</small>
-                  </label>
-                </div>
-              </>}
-              <label>Password
-                <span className="password-field">
-                  <input name="password" type={showPassword ? "text" : "password"} minLength={10} required placeholder="At least 10 characters" autoComplete={mode === "register" ? "new-password" : "current-password"} />
-                  <button type="button" className="password-toggle" aria-label={showPassword ? "Hide password" : "Show password"} aria-pressed={showPassword} onClick={() => setShowPassword((visible) => !visible)}>
-                    {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </span>
-                <small>Use at least 10 characters.</small>
-              </label>
-            </>}
-            {step === "otp" && <>
-              <input type="hidden" name="email" value={email} />
-              <label>Six-digit code<input name="code" className="otp-input" inputMode="numeric" pattern="[0-9]{6}" maxLength={6} placeholder="000000" required autoFocus /></label>
-              {mode === "reset" && <label>New password
-                <span className="password-field">
-                  <input name="newPassword" type={showNewPassword ? "text" : "password"} minLength={10} required placeholder="At least 10 characters" autoComplete="new-password" />
-                  <button type="button" className="password-toggle" aria-label={showNewPassword ? "Hide new password" : "Show new password"} aria-pressed={showNewPassword} onClick={() => setShowNewPassword((visible) => !visible)}>
-                    {showNewPassword ? <EyeOff size={18} /> : <Eye size={18} />}
-                  </button>
-                </span>
-              </label>}
-            </>}
-            <button className="button button-primary button-wide" disabled={busy}>{busy ? <LoaderCircle className="spin" size={18} /> : mode === "login" ? "Sign in" : step === "form" ? "Send verification code" : "Verify"}</button>
-          </form>
-          {error && <div className="alert alert-error">{errorText(error)}</div>}
-          {mode === "login" && <button type="button" className="text-button" onClick={() => { setMode("reset"); setStep("form"); }}>Forgot password?</button>}
-          {step === "otp" && <button type="button" className="text-button" onClick={() => setStep("form")}>Use a different email</button>}
-        </div>
-      </div>
-    </div>
-  );
+
+  useEffect(() => {
+    const ticket = new URLSearchParams(window.location.search).get("kh_sso");
+    if (!ticket) return;
+    setSsoBusy(true);
+    void api<{ session: Session; returnPath: string }>("/auth/kmerhosting/exchange", { method: "POST", body: { ticket } })
+      .then((data) => { setSession(data.session); window.location.assign(data.returnPath || "/dashboard"); })
+      .catch((ssoFailure) => { setSsoError(errorText(ssoFailure)); setSsoBusy(false); });
+  }, []);
+
+  const dashboardRegisterUrl = "https://dashboard.kmerhosting.com/register";
+  const dashboardLoginUrl = "https://dashboard.kmerhosting.com/login?service=domain";
+  if (initial === "register") {
+    window.location.replace(dashboardRegisterUrl);
+    return null;
+  }
+  if (ssoBusy || mode === "login") return <div className="auth-shell"><div className="auth-brand-pane"><Brand /><div className="auth-brand-copy"><span className="eyebrow dark"><ShieldCheck size={15} /> KmerHosting Account</span><h1>One account for every KmerHosting service.</h1><p>Domain access and USD credit are managed from your central KmerHosting Account.</p></div></div><div className="auth-form-pane"><div className="auth-card"><Link to="/" className="back-link">← Back to domain search</Link><h2>{ssoBusy ? "Signing you in…" : "Sign in with KmerHosting"}</h2><p>{ssoBusy ? "Your secure account delegation is being verified." : "Use your central KmerHosting Account. Domain accounts are no longer created or managed separately."}</p>{ssoError && <div className="alert alert-error">{ssoError}</div>}{!ssoBusy && <button className="button button-primary button-wide" onClick={() => window.location.assign(dashboardLoginUrl)}>Continue with KmerHosting Account</button>}<p className="auth-helper">New to KmerHosting? <a href={dashboardRegisterUrl}>Create your central account</a>.</p></div></div></div>;
+  return <div className="auth-shell"><div className="auth-brand-pane"><Brand /></div><div className="auth-form-pane"><div className="auth-card"><Link to="/" className="back-link">← Back to domain search</Link><h2>Use your KmerHosting Account</h2><p>Password recovery is managed centrally to protect every KmerHosting service.</p><button className="button button-primary button-wide" onClick={() => window.location.assign(dashboardLoginUrl)}>Open KmerHosting Account</button></div></div></div>;
 }
 
 function contactName(contact: Contact) {

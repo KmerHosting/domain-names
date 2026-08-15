@@ -102,7 +102,55 @@ async function verifyOtp(req: Request, purpose: string, body: Json): Promise<Res
   return json(req, { user: publicUser(user), session });
 }
 
+async function exchangeKmerHostingSso(req: Request): Promise<Response> {
+  const body = await bodyJson(req);
+  const ticket = clean(body.ticket);
+  if (!ticket || ticket.length < 32 || ticket.length > 512) throw new ApiError(400, "invalid_sso_ticket", "The KmerHosting sign-in ticket is invalid.");
+  const { data: grant, error: grantError } = await db.from("dashboard_sso_grants")
+    .update({ consumed_at: new Date().toISOString() })
+    .eq("ticket_hash", await sha256(ticket)).eq("product", "domain").is("consumed_at", null).gt("expires_at", new Date().toISOString())
+    .select("user_id,product_user_id,return_path").maybeSingle();
+  if (grantError || !grant) throw new ApiError(401, "sso_ticket_expired", "This KmerHosting sign-in ticket has expired. Return to the central dashboard and try again.");
+
+  const { data: centralUser, error: centralError } = await db.from("dashboard_users")
+    .select("id,email,full_name,phone,country_code,status,email_verified_at")
+    .eq("id", grant.user_id).eq("status", "active").maybeSingle();
+  if (centralError || !centralUser) throw new ApiError(401, "central_account_unavailable", "Your KmerHosting account is unavailable.");
+
+  let localUser: Json | null = null;
+  if (grant.product_user_id) {
+    const found = await db.from("domain_users").select("*").eq("id", grant.product_user_id).eq("status", "active").maybeSingle();
+    localUser = found.data || null;
+  }
+  if (!localUser) {
+    const found = await db.from("domain_users").select("*").eq("email", centralUser.email).eq("status", "active").maybeSingle();
+    localUser = found.data || null;
+  }
+  if (!localUser) {
+    const inserted = await db.from("domain_users").insert({
+      email: centralUser.email,
+      password_hash: await hashPassword(randomReference("KH-SSO") + randomReference("ACCOUNT")),
+      full_name: centralUser.full_name || centralUser.email.split("@")[0],
+      phone: centralUser.phone || null,
+      country_code: centralUser.country_code || null,
+      email_verified_at: centralUser.email_verified_at || new Date().toISOString(),
+    }).select("*").single();
+    if (inserted.error || !inserted.data) throw new ApiError(500, "sso_account_create_failed", "Unable to prepare your Domain account.");
+    localUser = inserted.data;
+  }
+  const { error: identityError } = await db.from("dashboard_product_identities").upsert({
+    user_id: centralUser.id, product: "domain", external_user_id: localUser.id, external_email: centralUser.email,
+    last_seen_at: new Date().toISOString(), metadata: { provisionedBy: "central_sso" },
+  }, { onConflict: "product,external_user_id" });
+  if (identityError) throw new ApiError(500, "sso_identity_link_failed", "Unable to link your Domain account.");
+  const session = await createSession(localUser, req);
+  await db.from("domain_users").update({ last_login_at: new Date().toISOString() }).eq("id", localUser.id);
+  await audit(req, "auth.sso.kmerhosting", localUser.id, "user", localUser.id, { centralUserId: centralUser.id });
+  return json(req, { user: publicUser(localUser), session, returnPath: clean(grant.return_path) || "/dashboard" });
+}
+
 async function handleAuth(req: Request, path: string): Promise<Response | null> {
+  if (req.method === "POST" && path === "/auth/kmerhosting/exchange") return await exchangeKmerHostingSso(req);
   if (req.method === "POST" && path === "/auth/register/request") return await requestOtp(req, "registration", await bodyJson(req));
   if (req.method === "POST" && path === "/auth/register/verify") return await verifyOtp(req, "registration", await bodyJson(req));
   if (req.method === "POST" && path === "/auth/login/request") return await requestOtp(req, "login", await bodyJson(req));
