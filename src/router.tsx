@@ -460,11 +460,8 @@ function InvoicesPage() {
 }
 
 function ProfilePage() {
-  const client = useQueryClient();
   const query = useQuery({ queryKey: ["me"], queryFn: () => api<{ user: User }>("/me") });
-  const save = useMutation({ mutationFn: (body: Row) => api("/me", { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["me"] }) });
-  const submit = (event: FormEvent<HTMLFormElement>) => { event.preventDefault(); save.mutate(Object.fromEntries(new FormData(event.currentTarget))); };
-  return <div className="dashboard-content"><div className="page-heading"><div><span className="kicker">Account</span><h1>Profile</h1><p>Update your customer account details.</p></div></div><section className="card">{query.isPending ? <LoadingBlock /> : query.isError ? <div className="alert alert-error">{errorText(query.error)}</div> : <form className="form-stack" onSubmit={submit}><label>Email<input value={query.data?.user.email || ""} disabled /></label><label>Full name<input name="fullName" defaultValue={query.data?.user.fullName || ""} required /></label><label>Phone<input name="phone" defaultValue={query.data?.user.phone || ""} /></label><label>Country code<input name="countryCode" maxLength={2} defaultValue={query.data?.user.countryCode || ""} /></label><button className="button button-primary" disabled={save.isPending}>Save profile</button>{save.isSuccess && <div className="alert alert-success">Profile updated.</div>}{save.isError && <div className="alert alert-error">{errorText(save.error)}</div>}</form>}</section></div>;
+  return <div className="dashboard-content"><div className="page-heading"><div><span className="kicker">Account</span><h1>Profile</h1><p>Your KmerHosting Account is the single source of truth for identity and contact details.</p></div></div><section className="card">{query.isPending ? <LoadingBlock /> : query.isError ? <div className="alert alert-error">{errorText(query.error)}</div> : <div className="form-stack"><label>Email<input value={query.data?.user.email || ""} disabled /></label><label>Full name<input value={query.data?.user.fullName || ""} disabled /></label><label>Phone<input value={query.data?.user.phone || ""} disabled /></label><label>Country code<input value={query.data?.user.countryCode || ""} disabled /></label><div className="alert alert-info">Edit these details in your central KmerHosting account.</div><a className="button button-primary" href="https://dashboard.kmerhosting.com/?view=account">Open KmerHosting Account settings</a></div>}</section></div>;
 }
 
 function PaymentReturnPage() {

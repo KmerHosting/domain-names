@@ -151,26 +151,8 @@ async function exchangeKmerHostingSso(req: Request): Promise<Response> {
 
 async function handleAuth(req: Request, path: string): Promise<Response | null> {
   if (req.method === "POST" && path === "/auth/kmerhosting/exchange") return await exchangeKmerHostingSso(req);
-  if (req.method === "POST" && path === "/auth/register/request") return await requestOtp(req, "registration", await bodyJson(req));
-  if (req.method === "POST" && path === "/auth/register/verify") return await verifyOtp(req, "registration", await bodyJson(req));
-  if (req.method === "POST" && path === "/auth/login/request") return await requestOtp(req, "login", await bodyJson(req));
-  if (req.method === "POST" && path === "/auth/login/verify") return await verifyOtp(req, "login", await bodyJson(req));
-  if (req.method === "POST" && path === "/auth/password-reset/request") return await requestOtp(req, "password_reset", await bodyJson(req));
-  if (req.method === "POST" && path === "/auth/password-reset/verify") return await verifyOtp(req, "password_reset", await bodyJson(req));
-  if (req.method === "POST" && path === "/auth/login") {
-    const body = await bodyJson(req);
-    const email = normalizeEmail(body.email);
-    const password = clean(body.password);
-    await enforceRateLimit(`login:${clientIp(req)}:${email}`, 10, 900);
-    const { data: user } = await db.from("domain_users").select("*").eq("email", email).maybeSingle();
-    if (!user || !await verifyPassword(password, user.password_hash) || user.status !== "active") {
-      throw new ApiError(401, "invalid_credentials", "Email or password is invalid.");
-    }
-    if (!user.email_verified_at) throw new ApiError(403, "email_not_verified", "Email verification is required.");
-    const session = await createSession(user, req);
-    await db.from("domain_users").update({ last_login_at: new Date().toISOString() }).eq("id", user.id);
-    await audit(req, "auth.login.password", user.id, "user", user.id);
-    return json(req, { user: publicUser(user), session });
+  if (req.method === "POST" && ["/auth/register/request", "/auth/register/verify", "/auth/login/request", "/auth/login/verify", "/auth/password-reset/request", "/auth/password-reset/verify", "/auth/login"].includes(path)) {
+    throw new ApiError(410, "central_account_only", "Use your KmerHosting Account. New registrations and password changes are managed at https://dashboard.kmerhosting.com.");
   }
   if (req.method === "POST" && path === "/auth/logout") {
     const auth = await requireAuth(req);
@@ -277,18 +259,7 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
   const auth = await requireAuth(req);
   if (req.method === "GET" && path === "/me") return json(req, { user: publicUser(auth.user) });
   if (req.method === "PATCH" && path === "/me") {
-    const body = await bodyJson(req);
-    const updates: Json = {};
-    if (body.fullName !== undefined) {
-      const name = clean(body.fullName);
-      if (name.length < 2 || name.length > 120) throw new ApiError(400, "invalid_name", "Full name is invalid.");
-      updates.full_name = name;
-    }
-    if (body.phone !== undefined) updates.phone = normalizePhone(body.phone) || null;
-    if (body.countryCode !== undefined) updates.country_code = clean(body.countryCode).toUpperCase().slice(0,2) || null;
-    const result = await db.from("domain_users").update(updates).eq("id", auth.user.id).select("*").single();
-    if (result.error) throw result.error;
-    return json(req, { user: publicUser(result.data) });
+    throw new ApiError(403, "central_profile_only", "Profile changes are managed from your central KmerHosting Account.");
   }
   if (req.method === "GET" && path === "/dashboard") {
     const [domains, orders, notifications, invoices] = await Promise.all([
