@@ -1,5 +1,6 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
+import { GlobalTheme } from "@carbon/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { router } from "./router";
@@ -13,6 +14,7 @@ import "./styles.css";
 import "./admin.css";
 import "./router-compat.css";
 import "./platform-sync.css";
+import "./carbon-alignment.scss";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -24,6 +26,8 @@ const queryClient = new QueryClient({
   },
 });
 
+document.documentElement.dataset.carbonTheme = "white";
+
 const isAdminRoute = window.location.pathname === "/admin";
 const isEnvironmentsRoute = isAdminEnvironmentsPage();
 const isAuxiliaryNativeRoute = isNativePage();
@@ -32,21 +36,23 @@ const isOperationsRoute = isAdminOperationsPage();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <PlatformStatusBanner />
-      {isEnvironmentsRoute ? (
-        <AdminEnvironmentsPage />
-      ) : isOperationsRoute ? (
-        <AdminOperationsPage />
-      ) : isDnsRoute ? (
-        <DnsSettingsPage />
-      ) : isAuxiliaryNativeRoute ? (
-        <NativePageRouter />
-      ) : isAdminRoute ? (
-        <AdminPage />
-      ) : (
-        <RouterProvider router={router} />
-      )}
-    </QueryClientProvider>
+    <GlobalTheme theme="white">
+      <QueryClientProvider client={queryClient}>
+        <PlatformStatusBanner />
+        {isEnvironmentsRoute ? (
+          <AdminEnvironmentsPage />
+        ) : isOperationsRoute ? (
+          <AdminOperationsPage />
+        ) : isDnsRoute ? (
+          <DnsSettingsPage />
+        ) : isAuxiliaryNativeRoute ? (
+          <NativePageRouter />
+        ) : isAdminRoute ? (
+          <AdminPage />
+        ) : (
+          <RouterProvider router={router} />
+        )}
+      </QueryClientProvider>
+    </GlobalTheme>
   </React.StrictMode>,
 );

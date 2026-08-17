@@ -1,0 +1,418 @@
+@use '@carbon/react' with (
+  $use-akamai-cdn: true
+);
+@use '@carbon/react/scss/theme';
+@use '@carbon/react/scss/themes';
+@use '@carbon/react/scss/spacing' as spacing;
+@use '@carbon/react/scss/type' as type;
+@use '@carbon/react/scss/breakpoint' as breakpoint;
+
+// Canonical Carbon foundation layer. The existing domain portal still contains
+// legacy React/native control markup, but color, type, spacing and responsive
+// behavior are normalized here through Carbon APIs instead of copied hex values.
+:root[data-carbon-theme='white'] {
+  @include theme.theme(themes.$white);
+}
+
+html[data-carbon-theme='white'],
+html[data-carbon-theme='white'] body,
+html[data-carbon-theme='white'] #root {
+  min-block-size: 100%;
+  background: var(--cds-background);
+  color: var(--cds-text-primary);
+  font-family: 'IBM Plex Sans', 'Helvetica Neue', Arial, sans-serif;
+}
+
+body {
+  @include type.type-style('body-01');
+  margin: 0;
+}
+
+.container {
+  inline-size: min(100% - #{spacing.$spacing-07}, 99rem);
+  margin-inline: auto;
+}
+
+.button,
+button.button {
+  @include type.type-style('body-compact-01');
+  min-block-size: 3rem;
+  min-inline-size: 8rem;
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: spacing.$spacing-07;
+  padding: spacing.$spacing-05;
+  border: 0;
+  border-radius: 0;
+  color: var(--cds-text-on-color);
+  background: var(--cds-button-primary);
+  box-shadow: none;
+}
+
+.button:hover:not(:disabled),
+button.button:hover:not(:disabled) {
+  color: var(--cds-text-on-color);
+  background: var(--cds-button-primary-hover);
+}
+
+.button:active:not(:disabled),
+button.button:active:not(:disabled) {
+  background: var(--cds-button-primary-active);
+}
+
+.button:focus-visible,
+button.button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 2px solid var(--cds-focus);
+  outline-offset: -2px;
+}
+
+.button:disabled,
+button.button:disabled {
+  color: var(--cds-text-disabled);
+  background: var(--cds-button-disabled);
+}
+
+.button-secondary {
+  color: var(--cds-text-primary);
+  background: transparent;
+  box-shadow: inset 0 0 0 1px var(--cds-button-secondary);
+}
+
+.button-secondary:hover:not(:disabled) {
+  color: var(--cds-text-on-color);
+  background: var(--cds-button-secondary-hover);
+}
+
+.button-ghost,
+.icon-button,
+.password-toggle,
+.notification-button,
+.sidebar-logout {
+  color: var(--cds-link-primary);
+  background: transparent;
+}
+
+.button-ghost:hover:not(:disabled),
+.icon-button:hover:not(:disabled),
+.password-toggle:hover:not(:disabled),
+.notification-button:hover:not(:disabled),
+.sidebar-logout:hover:not(:disabled) {
+  background: var(--cds-layer-hover-01);
+}
+
+.card,
+.admin-card,
+.native-action-card,
+.return-card,
+.contact-card,
+.domain-list-card,
+.domain-card,
+.order-card,
+.metric-card,
+.stat-card,
+.form-section,
+.auth-card,
+.mini-window,
+.results-wrap,
+.table-wrap,
+.admin-table-wrap {
+  border: 1px solid var(--cds-border-subtle-01);
+  border-radius: 0;
+  background: var(--cds-layer-01);
+  box-shadow: none;
+}
+
+.page-heading h1,
+.hero-copy h1,
+.auth-card h2,
+.auth-brand-pane h1,
+.section-heading h2 {
+  color: var(--cds-text-primary);
+  font-weight: 300;
+}
+
+.page-heading p,
+.card-heading p,
+.hero-copy > p,
+.section-heading p,
+.search-hint,
+.dns-meta,
+.auth-helper {
+  color: var(--cds-text-secondary);
+}
+
+.form-stack,
+.form-row {
+  gap: spacing.$spacing-05;
+}
+
+.form-stack label,
+.form-row label,
+.form-section label {
+  @include type.type-style('label-01');
+  color: var(--cds-text-primary);
+}
+
+input,
+select,
+textarea,
+.form-stack input,
+.form-stack select,
+.form-stack textarea,
+.form-row input,
+.form-row select,
+.form-row textarea,
+.dns-add-row input,
+.dns-add-row select {
+  @include type.type-style('body-compact-01');
+  inline-size: 100%;
+  min-inline-size: 0;
+  min-block-size: 3rem;
+  padding: spacing.$spacing-05;
+  border: 0;
+  border-block-end: 1px solid var(--cds-border-strong-01);
+  border-radius: 0;
+  color: var(--cds-text-primary);
+  background: var(--cds-field-01);
+  box-shadow: none;
+}
+
+input:disabled,
+select:disabled,
+textarea:disabled {
+  border-block-end-color: transparent;
+  color: var(--cds-text-disabled);
+  background: var(--cds-field-01);
+}
+
+.public-header,
+.dashboard-header,
+.sidebar-brand,
+.sidebar-top,
+.admin-topbar,
+.auth-brand-pane,
+.footer {
+  color: var(--cds-text-on-color);
+  background: var(--cds-background-inverse);
+}
+
+.public-header a,
+.public-header a:visited,
+.dashboard-header,
+.sidebar-brand a,
+.sidebar-top a,
+.admin-topbar a,
+.footer a,
+.footer a:visited {
+  color: var(--cds-text-on-color);
+}
+
+.public-nav > a:hover,
+.header-action:hover,
+.dashboard-header .notification-button:hover,
+.sidebar-brand .brand:hover,
+.sidebar-top .brand:hover {
+  background: var(--cds-background-inverse-hover);
+}
+
+.dashboard-shell,
+.dashboard-main,
+.dashboard-content,
+.admin-main,
+.return-page,
+.auth-form-pane {
+  background: var(--cds-background);
+}
+
+.dashboard-sidebar,
+.sidebar {
+  border-inline-end: 1px solid var(--cds-border-subtle-01);
+  background: var(--cds-layer-01);
+}
+
+.sidebar-nav a,
+.sidebar-logout {
+  color: var(--cds-text-primary);
+}
+
+.sidebar-nav a:hover,
+.sidebar-nav a.active,
+.sidebar-nav a[aria-current='page'] {
+  color: var(--cds-text-primary);
+  background: var(--cds-layer-hover-01);
+  border-inline-start-color: var(--cds-border-interactive);
+}
+
+.trust-grid,
+.price-grid,
+.feature-grid,
+.metric-grid,
+.stats-grid,
+.domain-card-list,
+.domain-list,
+.order-list,
+.contact-list,
+.activity-list {
+  background: var(--cds-border-subtle-01);
+}
+
+.trust-grid > div,
+.price-card,
+.feature-card,
+.metric-card,
+.stats-grid > div,
+.stat-card,
+.domain-list-card,
+.domain-card,
+.order-card,
+.contact-card,
+.activity-item {
+  background: var(--cds-layer-01);
+}
+
+.price-card:hover,
+.feature-card:hover,
+.domain-list-card:hover,
+.domain-card:hover,
+.order-card:hover,
+.contact-card:hover {
+  background: var(--cds-layer-hover-01);
+}
+
+.table-wrap th,
+.admin-table-wrap th,
+th {
+  @include type.type-style('heading-compact-01');
+  color: var(--cds-text-primary);
+  background: var(--cds-layer-accent-01);
+}
+
+.table-wrap td,
+.admin-table-wrap td,
+td {
+  @include type.type-style('body-compact-01');
+  border-color: var(--cds-border-subtle-01);
+  color: var(--cds-text-secondary);
+}
+
+tbody tr:hover td {
+  background: var(--cds-layer-hover-01);
+}
+
+.alert {
+  border-inline-start-color: var(--cds-border-interactive);
+  background: var(--cds-notification-background-info);
+  color: var(--cds-text-primary);
+}
+
+.alert-success {
+  border-inline-start-color: var(--cds-support-success);
+  background: var(--cds-notification-background-success);
+}
+
+.alert-warning {
+  border-inline-start-color: var(--cds-support-warning);
+  background: var(--cds-notification-background-warning);
+}
+
+.alert-error {
+  border-inline-start-color: var(--cds-support-error);
+  background: var(--cds-notification-background-error);
+}
+
+.status,
+.record-type,
+.promo {
+  @include type.type-style('label-01');
+  border-radius: 2rem;
+  background: var(--cds-layer-accent-01);
+  color: var(--cds-text-primary);
+}
+
+.status-active,
+.status-completed,
+.status-paid,
+.status-verified {
+  color: var(--cds-support-success);
+}
+
+.status-failed,
+.status-expired,
+.status-cancelled,
+.status-disabled,
+.status-dead {
+  color: var(--cds-support-error);
+}
+
+.status-pending,
+.status-processing,
+.status-queued,
+.status-transfer-pending,
+.status-pending-payment,
+.status-payment-pending {
+  color: var(--cds-support-warning);
+}
+
+.hero,
+.section {
+  background: var(--cds-background);
+}
+
+.section-soft,
+.trust-strip,
+.dns-add-row {
+  background: var(--cds-layer-01);
+}
+
+.cta-card {
+  color: var(--cds-text-on-color);
+  background: var(--cds-background-inverse);
+}
+
+@include breakpoint.breakpoint-down(lg) {
+  .hero-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .hero-panel {
+    display: none;
+  }
+
+  .price-grid,
+  .metric-grid,
+  .stats-grid,
+  .feature-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@include breakpoint.breakpoint-down(md) {
+  .auth-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-shell {
+    display: block;
+  }
+
+  .dashboard-sidebar,
+  .sidebar {
+    position: fixed;
+    inline-size: 16rem;
+  }
+
+  .dashboard-grid,
+  .detail-grid,
+  .contacts-grid,
+  .feature-grid,
+  .price-grid,
+  .metric-grid,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+}
