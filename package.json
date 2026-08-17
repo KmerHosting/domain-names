@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "vite",
     "check:styles": "node scripts/check-carbon-style-contract.mjs",
+    "test": "node --test tests/*.test.mjs",
     "build": "npm run check:styles && vite build",
     "build:strict": "npm run check:styles && tsc -p tsconfig.app.json --pretty false && vite build",
     "preview": "vite preview",
