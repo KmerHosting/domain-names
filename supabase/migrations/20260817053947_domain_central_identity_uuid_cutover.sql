@@ -1,0 +1,16 @@
+-- Applied to central KmerHosting Supabase on 2026-08-17.
+-- Domain product identity now uses dashboard_users/auth.users UUIDs directly.
+-- This marker records the production migration; the canonical schema state is enforced
+-- by domain_users_central_account_fkey, domain_enforce_central_account_identity,
+-- dashboard_sync_domain_profile, and ON UPDATE CASCADE user foreign keys.
+--
+-- Production invariants after migration:
+--   domain_users.id = dashboard_users.id = auth.users.id
+--   dashboard_product_identities.external_user_id = user_id::text for product='domain'
+--   domain_users.password_hash is NULL
+--   production wallet is a mirror of dashboard_credit_balances
+--   legacy Domain sessions/OTP were invalidated
+--
+-- The data-changing cutover was executed centrally through Supabase migration
+-- version 20260817053947 (domain_central_identity_uuid_cutover).
+select 1;
