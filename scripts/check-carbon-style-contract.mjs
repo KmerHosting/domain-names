@@ -106,8 +106,8 @@ if (/\.cds--loading-overlay|--cds-overlay\s*:/.test(styleFiles)) {
   violations.push("Do not override the Carbon loading overlay or --cds-overlay token.");
 }
 
-if (pkg.version !== "1.2.0") {
-  violations.push("Expected the Carbon experience release to be version 1.2.0.");
+if (pkg.version !== "1.2.1") {
+  violations.push("Expected the Carbon experience release to be version 1.2.1.");
 }
 if (!pkg.scripts?.check) {
   violations.push("package.json must expose a full check command.");

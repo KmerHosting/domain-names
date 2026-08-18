@@ -18,6 +18,7 @@ const AUTH_SUCCESS_PATHS = new Set([
   "/auth/login/verify",
   "/auth/register/verify",
   "/auth/password-reset/verify",
+  "/auth/kmerhosting/exchange",
 ]);
 const PUBLIC_SERVICES = new Set([
   "domain-api",
