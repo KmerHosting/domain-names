@@ -67,14 +67,17 @@ function ensureHistoryEvents() {
   if (scope.__kmerDomainHistoryPatched) return;
   scope.__kmerDomainHistoryPatched = true;
 
-  for (const method of ["pushState", "replaceState"] as const) {
-    const original = window.history[method].bind(window.history);
-    window.history[method] = ((...args: Parameters<History[typeof method]>) => {
-      const result = original(...args);
-      window.dispatchEvent(new Event(LOCATION_EVENT));
-      return result;
-    }) as History[typeof method];
-  }
+  const pushState = window.history.pushState.bind(window.history);
+  window.history.pushState = ((data: unknown, unused: string, url?: string | URL | null) => {
+    pushState(data, unused, url);
+    window.dispatchEvent(new Event(LOCATION_EVENT));
+  }) as History["pushState"];
+
+  const replaceState = window.history.replaceState.bind(window.history);
+  window.history.replaceState = ((data: unknown, unused: string, url?: string | URL | null) => {
+    replaceState(data, unused, url);
+    window.dispatchEvent(new Event(LOCATION_EVENT));
+  }) as History["replaceState"];
 }
 
 function currentLocation() {
