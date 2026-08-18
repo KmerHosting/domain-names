@@ -82,6 +82,6 @@ jobs:
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$RELEASE_REF" \
-            --title "KmerHosting Domains $VERSION" \
+            --title "$TAG" \
             --notes-file release-notes.md \
             --latest
