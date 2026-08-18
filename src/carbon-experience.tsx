@@ -1,0 +1,155 @@
+import {
+  Column,
+  GlobalTheme,
+  Grid,
+  Layer,
+  Loading,
+  SkeletonPlaceholder,
+  SkeletonText,
+  Tile,
+} from "@carbon/react";
+import {
+  createContext,
+  ReactNode,
+  Suspense,
+  useContext,
+  useEffect,
+  useMemo,
+  useSyncExternalStore,
+} from "react";
+
+export type DomainTheme = "white" | "g100";
+
+type ThemeContextValue = {
+  theme: DomainTheme;
+  isDark: boolean;
+  toggleTheme: () => void;
+};
+
+const THEME_STORAGE_KEY = "kmerhosting-domain-theme";
+const THEME_EVENT = "kmerhosting-domain-theme-change";
+const LOCATION_EVENT = "kmerhosting-domain-location-change";
+const ThemeContext = createContext<ThemeContextValue | null>(null);
+
+function currentTheme(): DomainTheme {
+  if (typeof window === "undefined") return "white";
+  const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (saved === "white" || saved === "g100") return saved;
+  if (saved === "g10") return "white";
+  if (saved === "g90") return "g100";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "g100" : "white";
+}
+
+function subscribeTheme(callback: () => void) {
+  if (typeof window === "undefined") return () => undefined;
+  const media = window.matchMedia("(prefers-color-scheme: dark)");
+  const onStorage = (event: StorageEvent) => {
+    if (event.key === THEME_STORAGE_KEY) callback();
+  };
+  const onTheme = () => callback();
+  const onMedia = () => {
+    if (!window.localStorage.getItem(THEME_STORAGE_KEY)) callback();
+  };
+
+  window.addEventListener("storage", onStorage);
+  window.addEventListener(THEME_EVENT, onTheme);
+  media.addEventListener("change", onMedia);
+  return () => {
+    window.removeEventListener("storage", onStorage);
+    window.removeEventListener(THEME_EVENT, onTheme);
+    media.removeEventListener("change", onMedia);
+  };
+}
+
+function ensureHistoryEvents() {
+  if (typeof window === "undefined") return;
+  const scope = window as typeof window & { __kmerDomainHistoryPatched?: boolean };
+  if (scope.__kmerDomainHistoryPatched) return;
+  scope.__kmerDomainHistoryPatched = true;
+
+  for (const method of ["pushState", "replaceState"] as const) {
+    const original = window.history[method].bind(window.history);
+    window.history[method] = ((...args: Parameters<History[typeof method]>) => {
+      const result = original(...args);
+      window.dispatchEvent(new Event(LOCATION_EVENT));
+      return result;
+    }) as History[typeof method];
+  }
+}
+
+function currentLocation() {
+  if (typeof window === "undefined") return "/";
+  return `${window.location.pathname}${window.location.search}${window.location.hash}`;
+}
+
+function subscribeLocation(callback: () => void) {
+  if (typeof window === "undefined") return () => undefined;
+  ensureHistoryEvents();
+  window.addEventListener("popstate", callback);
+  window.addEventListener(LOCATION_EVENT, callback);
+  return () => {
+    window.removeEventListener("popstate", callback);
+    window.removeEventListener(LOCATION_EVENT, callback);
+  };
+}
+
+export function DomainLoadingScreen({ description = "Loading KmerHosting Domains" }: { description?: string }) {
+  return <div className="domain-loading-stage" aria-live="polite" aria-busy="true">
+    <div className="domain-loading-stage__underlay" aria-hidden="true" inert>
+      <Layer>
+        <div className="domain-loading-stage__header">
+          <SkeletonPlaceholder className="domain-loading-stage__brand" />
+          <SkeletonPlaceholder className="domain-loading-stage__action" />
+        </div>
+        <Grid fullWidth className="domain-loading-stage__grid">
+          <Column sm={4} md={6} lg={10}>
+            <SkeletonText heading width="48%" />
+            <SkeletonText paragraph lineCount={2} width="76%" />
+          </Column>
+          {[0, 1, 2, 3].map((item) => <Column sm={2} md={2} lg={4} key={item}>
+            <Tile className="domain-loading-stage__tile">
+              <SkeletonText width="58%" />
+              <SkeletonText heading width="44%" />
+              <SkeletonText width="82%" />
+            </Tile>
+          </Column>)}
+        </Grid>
+      </Layer>
+    </div>
+    <Loading active withOverlay description={description} />
+  </div>;
+}
+
+export function DomainCarbonExperience({ children }: { children: ReactNode }) {
+  const theme = useSyncExternalStore(subscribeTheme, currentTheme, () => "white" as DomainTheme);
+  const locationKey = useSyncExternalStore(subscribeLocation, currentLocation, () => "/");
+
+  useEffect(() => {
+    document.documentElement.dataset.carbonTheme = theme;
+    document.documentElement.style.colorScheme = theme === "g100" ? "dark" : "light";
+  }, [theme]);
+
+  const context = useMemo<ThemeContextValue>(() => ({
+    theme,
+    isDark: theme === "g100",
+    toggleTheme: () => {
+      const next: DomainTheme = theme === "g100" ? "white" : "g100";
+      window.localStorage.setItem(THEME_STORAGE_KEY, next);
+      window.dispatchEvent(new Event(THEME_EVENT));
+    },
+  }), [theme]);
+
+  return <ThemeContext.Provider value={context}>
+    <GlobalTheme theme={theme}>
+      <Suspense fallback={<DomainLoadingScreen />}>
+        <div key={locationKey} className="domain-route-stage">{children}</div>
+      </Suspense>
+    </GlobalTheme>
+  </ThemeContext.Provider>;
+}
+
+export function useDomainTheme() {
+  const value = useContext(ThemeContext);
+  if (!value) throw new Error("useDomainTheme must be used inside DomainCarbonExperience");
+  return value;
+}
