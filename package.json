@@ -1,7 +1,7 @@
 {
   "name": "kmerhosting-domain-portal",
   "private": true,
-  "version": "1.1.0",
+  "version": "1.2.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,7 +10,8 @@
     "build": "npm run check:styles && vite build",
     "build:strict": "npm run check:styles && tsc -p tsconfig.app.json --pretty false && vite build",
     "preview": "vite preview",
-    "typecheck": "tsc -p tsconfig.app.json --pretty false"
+    "typecheck": "tsc -p tsconfig.app.json --pretty false",
+    "check": "npm test && npm run check:styles && npm run typecheck && vite build"
   },
   "dependencies": {
     "@carbon/react": "^1.114.0",

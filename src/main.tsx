@@ -1,6 +1,5 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
-import { GlobalTheme } from "@carbon/react";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RouterProvider } from "@tanstack/react-router";
 import { router } from "./router";
@@ -10,6 +9,7 @@ import { DnsSettingsPage, isDnsSettingsPage } from "./dns-settings-page";
 import { AdminOperationsPage, isAdminOperationsPage } from "./admin-operations-page";
 import { AdminEnvironmentsPage, isAdminEnvironmentsPage } from "./admin-environments-page";
 import { PlatformStatusBanner } from "./platform-status-banner";
+import { DomainCarbonExperience } from "./carbon-experience";
 import "./styles.css";
 import "./admin.css";
 import "./router-compat.css";
@@ -26,8 +26,6 @@ const queryClient = new QueryClient({
   },
 });
 
-document.documentElement.dataset.carbonTheme = "white";
-
 const isAdminRoute = window.location.pathname === "/admin";
 const isEnvironmentsRoute = isAdminEnvironmentsPage();
 const isAuxiliaryNativeRoute = isNativePage();
@@ -36,7 +34,7 @@ const isOperationsRoute = isAdminOperationsPage();
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <GlobalTheme theme="white">
+    <DomainCarbonExperience>
       <QueryClientProvider client={queryClient}>
         <PlatformStatusBanner />
         {isEnvironmentsRoute ? (
@@ -53,6 +51,6 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
           <RouterProvider router={router} />
         )}
       </QueryClientProvider>
-    </GlobalTheme>
+    </DomainCarbonExperience>
   </React.StrictMode>,
 );

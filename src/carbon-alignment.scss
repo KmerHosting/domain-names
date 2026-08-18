@@ -6,6 +6,7 @@
 @use '@carbon/react/scss/spacing' as spacing;
 @use '@carbon/react/scss/type' as type;
 @use '@carbon/react/scss/breakpoint' as breakpoint;
+@use '@carbon/react/scss/motion' as motion;
 
 // Canonical Carbon foundation layer. The existing domain portal still contains
 // legacy React/native control markup, but color, type, spacing and responsive
@@ -14,9 +15,21 @@
   @include theme.theme(themes.$white);
 }
 
-html[data-carbon-theme='white'],
-html[data-carbon-theme='white'] body,
-html[data-carbon-theme='white'] #root {
+:root[data-carbon-theme='g10'] {
+  @include theme.theme(themes.$g10);
+}
+
+:root[data-carbon-theme='g90'] {
+  @include theme.theme(themes.$g90);
+}
+
+:root[data-carbon-theme='g100'] {
+  @include theme.theme(themes.$g100);
+}
+
+html[data-carbon-theme],
+html[data-carbon-theme] body,
+html[data-carbon-theme] #root {
   min-block-size: 100%;
   background: var(--cds-background);
   color: var(--cds-text-primary);
@@ -26,6 +39,71 @@ html[data-carbon-theme='white'] #root {
 body {
   @include type.type-style('body-01');
   margin: 0;
+}
+
+.domain-route-stage {
+  min-block-size: 100vh;
+  animation: domain-route-enter
+    motion.$duration-moderate-01
+    motion.motion(entrance, expressive)
+    both;
+}
+
+@keyframes domain-route-enter {
+  from {
+    opacity: 0;
+    transform: translateY(spacing.$spacing-03);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.domain-loading-stage {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  min-block-size: 100vh;
+}
+
+.domain-loading-stage__underlay {
+  min-block-size: 100vh;
+  background: var(--cds-background);
+}
+
+.domain-loading-stage__header {
+  display: flex;
+  min-block-size: 3rem;
+  align-items: center;
+  justify-content: space-between;
+  padding-inline: spacing.$spacing-05;
+  border-block-end: 1px solid var(--cds-border-subtle-01);
+  background: var(--cds-layer-01);
+}
+
+.domain-loading-stage__brand {
+  inline-size: 10rem;
+  block-size: spacing.$spacing-06;
+}
+
+.domain-loading-stage__action {
+  inline-size: spacing.$spacing-08;
+  block-size: spacing.$spacing-08;
+}
+
+.domain-loading-stage__grid {
+  row-gap: spacing.$spacing-06;
+  padding-block: spacing.$spacing-09;
+}
+
+.domain-loading-stage__tile {
+  min-block-size: 10rem;
+  display: flex;
+  flex-direction: column;
+  gap: spacing.$spacing-04;
+  background: var(--cds-layer-01);
 }
 
 .container {
@@ -414,5 +492,11 @@ tbody tr:hover td {
   .metric-grid,
   .stats-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .domain-route-stage {
+    animation: none;
   }
 }

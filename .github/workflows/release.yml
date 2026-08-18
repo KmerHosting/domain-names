@@ -1,0 +1,87 @@
+name: Publish Domains release
+
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: publish-domains-release
+  cancel-in-progress: false
+
+jobs:
+  publish:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' &&
+       github.event.workflow_run.event == 'push' &&
+       github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-24.04
+    env:
+      GH_TOKEN: ${{ github.token }}
+      RELEASE_REF: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.event.workflow_run.head_sha }}
+
+    steps:
+      - name: Check out validated source
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_REF }}
+          fetch-depth: 0
+
+      - name: Resolve version
+        id: version
+        shell: bash
+        run: |
+          set -Eeuo pipefail
+          VERSION="$(node -p "require('./package.json').version")"
+          [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check existing release
+        id: existing
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Generate release notes
+        if: steps.existing.outputs.exists != 'true'
+        shell: bash
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          cat > release-notes.md <<EOF
+          KmerHosting Domains $VERSION
+
+          - Moves the complete React root onto a system-aware Carbon GlobalTheme experience.
+          - Emits official White, G10, G90 and G100 Carbon theme maps while using White/G100 for system-aware presentation.
+          - Adds the official Carbon Loading overlay with Layer, Grid, Tile and skeleton context beneath it.
+          - Adds expressive Carbon route motion with a reduced-motion fallback.
+          - Strengthens source conformance and prevents the measured native-control/Lucide migration debt from increasing.
+          - Registrar, wallet, OTE/production isolation, Supabase functions and provider operations are unchanged.
+          - Remaining legacy component migration debt is tracked explicitly; this release does not claim it has reached zero.
+          EOF
+
+      - name: Publish release
+        if: steps.existing.outputs.exists != 'true'
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          gh release create "$TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$RELEASE_REF" \
+            --title "KmerHosting Domains $VERSION" \
+            --notes-file release-notes.md \
+            --latest
