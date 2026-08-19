@@ -53,3 +53,6 @@ verify_jwt = false
 
 [functions.domain-environment-credit]
 verify_jwt = false
+
+[functions.domain-tld-provider-sync]
+verify_jwt = false
