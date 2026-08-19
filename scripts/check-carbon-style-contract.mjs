@@ -110,6 +110,10 @@ const source = sourceFiles.map((file) => fs.readFileSync(file, "utf8")).join("\n
 const nativeControlMatches = (source.match(/<(?:button|input|select|textarea|table)\b/g) || []).length;
 const lucideImports = (source.match(/from\s+["']lucide-react["']/g) || []).length;
 
+if (/<style(?:\s|>)/.test(source)) {
+  violations.push("Inline <style> islands are not allowed in UI source; use Carbon Sass modules and semantic tokens.");
+}
+
 // Legacy route implementations are migrated incrementally. The new global
 // shell is canonical Carbon now, and this debt ceiling prevents regressions
 // while individual forms/tables are converted to Carbon React components.
