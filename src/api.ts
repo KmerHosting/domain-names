@@ -106,6 +106,13 @@ function normalizeOptions(path: string, options: ApiOptions): ApiOptions {
   return { ...options, body: { ...body, email } };
 }
 
+function shouldInvalidateSession(baseUrl: string, path: string, status: number, code: string): boolean {
+  return status === 401 &&
+    baseUrl === API_URL &&
+    path === "/me" &&
+    ["authentication_required", "invalid_session"].includes(code);
+}
+
 async function request<T>(baseUrl: string, path = "", options: ApiOptions = {}): Promise<T> {
   const safeOptions = normalizeOptions(path, options);
   const headers = authHeaders();
@@ -120,10 +127,11 @@ async function request<T>(baseUrl: string, path = "", options: ApiOptions = {}):
   });
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    if (response.status === 401) clearSession();
+    const code = String(payload.error || "request_failed");
+    if (shouldInvalidateSession(baseUrl, path, response.status, code)) clearSession();
     throw new ApiClientError(
       response.status,
-      String(payload.error || "request_failed"),
+      code,
       String(payload.message || `Request failed (${response.status})`),
       payload.details,
     );
@@ -179,7 +187,6 @@ export async function downloadDomainDocument(path: string, filename: string): Pr
   });
   if (!response.ok) {
     const payload = await response.json().catch(() => ({}));
-    if (response.status === 401) clearSession();
     throw new ApiClientError(response.status, String(payload.error || "download_failed"), String(payload.message || "Download failed."), payload.details);
   }
   const blob = await response.blob();
