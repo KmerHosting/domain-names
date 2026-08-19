@@ -1,0 +1,88 @@
+@use '@carbon/react/scss/spacing' as spacing;
+@use '@carbon/react/scss/type' as type;
+@use '@carbon/react/scss/breakpoint' as breakpoint;
+
+.environment-admin-page .cds--inline-notification {
+  max-inline-size: none;
+  margin-block-end: spacing.$spacing-06;
+}
+
+.env-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 1px;
+  margin-block: spacing.$spacing-06 spacing.$spacing-07;
+  background: var(--cds-border-subtle-01);
+}
+
+@include breakpoint.breakpoint('md') {
+  .env-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+.env-card {
+  min-inline-size: 0;
+  min-block-size: 24rem;
+  display: flex;
+  flex-direction: column;
+  padding: spacing.$spacing-06;
+  background: var(--cds-layer-01);
+}
+
+.env-card h2 {
+  margin: spacing.$spacing-05 0 0;
+  @include type.type-style('heading-04');
+}
+
+.env-card > p,
+.env-card > small {
+  color: var(--cds-text-secondary);
+}
+
+.dna-balance {
+  margin-block: spacing.$spacing-06 spacing.$spacing-02;
+  @include type.type-style('heading-06');
+}
+
+.env-meta {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1px;
+  margin-block-start: spacing.$spacing-06;
+  background: var(--cds-border-subtle-01);
+}
+
+.env-meta > div {
+  min-inline-size: 0;
+  padding: spacing.$spacing-04;
+  background: var(--cds-layer-02);
+}
+
+.env-meta span {
+  display: block;
+  margin-block-end: spacing.$spacing-02;
+  color: var(--cds-text-secondary);
+  @include type.type-style('label-01');
+}
+
+.env-meta strong {
+  @include type.type-style('heading-compact-01');
+}
+
+.env-actions {
+  margin-block-start: auto;
+  padding-block-start: spacing.$spacing-06;
+}
+
+.test-credit,
+.live-credit {
+  color: var(--cds-text-primary);
+  font-weight: 600;
+}
+
+.environment-admin-page td small {
+  display: block;
+  margin-block-start: spacing.$spacing-02;
+  color: var(--cds-text-secondary);
+}

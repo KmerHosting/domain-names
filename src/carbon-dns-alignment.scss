@@ -1,0 +1,31 @@
+@use '@carbon/react/scss/spacing' as spacing;
+@use '@carbon/react/scss/type' as type;
+
+.carbon-dns-page {
+  padding-block: spacing.$spacing-07 spacing.$spacing-09;
+}
+
+.carbon-dns-grid {
+  row-gap: spacing.$spacing-06;
+}
+
+.carbon-dns-panel {
+  min-block-size: 100%;
+  padding: spacing.$spacing-06;
+  border-block-start: 1px solid var(--cds-border-subtle-01);
+  background: var(--cds-layer-01);
+}
+
+.carbon-dns-panel h2 {
+  margin: 0;
+  @include type.type-style('heading-04');
+}
+
+.carbon-dns-panel .cds--inline-notification {
+  max-inline-size: none;
+}
+
+.carbon-dns-page > .cds--inline-notification {
+  max-inline-size: none;
+  margin-block-end: spacing.$spacing-04;
+}

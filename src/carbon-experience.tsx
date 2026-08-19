@@ -18,7 +18,7 @@ import {
   useSyncExternalStore,
 } from "react";
 
-export type DomainTheme = "white" | "g100";
+export type DomainTheme = "g10" | "g90";
 
 type ThemeContextValue = {
   theme: DomainTheme;
@@ -32,12 +32,12 @@ const LOCATION_EVENT = "kmerhosting-domain-location-change";
 const ThemeContext = createContext<ThemeContextValue | null>(null);
 
 function currentTheme(): DomainTheme {
-  if (typeof window === "undefined") return "white";
+  if (typeof window === "undefined") return "g10";
   const saved = window.localStorage.getItem(THEME_STORAGE_KEY);
-  if (saved === "white" || saved === "g100") return saved;
-  if (saved === "g10") return "white";
-  if (saved === "g90") return "g100";
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "g100" : "white";
+  if (saved === "g10" || saved === "g90") return saved;
+  if (saved === "white") return "g10";
+  if (saved === "g100") return "g90";
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "g90" : "g10";
 }
 
 function subscribeTheme(callback: () => void) {
@@ -124,19 +124,19 @@ export function DomainLoadingScreen({ description = "Loading KmerHosting Domains
 }
 
 export function DomainCarbonExperience({ children }: { children: ReactNode }) {
-  const theme = useSyncExternalStore(subscribeTheme, currentTheme, () => "white" as DomainTheme);
+  const theme = useSyncExternalStore(subscribeTheme, currentTheme, () => "g10" as DomainTheme);
   const locationKey = useSyncExternalStore(subscribeLocation, currentLocation, () => "/");
 
   useEffect(() => {
     document.documentElement.dataset.carbonTheme = theme;
-    document.documentElement.style.colorScheme = theme === "g100" ? "dark" : "light";
+    document.documentElement.style.colorScheme = theme === "g90" ? "dark" : "light";
   }, [theme]);
 
   const context = useMemo<ThemeContextValue>(() => ({
     theme,
-    isDark: theme === "g100",
+    isDark: theme === "g90",
     toggleTheme: () => {
-      const next: DomainTheme = theme === "g100" ? "white" : "g100";
+      const next: DomainTheme = theme === "g90" ? "g10" : "g90";
       window.localStorage.setItem(THEME_STORAGE_KEY, next);
       window.dispatchEvent(new Event(THEME_EVENT));
     },
