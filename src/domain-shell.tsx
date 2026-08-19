@@ -37,6 +37,8 @@ type NavItem = {
   exact?: boolean;
 };
 
+const CUSTOMER_DASHBOARD_URL = "https://domain.kmerhosting.com/dashboard";
+
 const dashboardNavigation: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: Dashboard, exact: true },
   { href: "/dashboard/domains", label: "Domains", icon: Application },
@@ -192,7 +194,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                 <div className="domain-header-panel__actions">
                   {session ? (
                     <>
-                      {adminShell ? <Button kind="ghost" size="sm" href="/dashboard" renderIcon={Dashboard}>Customer dashboard</Button> : null}
+                      {adminShell ? <Button kind="ghost" size="sm" href={CUSTOMER_DASHBOARD_URL} renderIcon={Dashboard}>Customer dashboard</Button> : null}
                       {!adminShell && isAdmin ? <Button kind="ghost" size="sm" href="/admin" renderIcon={Dashboard}>Administration</Button> : null}
                       <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/?view=account" renderIcon={Settings}>Central account</Button>
                       <Button kind="ghost" size="sm" renderIcon={Logout} onClick={() => void logOut()}>Sign out</Button>
@@ -224,7 +226,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                       <SideNavDivider />
                       {adminNavigation.slice(4).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
                       <SideNavDivider />
-                      <SideNavLink href="/dashboard" renderIcon={Dashboard}>Customer dashboard</SideNavLink>
+                      <SideNavLink href={CUSTOMER_DASHBOARD_URL} renderIcon={Dashboard}>Customer dashboard</SideNavLink>
                     </>
                   ) : (
                     <>

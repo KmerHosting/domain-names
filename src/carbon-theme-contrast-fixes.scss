@@ -1,0 +1,223 @@
+// Final theme/contrast compatibility layer for legacy domain markup.
+// Carbon owns every color here through semantic tokens so G10 and G90 remain
+// readable even where older class names are still mounted for business logic.
+
+.domain-theme-root {
+  min-block-size: 100vh;
+  color: var(--cds-text-primary);
+  background: var(--cds-background);
+
+  // Keep old custom variables theme-aware until their remaining consumers are removed.
+  --blue: var(--cds-link-primary);
+  --blue-dark: var(--cds-link-primary-hover);
+  --navy: var(--cds-background-inverse);
+  --text: var(--cds-text-primary);
+  --muted: var(--cds-text-secondary);
+  --line: var(--cds-border-subtle-01);
+  --soft: var(--cds-layer-01);
+  --green: var(--cds-support-success);
+  --red: var(--cds-support-error);
+  --orange: var(--cds-support-warning);
+  --purple: var(--cds-link-primary);
+  --shadow: none;
+}
+
+.domain-theme-root .domain-route-stage,
+.domain-theme-root .domain-app-shell,
+.domain-theme-root .domain-content,
+.domain-theme-root .hero,
+.domain-theme-root .section,
+.domain-theme-root .cta-section,
+.domain-theme-root .dashboard-shell,
+.domain-theme-root .dashboard-main,
+.domain-theme-root .dashboard-content,
+.domain-theme-root .admin-shell,
+.domain-theme-root .admin-layout,
+.domain-theme-root .admin-main,
+.domain-theme-root .native-page,
+.domain-theme-root .dns-settings-page,
+.domain-theme-root .return-page,
+.domain-theme-root .auth-shell,
+.domain-theme-root .auth-form-pane,
+.domain-theme-root .auth-brand-pane {
+  color: var(--cds-text-primary);
+  background: var(--cds-background);
+}
+
+// Legacy marketing surfaces that previously carried hard-coded white/light colors.
+.domain-theme-root .section-soft,
+.domain-theme-root .trust-strip,
+.domain-theme-root .results-wrap,
+.domain-theme-root .hero-panel,
+.domain-theme-root .mini-window,
+.domain-theme-root .price-card,
+.domain-theme-root .feature-card,
+.domain-theme-root .card,
+.domain-theme-root .admin-card,
+.domain-theme-root .native-action-card,
+.domain-theme-root .return-card,
+.domain-theme-root .form-section,
+.domain-theme-root .auth-card,
+.domain-theme-root .table-wrap,
+.domain-theme-root .admin-table-wrap,
+.domain-theme-root .stats-grid > div,
+.domain-theme-root .metric-card,
+.domain-theme-root .domain-card,
+.domain-theme-root .order-card,
+.domain-theme-root .contact-card,
+.domain-theme-root .activity-item {
+  color: var(--cds-text-primary);
+  background: var(--cds-layer-01);
+  border-color: var(--cds-border-subtle-01);
+  box-shadow: none;
+}
+
+.domain-theme-root .hero-copy h1,
+.domain-theme-root .hero-copy h1 span,
+.domain-theme-root .section-heading h2,
+.domain-theme-root .card-heading h2,
+.domain-theme-root .form-section h3,
+.domain-theme-root .tld,
+.domain-theme-root .big-price,
+.domain-theme-root .availability-row strong,
+.domain-theme-root .mini-metrics strong,
+.domain-theme-root .trust-grid strong,
+.domain-theme-root .price-lines strong,
+.domain-theme-root .feature-card h3,
+.domain-theme-root .price-card h3,
+.domain-theme-root .result-price,
+.domain-theme-root .domain-card h2,
+.domain-theme-root .domain-card h3,
+.domain-theme-root .order-card h2,
+.domain-theme-root .order-card h3,
+.domain-theme-root .contact-card h2,
+.domain-theme-root .contact-card h3,
+.domain-theme-root .activity-item h2,
+.domain-theme-root .activity-item h3 {
+  color: var(--cds-text-primary);
+}
+
+.domain-theme-root .hero-copy > p,
+.domain-theme-root .search-hint,
+.domain-theme-root .section-heading p,
+.domain-theme-root .result-domain span,
+.domain-theme-root .availability-row span,
+.domain-theme-root .mini-metrics span,
+.domain-theme-root .trust-grid span,
+.domain-theme-root .price-term,
+.domain-theme-root .price-lines,
+.domain-theme-root .feature-card p,
+.domain-theme-root .price-card p,
+.domain-theme-root .domain-card p,
+.domain-theme-root .domain-card small,
+.domain-theme-root .order-card p,
+.domain-theme-root .order-card small,
+.domain-theme-root .contact-card p,
+.domain-theme-root .contact-card small,
+.domain-theme-root .activity-item p,
+.domain-theme-root .activity-item small,
+.domain-theme-root .dns-meta,
+.domain-theme-root .auth-helper {
+  color: var(--cds-text-secondary);
+}
+
+.domain-theme-root .automation-line,
+.domain-theme-root .mini-metrics > div,
+.domain-theme-root .dns-add-row {
+  color: var(--cds-text-primary);
+  background: var(--cds-layer-02);
+  border-color: var(--cds-border-subtle-01);
+}
+
+.domain-theme-root .domain-search,
+.domain-theme-root .domain-search input,
+.domain-theme-root input,
+.domain-theme-root select,
+.domain-theme-root textarea {
+  color: var(--cds-text-primary);
+  background: var(--cds-field-01);
+}
+
+.domain-theme-root .domain-search input::placeholder,
+.domain-theme-root input::placeholder,
+.domain-theme-root textarea::placeholder {
+  color: var(--cds-text-placeholder);
+}
+
+// Inverse sections must use inverse text tokens. Using text-secondary on an
+// inverse footer caused the light-theme footer content to disappear.
+.domain-theme-root .cta-card,
+.domain-theme-root .footer {
+  color: var(--cds-text-inverse);
+  background: var(--cds-background-inverse);
+}
+
+.domain-theme-root .cta-card h1,
+.domain-theme-root .cta-card h2,
+.domain-theme-root .cta-card h3,
+.domain-theme-root .cta-card p,
+.domain-theme-root .cta-card span,
+.domain-theme-root .cta-card strong,
+.domain-theme-root .cta-card small,
+.domain-theme-root .cta-card .kicker,
+.domain-theme-root .footer h1,
+.domain-theme-root .footer h2,
+.domain-theme-root .footer h3,
+.domain-theme-root .footer p,
+.domain-theme-root .footer span,
+.domain-theme-root .footer strong,
+.domain-theme-root .footer small,
+.domain-theme-root .footer .brand strong,
+.domain-theme-root .footer .brand small,
+.domain-theme-root .footer-bottom {
+  color: var(--cds-text-inverse);
+}
+
+.domain-theme-root .footer a,
+.domain-theme-root .footer a:visited,
+.domain-theme-root .footer .cds--link {
+  color: var(--cds-link-inverse);
+}
+
+.domain-theme-root .footer a:hover,
+.domain-theme-root .footer a:focus-visible {
+  color: var(--cds-link-inverse-hover);
+}
+
+.domain-theme-root .footer-bottom {
+  border-color: var(--cds-border-inverse);
+}
+
+// Keep bespoke badges/statuses readable on both active themes.
+.domain-theme-root .status,
+.domain-theme-root .record-type,
+.domain-theme-root .promo {
+  background: var(--cds-layer-accent-01);
+  color: var(--cds-text-primary);
+}
+
+.domain-theme-root .status-active,
+.domain-theme-root .status-completed,
+.domain-theme-root .status-paid,
+.domain-theme-root .status-verified,
+.domain-theme-root .status-live {
+  color: var(--cds-support-success);
+}
+
+.domain-theme-root .status-failed,
+.domain-theme-root .status-expired,
+.domain-theme-root .status-cancelled,
+.domain-theme-root .status-disabled,
+.domain-theme-root .status-dead {
+  color: var(--cds-support-error);
+}
+
+.domain-theme-root .status-pending,
+.domain-theme-root .status-processing,
+.domain-theme-root .status-queued,
+.domain-theme-root .status-transfer-pending,
+.domain-theme-root .status-pending-payment,
+.domain-theme-root .status-payment-pending,
+.domain-theme-root .status-test-ote {
+  color: var(--cds-support-warning);
+}

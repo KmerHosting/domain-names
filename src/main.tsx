@@ -21,6 +21,7 @@ import "./carbon-native-alignment.scss";
 import "./carbon-admin-alignment.scss";
 import "./carbon-admin-console-alignment.scss";
 import "./carbon-alignment.scss";
+import "./carbon-theme-contrast-fixes.scss";
 
 const queryClient = new QueryClient({
   defaultOptions: {
