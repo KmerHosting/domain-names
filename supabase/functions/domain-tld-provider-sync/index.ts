@@ -54,11 +54,11 @@ async function authorize(req: Request): Promise<string | null> {
     throw new HttpError(401, "authentication_required", "Administrator access is required.");
   }
   const tokenHash = await sha256(authorization.slice(7).trim());
-  const { data: session } = await db.from("domain_sessions").select("user_id")
+  const { data: session } = await db.from("domain_sessions").select("user_id,session_version")
     .eq("token_hash", tokenHash).is("revoked_at", null).gt("expires_at", now()).maybeSingle();
   if (!session) throw new HttpError(401, "invalid_session", "Session expired or invalid.");
-  const { data: user } = await db.from("domain_users").select("id,role,status").eq("id", session.user_id).maybeSingle();
-  if (!user || user.role !== "admin" || user.status !== "active") {
+  const { data: user } = await db.from("domain_users").select("id,role,status,session_version").eq("id", session.user_id).maybeSingle();
+  if (!user || user.role !== "admin" || user.status !== "active" || Number(user.session_version) !== Number(session.session_version)) {
     throw new HttpError(403, "admin_required", "Administrator access is required.");
   }
   return user.id;
@@ -240,7 +240,7 @@ async function synchronize(environment: "production" | "ote", marginPercent: num
     durationMs: Date.now() - startedAt,
   };
   await db.from("domain_provider_sync_logs").insert({
-    sync_type: "domainnameapi_catalog_v6",
+    sync_type: "domainnameapi_catalog_v7",
     status: "success",
     requested_by: requestedBy,
     payload: result,
@@ -251,7 +251,7 @@ async function synchronize(environment: "production" | "ote", marginPercent: num
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: responseHeaders });
   try {
-    if (req.method === "GET") return json({ ok: true, service: "KmerHosting DomainNameAPI Catalog Sync", version: 6, timestamp: now() });
+    if (req.method === "GET") return json({ ok: true, service: "KmerHosting DomainNameAPI Catalog Sync", version: 7, timestamp: now() });
     if (req.method !== "POST") throw new HttpError(405, "method_not_allowed", "Use POST.");
     const requestedBy = await authorize(req);
     const url = new URL(req.url);
