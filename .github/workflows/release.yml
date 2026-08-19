@@ -63,13 +63,13 @@ jobs:
           cat > release-notes.md <<EOF
           KmerHosting Domains $VERSION
 
-          - Moves the complete React root onto a system-aware Carbon GlobalTheme experience.
-          - Emits official White, G10, G90 and G100 Carbon theme maps while using White/G100 for system-aware presentation.
-          - Adds the official Carbon Loading overlay with Layer, Grid, Tile and skeleton context beneath it.
-          - Adds expressive Carbon route motion with a reduced-motion fallback.
-          - Strengthens source conformance and prevents the measured native-control/Lucide migration debt from increasing.
-          - Registrar, wallet, OTE/production isolation, Supabase functions and provider operations are unchanged.
-          - Remaining legacy component migration debt is tracked explicitly; this release does not claim it has reached zero.
+          - Rebuilds the domain portal around the canonical Carbon application shell used by KmerHosting Dashboard.
+          - Migrates customer, DNS, lifecycle, provider and administration screens to official Carbon React components.
+          - Aligns the application with Carbon g10 light and g90 dark themes, responsive breakpoints, semantic tokens and productive motion.
+          - Adds the Carbon Header, HeaderPanel, SideNav rail and SkipToContent navigation pattern across customer and admin experiences.
+          - Removes lucide-react from production dependencies and locks migration debt at zero native React controls/tables and zero Lucide imports.
+          - Preserves registrar, wallet/customer-credit billing, OTE/production isolation, DNS operations, SSO, order guards and admin safety rules.
+          - Includes automated Carbon source/style and shell-layout audits in CI.
           EOF
 
       - name: Publish release
