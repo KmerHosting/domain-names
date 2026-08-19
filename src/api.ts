@@ -152,6 +152,10 @@ export async function walletApi<T>(path: string, options: ApiOptions = {}): Prom
   return request<T>(WALLET_API_URL, path, options);
 }
 export async function adminApi<T>(path: string, options: ApiOptions = {}): Promise<T> {
+  if (path === "/settings") {
+    const payload = await request<Record<string, unknown>>(ADMIN_API_URL, "/config", options);
+    return { ...payload, settings: payload.config } as T;
+  }
   return request<T>(ADMIN_API_URL, path, options);
 }
 export async function adminMonitorApi<T>(path: string, options: ApiOptions = {}): Promise<T> {
