@@ -10,6 +10,7 @@ import { AdminOperationsPage, isAdminOperationsPage } from "./admin-operations-p
 import { AdminEnvironmentsPage, isAdminEnvironmentsPage } from "./admin-environments-page";
 import { PlatformStatusBanner } from "./platform-status-banner";
 import { DomainCarbonExperience } from "./carbon-experience";
+import { DomainApplicationShell } from "./domain-shell";
 import "./styles.css";
 import "./admin.css";
 import "./router-compat.css";
@@ -36,20 +37,22 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
     <DomainCarbonExperience>
       <QueryClientProvider client={queryClient}>
-        <PlatformStatusBanner />
-        {isEnvironmentsRoute ? (
-          <AdminEnvironmentsPage />
-        ) : isOperationsRoute ? (
-          <AdminOperationsPage />
-        ) : isDnsRoute ? (
-          <DnsSettingsPage />
-        ) : isAuxiliaryNativeRoute ? (
-          <NativePageRouter />
-        ) : isAdminRoute ? (
-          <AdminPage />
-        ) : (
-          <RouterProvider router={router} />
-        )}
+        <DomainApplicationShell>
+          <PlatformStatusBanner />
+          {isEnvironmentsRoute ? (
+            <AdminEnvironmentsPage />
+          ) : isOperationsRoute ? (
+            <AdminOperationsPage />
+          ) : isDnsRoute ? (
+            <DnsSettingsPage />
+          ) : isAuxiliaryNativeRoute ? (
+            <NativePageRouter />
+          ) : isAdminRoute ? (
+            <AdminPage />
+          ) : (
+            <RouterProvider router={router} />
+          )}
+        </DomainApplicationShell>
       </QueryClientProvider>
     </DomainCarbonExperience>
   </React.StrictMode>,
