@@ -116,6 +116,40 @@ function routeFromRewrite(url: URL): { service: string; upstreamPath: string } {
   return { service, upstreamPath: path ? `/${path}` : "/" };
 }
 
+function mapDnsPath(path: string): string {
+  const recordsRoot = path.match(/^\/domains\/([0-9a-f-]+)\/records$/i);
+  if (recordsRoot) return `/domains/${recordsRoot[1]}/dns`;
+
+  const recordOne = path.match(/^\/domains\/([0-9a-f-]+)\/records\/([0-9a-f-]+)$/i);
+  if (recordOne) return `/domains/${recordOne[1]}/dns/${recordOne[2]}`;
+
+  const sync = path.match(/^\/domains\/([0-9a-f-]+)\/sync$/i);
+  if (sync) return `/domains/${sync[1]}/dns/sync`;
+
+  return path;
+}
+
+function normalizeDnsPayload(payload: Record<string, any>): Record<string, any> {
+  if (!payload?.domain || !Array.isArray(payload?.records)) return payload;
+
+  const rawDomain = payload.domain as Record<string, any>;
+  const dns = (payload.dns || {}) as Record<string, any>;
+  return {
+    ...payload,
+    domain: {
+      ...rawDomain,
+      id: rawDomain.id,
+      domainName: rawDomain.domainName || rawDomain.domain_name,
+      nameservers: Array.isArray(rawDomain.nameservers) ? rawDomain.nameservers : [],
+      environment: rawDomain.environment || rawDomain.registrar_environment,
+    },
+    synced: true,
+    managedDns: Boolean(payload.managedDns ?? dns.dnsManagedActive),
+    warning: payload.warning ?? dns.warning ?? null,
+    providerError: payload.providerError ?? null,
+  };
+}
+
 async function responseFromUpstream(upstream: Response, service: string, upstreamPath: string): Promise<Response> {
   const headers = new Headers();
   headers.set("Cache-Control", "no-store");
@@ -127,11 +161,12 @@ async function responseFromUpstream(upstream: Response, service: string, upstrea
   const isLogout = service === "domain-api" && upstreamPath === "/auth/logout";
 
   if (contentType.toLowerCase().includes("application/json")) {
-    const payload = await upstream.json().catch(() => ({})) as Record<string, any>;
+    let payload = await upstream.json().catch(() => ({})) as Record<string, any>;
     if (service === "domain-api" && AUTH_SUCCESS_PATHS.has(upstreamPath) && payload?.session?.token) {
       headers.append("Set-Cookie", sessionCookie(String(payload.session.token), payload.session.expiresAt));
       payload.session = { expiresAt: payload.session.expiresAt, mode: "httpOnlyCookie" };
     }
+    if (service === "domain-dns-tools") payload = normalizeDnsPayload(payload);
     if (isLogout) headers.append("Set-Cookie", clearCookie());
     return new Response(JSON.stringify(payload), { status: upstream.status, headers });
   }
@@ -143,7 +178,10 @@ async function responseFromUpstream(upstream: Response, service: string, upstrea
 export default async function handler(req: Request): Promise<Response> {
   try {
     const url = new URL(req.url);
-    const { service, upstreamPath } = routeFromRewrite(url);
+    const routed = routeFromRewrite(url);
+    const service = routed.service;
+    let upstreamPath = routed.upstreamPath;
+    if (service === "domain-dns-tools") upstreamPath = mapDnsPath(upstreamPath);
     const method = req.method.toUpperCase();
 
     if (
