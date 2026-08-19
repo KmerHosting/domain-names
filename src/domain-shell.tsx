@@ -27,7 +27,7 @@ import {
   Wallet,
 } from "@carbon/react/icons";
 import { ReactNode, useEffect, useState } from "react";
-import { api, clearSession, getSession, subscribeSession, type Session } from "./api";
+import { api, clearSession, getSession, subscribeSession, type Session, type User } from "./api";
 import { useDomainTheme } from "./carbon-experience";
 
 type NavItem = {
@@ -93,12 +93,27 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
   const privateShell = isPrivateShell(pathname);
   const adminShell = pathname.startsWith("/admin");
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
+  const [user, setUser] = useState<User | null>(null);
+
+  useEffect(() => {
+    if (!session) {
+      setUser(null);
+      return;
+    }
+    let active = true;
+    void api<{ user: User }>("/me")
+      .then((payload) => { if (active) setUser(payload.user); })
+      .catch(() => { if (active) setUser(null); });
+    return () => { active = false; };
+  }, [session?.expiresAt]);
 
   const logOut = async () => {
     await api<unknown>("/auth/logout", { method: "POST" }).catch(() => undefined);
     clearSession();
     window.location.assign("/");
   };
+
+  const isAdmin = user?.role === "admin";
 
   return (
     <div className={privateShell ? "domain-app-shell domain-app-shell--private" : "domain-app-shell domain-app-shell--public"}>
@@ -172,12 +187,13 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
               <div className="domain-header-panel__content">
                 <div className="domain-header-panel__heading">
                   <h2>{adminShell ? "Administration" : session ? "Domain account" : "KmerHosting Account"}</h2>
-                  <p>{adminShell ? "Domain registrar administration tools." : session ? "Your domain service session is active." : "Use your central account to access domain services."}</p>
+                  <p>{adminShell ? "Domain registrar administration tools." : session ? user?.email || "Your domain service session is active." : "Use your central account to access domain services."}</p>
                 </div>
                 <div className="domain-header-panel__actions">
                   {session ? (
                     <>
                       {adminShell ? <Button kind="ghost" size="sm" href="/dashboard" renderIcon={Dashboard}>Customer dashboard</Button> : null}
+                      {!adminShell && isAdmin ? <Button kind="ghost" size="sm" href="/admin" renderIcon={Dashboard}>Administration</Button> : null}
                       <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/?view=account" renderIcon={Settings}>Central account</Button>
                       <Button kind="ghost" size="sm" renderIcon={Logout} onClick={() => void logOut()}>Sign out</Button>
                     </>
@@ -224,6 +240,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                       >
                         Notifications
                       </SideNavLink>
+                      {isAdmin ? <SideNavLink href="/admin" renderIcon={Dashboard}>Administration</SideNavLink> : null}
                     </>
                   )}
                 </SideNavItems>
