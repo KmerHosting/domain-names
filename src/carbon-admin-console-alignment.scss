@@ -1,0 +1,73 @@
+@use '@carbon/react/scss/spacing' as spacing;
+@use '@carbon/react/scss/type' as type;
+
+.carbon-admin-page,
+.carbon-admin-stack {
+  display: grid;
+  gap: spacing.$spacing-06;
+}
+
+.carbon-admin-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1px;
+  margin-block-end: spacing.$spacing-06;
+  background: var(--cds-border-subtle-01);
+}
+
+.carbon-admin-tabs .cds--btn {
+  min-inline-size: 7rem;
+  max-inline-size: none;
+}
+
+.carbon-admin-section,
+.carbon-admin-settings-tile {
+  padding: spacing.$spacing-06;
+  border-block-start: 1px solid var(--cds-border-subtle-01);
+  background: var(--cds-layer-01);
+}
+
+.carbon-admin-section > .cds--inline-notification,
+.carbon-admin-settings-tile > .cds--inline-notification {
+  max-inline-size: none;
+  margin-block-end: spacing.$spacing-04;
+}
+
+.carbon-admin-activity {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: spacing.$spacing-04;
+  padding: spacing.$spacing-05;
+  border-block-start: 1px solid var(--cds-border-subtle-01);
+  background: var(--cds-layer-02);
+}
+
+.carbon-admin-activity > div:first-child {
+  display: grid;
+  gap: spacing.$spacing-02;
+}
+
+.carbon-admin-activity p,
+.carbon-admin-activity small {
+  color: var(--cds-text-secondary);
+  margin: 0;
+}
+
+.carbon-admin-section .cds--data-table-container,
+.carbon-admin-section .cds--data-table-content {
+  max-inline-size: 100%;
+  overflow-x: auto;
+}
+
+.carbon-admin-section small.dns-meta {
+  display: block;
+  margin-block-start: spacing.$spacing-02;
+  color: var(--cds-text-secondary);
+}
+
+.carbon-admin-settings-tile h3 {
+  margin: 0;
+  @include type.type-style('heading-04');
+}
