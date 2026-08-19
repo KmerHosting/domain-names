@@ -63,12 +63,12 @@ jobs:
           cat > release-notes.md <<EOF
           KmerHosting Domains $VERSION
 
-          - Applies Carbon g10/g90 theme tokens to the rendered app root and restores readable light/dark contrast across legacy and Carbon surfaces.
-          - Fixes inverse footer and CTA foreground/link colors with Carbon semantic inverse tokens.
-          - Aligns browser-facing Edge Functions with KmerHosting opaque domain-session authentication, preventing Supabase Invalid JWT gateway rejection while preserving per-function session and role validation.
-          - Adds the canonical Customer dashboard link to the administration sidebar.
+          - Restores the customer notification API used by /dashboard/notifications.
+          - Adds unread-count, mark-one-read and mark-all-read support to domain-customer-tools.
+          - Keeps browser-facing domain functions on KmerHosting opaque-session authentication without Supabase JWT gateway rejection.
+          - Shows Customer dashboard in the account menu whenever the user is outside the customer dashboard area.
+          - Keeps the administration sidebar shortcut to the customer dashboard.
           - Preserves registrar environment isolation, wallet/customer-credit billing, DNS ownership checks, order guards and administrator safety rules.
-          - Includes automated Carbon contrast/shell and domain-session gateway audits in CI.
           EOF
 
       - name: Publish release
