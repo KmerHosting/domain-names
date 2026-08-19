@@ -1,7 +1,55 @@
 project_id = "igihzeyfgwhnuiflamvn"
 
+# Domain APIs use KmerHosting's opaque domain session token. Supabase Auth JWT
+# verification must therefore stay disabled at the Edge gateway; protected
+# functions validate domain_sessions/domain_users internally before doing work.
 [functions.domain-api]
 verify_jwt = false
 
 [functions.domain-platform-status]
+verify_jwt = false
+
+[functions.domain-search-fast]
+verify_jwt = false
+
+[functions.domain-wallet]
+verify_jwt = false
+
+[functions.domain-admin]
+verify_jwt = false
+
+[functions.domain-admin-user-safety]
+verify_jwt = false
+
+[functions.domain-admin-monitor]
+verify_jwt = false
+
+[functions.domain-operations-monitor]
+verify_jwt = false
+
+[functions.domain-ops]
+verify_jwt = false
+
+[functions.domain-documents]
+verify_jwt = false
+
+[functions.domain-order-guard]
+verify_jwt = false
+
+[functions.domain-customer-tools]
+verify_jwt = false
+
+[functions.domain-dns-tools]
+verify_jwt = false
+
+[functions.domain-provider-balance]
+verify_jwt = false
+
+[functions.domain-environment-status]
+verify_jwt = false
+
+[functions.domain-environment-switch]
+verify_jwt = false
+
+[functions.domain-environment-credit]
 verify_jwt = false
