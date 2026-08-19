@@ -5,6 +5,7 @@ const root = process.cwd();
 const pkg = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const main = fs.readFileSync(path.join(root, "src/main.tsx"), "utf8");
 const experience = fs.readFileSync(path.join(root, "src/carbon-experience.tsx"), "utf8");
+const shell = fs.readFileSync(path.join(root, "src/domain-shell.tsx"), "utf8");
 const alignment = fs.readFileSync(path.join(root, "src/carbon-alignment.scss"), "utf8");
 const violations = [];
 
@@ -17,6 +18,7 @@ if (!pkg.devDependencies?.sass) {
 
 for (const required of [
   "DomainCarbonExperience",
+  "DomainApplicationShell",
   'import "./carbon-alignment.scss";',
 ]) {
   if (!main.includes(required)) violations.push(`src/main.tsx is missing Carbon root wiring: ${required}`);
@@ -32,8 +34,8 @@ for (const required of [
   "GlobalTheme",
   "useSyncExternalStore",
   "prefers-color-scheme: dark",
-  '"white"',
-  '"g100"',
+  '"g10"',
+  '"g90"',
   "dataset.carbonTheme",
   "colorScheme",
   "Loading",
@@ -48,6 +50,24 @@ for (const required of [
 }
 
 for (const required of [
+  "HeaderContainer",
+  "HeaderMenuButton",
+  "HeaderGlobalAction",
+  "HeaderPanel",
+  "SideNav",
+  "SideNavDivider",
+  "SideNavLink",
+  "SkipToContent",
+  "isRail",
+  "isChildOfHeader",
+  "domain-carbon-sidenav",
+  "onOverlayClick={isSideNavExpanded ? onClickSideNavExpand : undefined}",
+  'from "@carbon/react/icons"',
+]) {
+  if (!shell.includes(required)) violations.push(`Canonical Carbon shell is missing: ${required}`);
+}
+
+for (const required of [
   "@use '@carbon/react'",
   "@use '@carbon/react/scss/theme'",
   "@use '@carbon/react/scss/themes'",
@@ -55,15 +75,19 @@ for (const required of [
   "@use '@carbon/react/scss/type'",
   "@use '@carbon/react/scss/breakpoint'",
   "@use '@carbon/react/scss/motion'",
-  "theme.theme(themes.$white)",
-  "theme.theme(themes.$g10)",
-  "theme.theme(themes.$g90)",
-  "theme.theme(themes.$g100)",
-  "motion.motion(entrance, expressive)",
+  "carbon-theme.theme(carbon-themes.$white)",
+  "carbon-theme.theme(carbon-themes.$g10)",
+  "carbon-theme.theme(carbon-themes.$g90)",
+  "carbon-theme.theme(carbon-themes.$g100)",
+  "motion.motion(entrance, productive)",
   "prefers-reduced-motion: reduce",
   "var(--cds-background)",
   "var(--cds-text-primary)",
   "var(--cds-layer-01)",
+  ".domain-header-panel",
+  ".domain-carbon-sidenav",
+  "margin-inline-start: 3rem",
+  "margin-inline-start: 16rem",
 ]) {
   if (!alignment.includes(required)) violations.push(`Carbon foundation layer is missing: ${required}`);
 }
@@ -86,9 +110,9 @@ const source = sourceFiles.map((file) => fs.readFileSync(file, "utf8")).join("\n
 const nativeControlMatches = (source.match(/<(?:button|input|select|textarea|table)\b/g) || []).length;
 const lucideImports = (source.match(/from\s+["']lucide-react["']/g) || []).length;
 
-// PR #4 established this measured migration-debt baseline. New changes may
-// reduce the counts, but must never increase them while the remaining screens
-// are converted to canonical Carbon components and icons.
+// Legacy route implementations are migrated incrementally. The new global
+// shell is canonical Carbon now, and this debt ceiling prevents regressions
+// while individual forms/tables are converted to Carbon React components.
 const MAX_NATIVE_CONTROL_DEBT = 148;
 const MAX_LUCIDE_IMPORT_DEBT = 2;
 if (nativeControlMatches > MAX_NATIVE_CONTROL_DEBT) {
@@ -107,7 +131,7 @@ if (/\.cds--loading-overlay|--cds-overlay\s*:/.test(styleFiles)) {
 }
 
 if (pkg.version !== "1.2.1") {
-  violations.push("Expected the Carbon experience release to be version 1.2.1.");
+  violations.push("Expected the current domain portal version to remain 1.2.1 during the UI refactor.");
 }
 if (!pkg.scripts?.check) {
   violations.push("package.json must expose a full check command.");
@@ -120,6 +144,5 @@ if (violations.length) {
 }
 
 console.log("Carbon foundation/source alignment OK.");
-console.log("Dynamic White/G100 theme, official loading skeleton and expressive route motion are guarded.");
+console.log("Dashboard-aligned G10/G90 theme and canonical Carbon UI shell are guarded.");
 console.log(`Legacy component migration debt: ${nativeControlMatches} native control/table usages; ${lucideImports} lucide-react import sites.`);
-console.log("Legacy debt is capped at the PR #4 baseline and must trend toward zero as screens migrate to Carbon components and Carbon icons.");
