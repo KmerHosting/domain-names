@@ -29,6 +29,7 @@ import {
 import { ReactNode, useEffect, useState } from "react";
 import { api, clearSession, getSession, subscribeSession, type Session, type User } from "./api";
 import { useDomainTheme } from "./carbon-experience";
+import { SiteFooter } from "./site-footer";
 
 type NavItem = {
   href: string;
@@ -256,6 +257,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
       <div id="main-content" className="domain-content" tabIndex={-1}>
         {children}
       </div>
+      {!privateShell ? <SiteFooter /> : null}
     </div>
   );
 }

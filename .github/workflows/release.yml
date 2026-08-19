@@ -63,12 +63,11 @@ jobs:
           cat > release-notes.md <<EOF
           KmerHosting Domains $VERSION
 
-          - Restores the customer notification API used by /dashboard/notifications.
-          - Adds unread-count, mark-one-read and mark-all-read support to domain-customer-tools.
-          - Keeps browser-facing domain functions on KmerHosting opaque-session authentication without Supabase JWT gateway rejection.
-          - Shows Customer dashboard in the account menu whenever the user is outside the customer dashboard area.
-          - Keeps the administration sidebar shortcut to the customer dashboard.
-          - Preserves registrar environment isolation, wallet/customer-credit billing, DNS ownership checks, order guards and administrator safety rules.
+          - Replaces the legacy public footer with the Carbon footer architecture used by KmerHosting/website.
+          - Uses a dedicated g100 footer theme with Carbon semantic tokens for consistent contrast.
+          - Adds responsive footer navigation groups and Carbon accordions on smaller screens.
+          - Adds KmerHosting resource, developer, legal, support and social links while preserving domain-specific navigation.
+          - Preserves custom-session authentication, registrar environment isolation, wallet/customer-credit billing, DNS ownership checks, order guards and administrator safety rules.
           EOF
 
       - name: Publish release
