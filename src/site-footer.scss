@@ -1,0 +1,185 @@
+@use '@carbon/react/scss/spacing' as spacing;
+@use '@carbon/react/scss/type' as type;
+@use '@carbon/react/scss/breakpoint' as breakpoint;
+
+// Public routes still contain the old footer markup for route compatibility.
+// The shell-level footer below is the canonical KmerHosting Domains footer.
+.footer {
+  display: none !important;
+}
+
+.domain-site-footer {
+  padding-block-start: spacing.$spacing-10;
+  background: var(--cds-background);
+  color: var(--cds-text-primary);
+  border-block-start: 1px solid var(--cds-border-subtle-01);
+}
+
+.domain-site-footer__groups {
+  padding-block: spacing.$spacing-10 0;
+}
+
+.domain-site-footer__groups .cds--grid {
+  align-items: flex-start;
+  row-gap: 0;
+}
+
+.domain-site-footer__brand-column {
+  display: flex;
+  align-items: flex-start;
+  flex-direction: column;
+  gap: spacing.$spacing-05;
+}
+
+.domain-site-footer__brand-column p {
+  @include type.type-style('body-compact-01');
+  max-inline-size: 18rem;
+  margin: 0;
+  color: var(--cds-text-secondary);
+}
+
+.domain-site-footer__brand-link,
+.domain-site-footer__brand-link:visited,
+.domain-site-footer__brand-link:hover,
+.domain-site-footer__brand-link:focus {
+  display: inline-flex;
+  align-items: baseline;
+  gap: spacing.$spacing-02;
+  color: var(--cds-text-primary);
+  text-decoration: none;
+}
+
+.domain-site-footer__brand-name {
+  @include type.type-style('heading-compact-02');
+}
+
+.domain-site-footer__brand-product {
+  @include type.type-style('body-compact-01');
+  color: var(--cds-text-secondary);
+}
+
+.domain-site-footer__group-columns {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  column-gap: spacing.$spacing-09;
+}
+
+.domain-site-footer__group-stack {
+  display: flex;
+  flex-direction: column;
+  gap: spacing.$spacing-09;
+}
+
+.domain-site-footer__group-title {
+  @include type.type-style('heading-compact-01');
+  margin: 0 0 spacing.$spacing-04;
+}
+
+.domain-site-footer__group-mobile {
+  display: none;
+}
+
+.domain-site-footer__group-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.domain-site-footer__group-list li {
+  margin-block-end: spacing.$spacing-04;
+}
+
+.domain-site-footer a,
+.domain-site-footer a:visited {
+  @include type.type-style('body-compact-01');
+  display: inline-flex;
+  inline-size: fit-content;
+  color: var(--cds-text-secondary);
+  text-decoration: none;
+}
+
+.domain-site-footer a:hover,
+.domain-site-footer a:focus {
+  color: var(--cds-link-primary);
+  text-decoration: underline;
+}
+
+.domain-site-footer__utility {
+  margin-block-start: spacing.$spacing-10;
+  padding-block: spacing.$spacing-05;
+  background: var(--cds-layer-01);
+  border-block-start: 1px solid var(--cds-border-subtle-01);
+}
+
+.domain-site-footer__utility-inner,
+.domain-site-footer__social-inner,
+.domain-site-footer__bottom,
+.domain-site-footer__socials {
+  display: flex;
+  align-items: center;
+}
+
+.domain-site-footer__utility-inner {
+  justify-content: space-between;
+  gap: spacing.$spacing-05;
+}
+
+.domain-site-footer__social-inner,
+.domain-site-footer__bottom {
+  gap: spacing.$spacing-05;
+}
+
+.domain-site-footer__socials {
+  flex-wrap: wrap;
+  gap: spacing.$spacing-03;
+}
+
+.domain-site-footer__social-label,
+.domain-site-footer__bottom {
+  @include type.type-style('label-01');
+  color: var(--cds-text-secondary);
+}
+
+.domain-site-footer__socials a,
+.domain-site-footer__socials a:visited {
+  color: var(--cds-icon-primary);
+}
+
+@include breakpoint.breakpoint-down(md) {
+  .domain-site-footer,
+  .domain-site-footer__groups {
+    padding-block-start: 0;
+  }
+
+  .domain-site-footer__brand-column {
+    padding-block: spacing.$spacing-08 spacing.$spacing-06;
+  }
+
+  .domain-site-footer__group-columns,
+  .domain-site-footer__group-stack {
+    display: block;
+  }
+
+  .domain-site-footer__group-desktop {
+    display: none;
+  }
+
+  .domain-site-footer__group-mobile {
+    display: block;
+  }
+
+  .domain-site-footer__group-mobile .cds--accordion__content {
+    padding-inline: 0;
+  }
+
+  .domain-site-footer__utility {
+    margin-block-start: spacing.$spacing-05;
+  }
+
+  .domain-site-footer__utility-inner,
+  .domain-site-footer__social-inner,
+  .domain-site-footer__bottom {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
