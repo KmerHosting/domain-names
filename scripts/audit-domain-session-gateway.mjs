@@ -23,6 +23,7 @@ const browserFunctions = [
   "domain-environment-status",
   "domain-environment-switch",
   "domain-environment-credit",
+  "domain-tld-provider-sync",
 ];
 
 const protectedFunctions = [
@@ -37,6 +38,7 @@ const protectedFunctions = [
   "domain-provider-balance",
   "domain-environment-status",
   "domain-environment-switch",
+  "domain-tld-provider-sync",
 ];
 
 function sectionFor(name) {
