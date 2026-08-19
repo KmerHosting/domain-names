@@ -1,5 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FormEvent, useState } from "react";
+import {
+  Button,
+  Checkbox,
+  Column,
+  Grid,
+  InlineLoading,
+  InlineNotification,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Tag,
+  TextArea,
+  TextInput,
+  Tile,
+} from "@carbon/react";
+import { FormEvent, ReactNode, useState } from "react";
 import { adminApi, api, formatDate, formatMoney, getSession, newIdempotencyKey } from "./api";
 
 type Row = Record<string, any>;
@@ -20,17 +38,39 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : "Request failed.";
 }
 
-function Badge({ value }: { value?: string | null }) {
-  const text = String(value || "unknown");
-  return <span className={`status status-${text.toLowerCase().replaceAll("_", "-")}`}>{text.replaceAll("_", " ")}</span>;
+function tagType(value?: string | null): "green" | "red" | "warm-gray" | "blue" | "purple" | "gray" {
+  const text = String(value || "unknown").toLowerCase().replaceAll("_", "-");
+  if (["active", "completed", "paid", "verified", "live", "enabled", "admin"].some((item) => text.includes(item))) return "green";
+  if (["failed", "error", "expired", "disabled", "cancelled", "dead", "suspended"].some((item) => text.includes(item))) return "red";
+  if (["pending", "processing", "queued", "never"].some((item) => text.includes(item))) return "warm-gray";
+  if (["ote", "test"].some((item) => text.includes(item))) return "blue";
+  if (text === "customer") return "purple";
+  return "gray";
 }
 
-function Loading() {
-  return <div className="loading">Loading…</div>;
+function Badge({ value }: { value?: string | null }) {
+  const text = String(value || "unknown");
+  return <Tag type={tagType(text)}>{text.replaceAll("_", " ")}</Tag>;
+}
+
+function Loading({ description = "Loading…" }: { description?: string }) {
+  return <InlineLoading description={description} />;
+}
+
+function ErrorNotice({ error, title = "Request failed" }: { error: unknown; title?: string }) {
+  return <InlineNotification kind="error" lowContrast hideCloseButton title={title} subtitle={errorText(error)} />;
 }
 
 function Empty({ text }: { text: string }) {
-  return <div className="empty-state"><p>{text}</p></div>;
+  return <Tile className="carbon-empty-state"><p>{text}</p></Tile>;
+}
+
+function MetricGrid({ metrics }: { metrics: Array<[string, ReactNode]> }) {
+  return <Grid fullWidth className="carbon-metric-grid">{metrics.map(([label, value]) => <Column sm={2} md={4} lg={4} key={label}><Tile className="carbon-metric"><span>{label}</span><strong>{value}</strong></Tile></Column>)}</Grid>;
+}
+
+function AdminSection({ title, description, actions, children, table = false }: { title: string; description?: string; actions?: ReactNode; children: ReactNode; table?: boolean }) {
+  return <Tile className={`carbon-admin-section${table ? " carbon-table-section" : ""}`}><div className="card-heading"><div><h2>{title}</h2>{description ? <p>{description}</p> : null}</div>{actions ? <div className="heading-actions">{actions}</div> : null}</div>{children}</Tile>;
 }
 
 async function environmentStatus(): Promise<EnvironmentStatus> {
@@ -59,23 +99,14 @@ async function addEnvironmentCredit(input: { userId: string; environment: EnvNam
 function Overview() {
   const query = useQuery({ queryKey: ["admin-summary"], queryFn: () => adminApi<Row>("/summary"), refetchInterval: 30000 });
   if (query.isPending) return <Loading />;
-  if (query.isError) return <div className="alert alert-error">{errorText(query.error)}</div>;
+  if (query.isError) return <ErrorNotice error={query.error} />;
   const counts = query.data?.counts || {};
   const revenue = query.data?.revenue || {};
-  return <>
-    <div className="stats-grid">
-      <div><span>Users</span><strong>{counts.users || 0}</strong></div>
-      <div><span>Domains</span><strong>{counts.domains || 0}</strong></div>
-      <div><span>Orders</span><strong>{counts.orders || 0}</strong></div>
-      <div><span>Jobs</span><strong>{counts.jobs || 0}</strong></div>
-      <div><span>Customer-credit revenue</span><strong>{formatMoney(revenue.paidUsd || 0)}</strong></div>
-    </div>
-    {(query.data?.issues || []).length > 0 && <section className="card"><div className="card-heading"><div><h2>Operational issues</h2><p>Provider, automation and billing issues requiring attention.</p></div></div><div className="activity-list">{query.data.issues.map((item: Row) => <div className="activity-item" key={item.id || item.issue_key}><div className="activity-dot" /><div><strong>{item.title}</strong><p>{item.message}</p><small>{item.severity} · {formatDate(item.updated_at)}</small></div></div>)}</div></section>}
-    <div className="dashboard-grid">
-      <section className="card"><div className="card-heading"><div><h2>Recent orders</h2></div></div>{(query.data?.recentOrders || []).length ? <div className="activity-list">{query.data.recentOrders.map((item: Row) => <div className="activity-item" key={item.id}><div className="activity-dot" /><div><strong>{item.domain_name}</strong><p>{item.type} · {formatMoney(item.price_usd)}</p><Badge value={item.registrar_environment} /> <Badge value={item.status} /></div></div>)}</div> : <Empty text="No orders." />}</section>
-      <section className="card"><div className="card-heading"><div><h2>Recent jobs</h2></div></div>{(query.data?.recentJobs || []).length ? <div className="activity-list">{query.data.recentJobs.map((item: Row) => <div className="activity-item" key={item.id}><div className="activity-dot" /><div><strong>{item.type}</strong><p>{item.last_error || "No error"}</p><Badge value={item.registrar_environment} /> <Badge value={item.status} /></div></div>)}</div> : <Empty text="No background jobs." />}</section>
-    </div>
-  </>;
+  return <div className="carbon-admin-stack">
+    <MetricGrid metrics={[["Users", counts.users || 0], ["Domains", counts.domains || 0], ["Orders", counts.orders || 0], ["Jobs", counts.jobs || 0], ["Customer-credit revenue", formatMoney(revenue.paidUsd || 0)]]} />
+    {(query.data?.issues || []).length > 0 ? <AdminSection title="Operational issues" description="Provider, automation and billing issues requiring attention."><div className="carbon-activity-list">{query.data.issues.map((item: Row) => <Tile className="carbon-admin-activity" key={item.id || item.issue_key}><div><strong>{item.title}</strong><p>{item.message}</p><small>{item.severity} · {formatDate(item.updated_at)}</small></div><Badge value={item.severity} /></Tile>)}</div></AdminSection> : null}
+    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={4} lg={8}><AdminSection title="Recent orders">{(query.data?.recentOrders || []).length ? <div className="carbon-activity-list">{query.data.recentOrders.map((item: Row) => <Tile className="carbon-admin-activity" key={item.id}><div><strong>{item.domain_name}</strong><p>{item.type} · {formatMoney(item.price_usd)}</p></div><div className="heading-actions"><Badge value={item.registrar_environment} /><Badge value={item.status} /></div></Tile>)}</div> : <Empty text="No orders." />}</AdminSection></Column><Column sm={4} md={4} lg={8}><AdminSection title="Recent jobs">{(query.data?.recentJobs || []).length ? <div className="carbon-activity-list">{query.data.recentJobs.map((item: Row) => <Tile className="carbon-admin-activity" key={item.id}><div><strong>{item.type}</strong><p>{item.last_error || "No error"}</p></div><div className="heading-actions"><Badge value={item.registrar_environment} /><Badge value={item.status} /></div></Tile>)}</div> : <Empty text="No background jobs." />}</AdminSection></Column></Grid>
+  </div>;
 }
 
 function Users() {
@@ -83,20 +114,8 @@ function Users() {
   const query = useQuery({ queryKey: ["admin-users"], queryFn: () => adminApi<{ users: Row[] }>("/users") });
   const meQuery = useQuery({ queryKey: ["admin-me"], queryFn: () => api<{ user: Row }>("/me") });
   const envQuery = useQuery({ queryKey: ["admin-environment-status"], queryFn: environmentStatus, refetchInterval: 30000 });
-  const update = useMutation({
-    mutationFn: ({ id, body }: { id: string; body: Row }) => adminApi(`/users/${id}`, { method: "PATCH", body }),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["admin-users"] });
-      client.invalidateQueries({ queryKey: ["admin-me"] });
-    },
-  });
-  const credit = useMutation({
-    mutationFn: addEnvironmentCredit,
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ["admin-users"] });
-      client.invalidateQueries({ queryKey: ["admin-environment-status"] });
-    },
-  });
+  const update = useMutation({ mutationFn: ({ id, body }: { id: string; body: Row }) => adminApi(`/users/${id}`, { method: "PATCH", body }), onSuccess: () => { client.invalidateQueries({ queryKey: ["admin-users"] }); client.invalidateQueries({ queryKey: ["admin-me"] }); } });
+  const credit = useMutation({ mutationFn: addEnvironmentCredit, onSuccess: () => { client.invalidateQueries({ queryKey: ["admin-users"] }); client.invalidateQueries({ queryKey: ["admin-environment-status"] }); } });
   const credits = new Map((envQuery.data?.customerCredits?.rows || []).map((row) => [row.user_id, row]));
   const users = query.data?.users || [];
   const adminCount = users.filter((user) => user.role === "admin").length;
@@ -114,24 +133,30 @@ function Users() {
   };
   const pending = query.isPending || envQuery.isPending || meQuery.isPending;
   const error = query.error || envQuery.error || meQuery.error || update.error || credit.error;
-  return <section className="card"><div className="card-heading"><div><h2>Users and customer credits</h2><p>KmerHosting customer credits are separate from the DomainNameAPI reseller account. DNA reseller balances are read only from the DNA API.</p></div><a className="button button-secondary" href="/admin/environments">DNA balances</a></div>{error && <div className="alert alert-error">{errorText(error)}</div>}<div className="alert alert-info"><strong>Administrator safety:</strong> an administrator cannot suspend or demote their own account. The last administrator and the last active administrator are protected by the backend as well as this interface.</div><div className="alert alert-info"><strong>Balance semantics:</strong> TEST/LIVE values below are KmerHosting customer billing credits. They are not <code>usdBalance</code> from DomainNameAPI.</div>{pending ? <Loading /> : <div className="table-wrap"><table><thead><tr><th>User</th><th>Role</th><th>Status</th><th>TEST customer credit</th><th>LIVE customer credit</th><th>Last login</th><th>Actions</th></tr></thead><tbody>{users.map((user) => {
-    const row = credits.get(user.id);
-    const self = user.id === currentAdminId;
-    const lastAdmin = user.role === "admin" && adminCount <= 1;
-    const lastActiveAdmin = user.role === "admin" && user.status === "active" && activeAdminCount <= 1;
-    const cannotSuspend = user.status === "active" && (self || lastActiveAdmin);
-    const cannotDemote = user.role === "admin" && (self || lastAdmin || lastActiveAdmin);
-    const suspendTitle = self ? "You cannot suspend your own administrator account." : lastActiveAdmin ? "The last active administrator cannot be suspended." : undefined;
-    const demoteTitle = self ? "You cannot convert your own administrator account to a customer." : lastAdmin ? "The last administrator cannot be converted to a customer." : lastActiveAdmin ? "The last active administrator cannot be converted to a customer." : undefined;
-    return <tr key={user.id}><td><strong>{user.full_name}</strong><small className="dns-meta">{user.email}{self ? " · current admin" : ""}</small></td><td><Badge value={user.role} /></td><td><Badge value={user.status} /></td><td>{formatMoney(Number(row?.ote_balance_usd || 0))}</td><td>{formatMoney(Number(row?.production_balance_usd || 0))}</td><td>{formatDate(user.last_login_at)}</td><td><div className="heading-actions"><button onClick={() => addCredit(user, "ote")}>Credit TEST</button><button onClick={() => addCredit(user, "production")}>Credit LIVE</button><button disabled={cannotSuspend || update.isPending} title={suspendTitle} onClick={() => update.mutate({ id: user.id, body: { status: user.status === "active" ? "suspended" : "active" } })}>{user.status === "active" ? "Suspend" : "Activate"}</button><button disabled={cannotDemote || update.isPending} title={demoteTitle} onClick={() => update.mutate({ id: user.id, body: { role: user.role === "admin" ? "customer" : "admin" } })}>{user.role === "admin" ? "Make customer" : "Make admin"}</button></div></td></tr>;
-  })}</tbody></table></div>}</section>;
+
+  return <AdminSection title="Users and customer credits" description="KmerHosting customer credits are separate from the DomainNameAPI reseller account. DNA reseller balances are read only from the DNA API." actions={<Button kind="secondary" size="sm" href="/admin/environments">DNA balances</Button>} table>
+    {error ? <ErrorNotice error={error} /> : null}
+    <InlineNotification kind="info" lowContrast hideCloseButton title="Administrator safety" subtitle="An administrator cannot suspend or demote their own account. The last administrator and last active administrator are protected by both backend and interface." />
+    <InlineNotification kind="info" lowContrast hideCloseButton title="Balance semantics" subtitle="TEST/LIVE values below are KmerHosting customer billing credits, not DomainNameAPI usdBalance." />
+    {pending ? <Loading /> : <Table size="lg"><TableHead><TableRow><TableHeader>User</TableHeader><TableHeader>Role</TableHeader><TableHeader>Status</TableHeader><TableHeader>TEST customer credit</TableHeader><TableHeader>LIVE customer credit</TableHeader><TableHeader>Last login</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{users.map((user) => {
+      const row = credits.get(user.id);
+      const self = user.id === currentAdminId;
+      const lastAdmin = user.role === "admin" && adminCount <= 1;
+      const lastActiveAdmin = user.role === "admin" && user.status === "active" && activeAdminCount <= 1;
+      const cannotSuspend = user.status === "active" && (self || lastActiveAdmin);
+      const cannotDemote = user.role === "admin" && (self || lastAdmin || lastActiveAdmin);
+      const suspendTitle = self ? "You cannot suspend your own administrator account." : lastActiveAdmin ? "The last active administrator cannot be suspended." : undefined;
+      const demoteTitle = self ? "You cannot convert your own administrator account to a customer." : lastAdmin ? "The last administrator cannot be converted to a customer." : lastActiveAdmin ? "The last active administrator cannot be converted to a customer." : undefined;
+      return <TableRow key={user.id}><TableCell><strong>{user.full_name}</strong><small className="dns-meta">{user.email}{self ? " · current admin" : ""}</small></TableCell><TableCell><Badge value={user.role} /></TableCell><TableCell><Badge value={user.status} /></TableCell><TableCell>{formatMoney(Number(row?.ote_balance_usd || 0))}</TableCell><TableCell>{formatMoney(Number(row?.production_balance_usd || 0))}</TableCell><TableCell>{formatDate(user.last_login_at)}</TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => addCredit(user, "ote")}>Credit TEST</Button><Button kind="ghost" size="sm" onClick={() => addCredit(user, "production")}>Credit LIVE</Button><Button kind="ghost" size="sm" disabled={cannotSuspend || update.isPending} title={suspendTitle} onClick={() => update.mutate({ id: user.id, body: { status: user.status === "active" ? "suspended" : "active" } })}>{user.status === "active" ? "Suspend" : "Activate"}</Button><Button kind="ghost" size="sm" disabled={cannotDemote || update.isPending} title={demoteTitle} onClick={() => update.mutate({ id: user.id, body: { role: user.role === "admin" ? "customer" : "admin" } })}>{user.role === "admin" ? "Make customer" : "Make admin"}</Button></div></TableCell></TableRow>;
+    })}</TableBody></Table>}
+  </AdminSection>;
 }
 
 function Orders() {
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["admin-orders"], queryFn: () => adminApi<{ orders: Row[] }>("/orders"), refetchInterval: 20000 });
   const action = useMutation({ mutationFn: ({ id, action, body }: { id: string; action: string; body?: Row }) => adminApi(`/orders/${id}/${action}`, { method: "POST", body: body || {} }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-orders"] }) });
-  return <section className="card"><div className="card-heading"><div><h2>Domain orders</h2><p>Orders use KmerHosting customer credit for billing, while provider capacity is checked directly against the DNA <code>usdBalance</code> for the order environment.</p></div></div>{(query.isError || action.isError) && <div className="alert alert-error">{errorText(query.error || action.error)}</div>}{query.isPending ? <Loading /> : <div className="table-wrap"><table><thead><tr><th>Order</th><th>Customer</th><th>Domain</th><th>Type</th><th>Environment</th><th>Price</th><th>Status</th><th>Provider quote</th><th>Actions</th></tr></thead><tbody>{(query.data?.orders || []).map((order) => <tr key={order.id}><td>{order.order_number}<small className="dns-meta">{formatDate(order.created_at)}</small></td><td>{order.domain_users?.email || "—"}</td><td><strong>{order.domain_name}</strong></td><td>{order.type}</td><td><Badge value={order.registrar_environment} /></td><td>{formatMoney(order.price_usd)}</td><td><Badge value={order.status} />{order.failure_message && <small className="dns-meta">{order.failure_message}</small>}</td><td>{order.provider_quote_id ? "yes" : "no"}</td><td><div className="heading-actions">{["failed", "processing", "paid"].includes(order.status) && order.provider_quote_id && <button onClick={() => action.mutate({ id: order.id, action: "retry" })}>Retry</button>}{["pending_payment", "payment_pending"].includes(order.status) && <button onClick={() => window.confirm("Cancel this unpaid order?") && action.mutate({ id: order.id, action: "cancel", body: { reason: "Cancelled by administrator" } })}>Cancel</button>}{["paid", "processing", "failed"].includes(order.status) && <button onClick={() => window.confirm("Refund this paid order to the customer credit in the same environment?") && action.mutate({ id: order.id, action: "refund", body: { reason: "Refunded by administrator" } })}>Refund</button>}</div></td></tr>)}</tbody></table></div>}</section>;
+  return <AdminSection title="Domain orders" description="Orders use KmerHosting customer credit for billing, while provider capacity is checked directly against DNA usdBalance for the order environment." table>{query.isError || action.isError ? <ErrorNotice error={query.error || action.error} /> : null}{query.isPending ? <Loading /> : <Table size="lg"><TableHead><TableRow><TableHeader>Order</TableHeader><TableHeader>Customer</TableHeader><TableHeader>Domain</TableHeader><TableHeader>Type</TableHeader><TableHeader>Environment</TableHeader><TableHeader>Price</TableHeader><TableHeader>Status</TableHeader><TableHeader>Provider quote</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{(query.data?.orders || []).map((order) => <TableRow key={order.id}><TableCell>{order.order_number}<small className="dns-meta">{formatDate(order.created_at)}</small></TableCell><TableCell>{order.domain_users?.email || "—"}</TableCell><TableCell><strong>{order.domain_name}</strong></TableCell><TableCell>{order.type}</TableCell><TableCell><Badge value={order.registrar_environment} /></TableCell><TableCell>{formatMoney(order.price_usd)}</TableCell><TableCell><Badge value={order.status} />{order.failure_message ? <small className="dns-meta">{order.failure_message}</small> : null}</TableCell><TableCell>{order.provider_quote_id ? "yes" : "no"}</TableCell><TableCell><div className="heading-actions">{["failed", "processing", "paid"].includes(order.status) && order.provider_quote_id ? <Button kind="ghost" size="sm" onClick={() => action.mutate({ id: order.id, action: "retry" })}>Retry</Button> : null}{["pending_payment", "payment_pending"].includes(order.status) ? <Button kind="danger--ghost" size="sm" onClick={() => window.confirm("Cancel this unpaid order?") && action.mutate({ id: order.id, action: "cancel", body: { reason: "Cancelled by administrator" } })}>Cancel</Button> : null}{["paid", "processing", "failed"].includes(order.status) ? <Button kind="danger--ghost" size="sm" onClick={() => window.confirm("Refund this paid order to the customer credit in the same environment?") && action.mutate({ id: order.id, action: "refund", body: { reason: "Refunded by administrator" } })}>Refund</Button> : null}</div></TableCell></TableRow>)}</TableBody></Table>}</AdminSection>;
 }
 
 function Domains() {
@@ -139,19 +164,19 @@ function Domains() {
   const query = useQuery({ queryKey: ["admin-domains"], queryFn: () => adminApi<{ domains: Row[] }>("/domains"), refetchInterval: 30000 });
   const sync = useMutation({ mutationFn: (id: string) => adminApi(`/domains/${id}/sync`, { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-domains"] }) });
   const update = useMutation({ mutationFn: ({ id, body }: { id: string; body: Row }) => adminApi(`/domains/${id}`, { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-domains"] }) });
-  return <section className="card"><div className="card-heading"><div><h2>Managed domains</h2><p>Every provider operation uses the immutable environment stored on the domain.</p></div><a className="button button-secondary" href="/admin/provider">Reconcile provider</a></div>{(query.isError || sync.isError || update.isError) && <div className="alert alert-error">{errorText(query.error || sync.error || update.error)}</div>}{query.isPending ? <Loading /> : <div className="table-wrap"><table><thead><tr><th>Domain</th><th>Owner</th><th>Environment</th><th>Status</th><th>Expires</th><th>Lock</th><th>Privacy</th><th>Nameservers</th><th>Actions</th></tr></thead><tbody>{(query.data?.domains || []).map((domain) => <tr key={domain.id}><td><strong>{domain.domain_name}</strong><small className="dns-meta">{domain.registrar_domain_id || "no provider id"}</small></td><td>{domain.domain_users?.email || "—"}</td><td><Badge value={domain.registrar_environment} /></td><td><Badge value={domain.status} /></td><td>{formatDate(domain.expires_at)}</td><td>{domain.locked ? "on" : "off"}</td><td>{domain.privacy_enabled ? "on" : "off"}</td><td>{(domain.nameservers || []).join(", ")}</td><td><div className="heading-actions"><button onClick={() => sync.mutate(domain.id)}>Sync</button><button onClick={() => update.mutate({ id: domain.id, body: { locked: !domain.locked } })}>{domain.locked ? "Unlock" : "Lock"}</button><button onClick={() => update.mutate({ id: domain.id, body: { privacyEnabled: !domain.privacy_enabled } })}>{domain.privacy_enabled ? "Disable privacy" : "Enable privacy"}</button></div></td></tr>)}</tbody></table></div>}</section>;
+  return <AdminSection title="Managed domains" description="Every provider operation uses the immutable environment stored on the domain." actions={<Button kind="secondary" size="sm" href="/admin/provider">Reconcile provider</Button>} table>{query.isError || sync.isError || update.isError ? <ErrorNotice error={query.error || sync.error || update.error} /> : null}{query.isPending ? <Loading /> : <Table size="lg"><TableHead><TableRow><TableHeader>Domain</TableHeader><TableHeader>Owner</TableHeader><TableHeader>Environment</TableHeader><TableHeader>Status</TableHeader><TableHeader>Expires</TableHeader><TableHeader>Lock</TableHeader><TableHeader>Privacy</TableHeader><TableHeader>Nameservers</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{(query.data?.domains || []).map((domain) => <TableRow key={domain.id}><TableCell><strong>{domain.domain_name}</strong><small className="dns-meta">{domain.registrar_domain_id || "no provider id"}</small></TableCell><TableCell>{domain.domain_users?.email || "—"}</TableCell><TableCell><Badge value={domain.registrar_environment} /></TableCell><TableCell><Badge value={domain.status} /></TableCell><TableCell>{formatDate(domain.expires_at)}</TableCell><TableCell>{domain.locked ? "on" : "off"}</TableCell><TableCell>{domain.privacy_enabled ? "on" : "off"}</TableCell><TableCell>{(domain.nameservers || []).join(", ")}</TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => sync.mutate(domain.id)}>Sync</Button><Button kind="ghost" size="sm" onClick={() => update.mutate({ id: domain.id, body: { locked: !domain.locked } })}>{domain.locked ? "Unlock" : "Lock"}</Button><Button kind="ghost" size="sm" onClick={() => update.mutate({ id: domain.id, body: { privacyEnabled: !domain.privacy_enabled } })}>{domain.privacy_enabled ? "Disable privacy" : "Enable privacy"}</Button></div></TableCell></TableRow>)}</TableBody></Table>}</AdminSection>;
 }
 
 function Payments() {
   const query = useQuery({ queryKey: ["admin-payments"], queryFn: () => adminApi<{ payments: Row[] }>("/payments") });
-  return <section className="card"><div className="card-heading"><div><h2>Customer-credit payment history</h2><p>These rows describe KmerHosting customer billing. They do not represent deposits into the DomainNameAPI reseller account.</p></div></div>{query.isPending ? <Loading /> : query.isError ? <div className="alert alert-error">{errorText(query.error)}</div> : <div className="table-wrap"><table><thead><tr><th>Date</th><th>Order</th><th>Environment</th><th>Provider</th><th>Method</th><th>USD amount</th><th>Status</th></tr></thead><tbody>{(query.data?.payments || []).map((payment) => <tr key={payment.id}><td>{formatDate(payment.created_at)}</td><td>{payment.domain_orders?.order_number || "—"}<small className="dns-meta">{payment.domain_orders?.domain_name}</small></td><td><Badge value={payment.registrar_environment || payment.domain_orders?.registrar_environment} /></td><td>{payment.provider}</td><td>{payment.payment_method || "—"}</td><td>{formatMoney(payment.amount_usd || 0)}</td><td><Badge value={payment.status} /></td></tr>)}</tbody></table></div>}</section>;
+  return <AdminSection title="Customer-credit payment history" description="These rows describe KmerHosting customer billing. They do not represent deposits into the DomainNameAPI reseller account." table>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <Table size="lg"><TableHead><TableRow><TableHeader>Date</TableHeader><TableHeader>Order</TableHeader><TableHeader>Environment</TableHeader><TableHeader>Provider</TableHeader><TableHeader>Method</TableHeader><TableHeader>USD amount</TableHeader><TableHeader>Status</TableHeader></TableRow></TableHead><TableBody>{(query.data?.payments || []).map((payment) => <TableRow key={payment.id}><TableCell>{formatDate(payment.created_at)}</TableCell><TableCell>{payment.domain_orders?.order_number || "—"}<small className="dns-meta">{payment.domain_orders?.domain_name}</small></TableCell><TableCell><Badge value={payment.registrar_environment || payment.domain_orders?.registrar_environment} /></TableCell><TableCell>{payment.provider}</TableCell><TableCell>{payment.payment_method || "—"}</TableCell><TableCell>{formatMoney(payment.amount_usd || 0)}</TableCell><TableCell><Badge value={payment.status} /></TableCell></TableRow>)}</TableBody></Table>}</AdminSection>;
 }
 
 function Jobs() {
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["admin-jobs"], queryFn: () => adminApi<{ jobs: Row[] }>("/jobs"), refetchInterval: 15000 });
   const retry = useMutation({ mutationFn: (id: string) => adminApi(`/jobs/${id}/retry`, { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-jobs"] }) });
-  return <section className="card"><div className="card-heading"><div><h2>Automation jobs</h2><p>Each job keeps the environment inherited from its order/domain. OTE jobs cannot be retried against LIVE and LIVE jobs cannot be retried against OTE.</p></div><a className="button button-secondary" href="/admin/cron">Cron status</a></div>{(query.isError || retry.isError) && <div className="alert alert-error">{errorText(query.error || retry.error)}</div>}{query.isPending ? <Loading /> : <div className="table-wrap"><table><thead><tr><th>Job</th><th>Environment</th><th>Order</th><th>Status</th><th>Attempts</th><th>Run after</th><th>Error</th><th>Action</th></tr></thead><tbody>{(query.data?.jobs || []).map((job) => <tr key={job.id}><td>{job.type}</td><td><Badge value={job.registrar_environment} /></td><td>{job.domain_orders?.order_number || job.domain_orders?.domain_name || "—"}</td><td><Badge value={job.status} /></td><td>{job.attempts}/{job.max_attempts}</td><td>{formatDate(job.run_after)}</td><td>{job.last_error || "—"}</td><td>{["failed", "dead"].includes(job.status) && <button onClick={() => retry.mutate(job.id)}>Retry</button>}</td></tr>)}</tbody></table></div>}</section>;
+  return <AdminSection title="Automation jobs" description="Each job keeps the environment inherited from its order/domain. OTE jobs cannot be retried against LIVE and LIVE jobs cannot be retried against OTE." actions={<Button kind="secondary" size="sm" href="/admin/cron">Cron status</Button>} table>{query.isError || retry.isError ? <ErrorNotice error={query.error || retry.error} /> : null}{query.isPending ? <Loading /> : <Table size="lg"><TableHead><TableRow><TableHeader>Job</TableHeader><TableHeader>Environment</TableHeader><TableHeader>Order</TableHeader><TableHeader>Status</TableHeader><TableHeader>Attempts</TableHeader><TableHeader>Run after</TableHeader><TableHeader>Error</TableHeader><TableHeader>Action</TableHeader></TableRow></TableHead><TableBody>{(query.data?.jobs || []).map((job) => <TableRow key={job.id}><TableCell>{job.type}</TableCell><TableCell><Badge value={job.registrar_environment} /></TableCell><TableCell>{job.domain_orders?.order_number || job.domain_orders?.domain_name || "—"}</TableCell><TableCell><Badge value={job.status} /></TableCell><TableCell>{job.attempts}/{job.max_attempts}</TableCell><TableCell>{formatDate(job.run_after)}</TableCell><TableCell>{job.last_error || "—"}</TableCell><TableCell>{["failed", "dead"].includes(job.status) ? <Button kind="ghost" size="sm" onClick={() => retry.mutate(job.id)}>Retry</Button> : null}</TableCell></TableRow>)}</TableBody></Table>}</AdminSection>;
 }
 
 function Settings() {
@@ -161,12 +186,7 @@ function Settings() {
   const save = useMutation({ mutationFn: (body: Row) => adminApi("/settings", { method: "PATCH", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-settings"] }) });
   const switchEnvironment = useMutation({
     mutationFn: async (environment: EnvName) => {
-      const response = await fetch("/api/environment-switch", {
-        method: "POST",
-        credentials: "include",
-        headers: { "Content-Type": "application/json", Accept: "application/json" },
-        body: JSON.stringify({ environment, confirm: environment }),
-      });
+      const response = await fetch("/api/environment-switch", { method: "POST", credentials: "include", headers: { "Content-Type": "application/json", Accept: "application/json" }, body: JSON.stringify({ environment, confirm: environment }) });
       const payload = await response.json().catch(() => ({}));
       if (!response.ok) throw new Error(payload.message || payload.error || `Environment switch failed (${response.status}).`);
       return payload;
@@ -183,7 +203,7 @@ function Settings() {
     save.mutate({ supportEmail: data.supportEmail, maintenanceMode: data.maintenanceMode === "on", providerLowBalanceThresholdUsd: Number(data.providerLowBalanceThresholdUsd), defaultNameservers: String(data.defaultNameservers || "").split(/[\n,]+/).map((item) => item.trim()).filter(Boolean) });
   };
   if (query.isPending || envQuery.isPending) return <Loading />;
-  if (query.isError || envQuery.isError) return <div className="alert alert-error">{errorText(query.error || envQuery.error)}</div>;
+  if (query.isError || envQuery.isError) return <ErrorNotice error={query.error || envQuery.error} />;
   const settings = query.data?.settings || {};
   const checkoutEnvironment = envQuery.data?.config?.customer_checkout_environment || settings.customer_checkout_environment || settings.registrar_environment || "production";
   const switchTo = (environment: EnvName) => {
@@ -193,13 +213,29 @@ function Settings() {
       : "Switch the full NEW-ORDER platform to LIVE / PRODUCTION?\n\nAvailability search, bulk search, quotes and NEW paid registrar operations will use DomainNameAPI production and can spend REAL provider funds. Existing TEST records remain TEST. Maintenance mode is not changed.";
     if (window.confirm(message)) switchEnvironment.mutate(environment);
   };
-  return <section className="card"><div className="card-heading"><div><h2>Platform settings</h2><p>New operations use one explicit platform environment. Existing domains, orders, DNS records and jobs keep their immutable original environment.</p></div><a className="button button-secondary" href="/admin/environments">Environment details & balances</a></div><form className="form-stack" onSubmit={submit}><label>Support email<input name="supportEmail" type="email" defaultValue={settings.support_email} required /></label><label>Provider low-balance threshold (USD)<input name="providerLowBalanceThresholdUsd" type="number" min="0" step="0.01" defaultValue={settings.provider_low_balance_threshold_usd || 0} /></label><label>Default nameservers<textarea name="defaultNameservers" defaultValue={(settings.default_nameservers || []).join("\n")} required /></label><label><input name="maintenanceMode" type="checkbox" defaultChecked={Boolean(settings.maintenance_mode)} /> Maintenance mode</label><section className="card"><div className="card-heading"><div><h3>Full platform environment</h3><p>This switch changes the registrar environment used for all NEW availability searches, bulk searches, quotes and orders. It does not convert existing records and does not change maintenance mode.</p></div></div><div className="heading-actions"><button type="button" className={checkoutEnvironment === "ote" ? "button button-primary" : "button button-secondary"} disabled={checkoutEnvironment === "ote" || switchEnvironment.isPending} onClick={() => switchTo("ote")}>{checkoutEnvironment === "ote" ? "TEST / OTE — CURRENT" : "Switch full platform to TEST / OTE"}</button><button type="button" className={checkoutEnvironment === "production" ? "button button-primary" : "button button-secondary"} disabled={checkoutEnvironment === "production" || switchEnvironment.isPending} onClick={() => switchTo("production")}>{checkoutEnvironment === "production" ? "LIVE / PRODUCTION — CURRENT" : "Switch full platform to LIVE / PRODUCTION"}</button></div>{switchEnvironment.isSuccess && <div className="alert alert-success">Platform environment switched successfully.</div>}{switchEnvironment.isError && <div className="alert alert-error">{errorText(switchEnvironment.error)}</div>}</section><div className="stats-grid"><div><span>New-operation environment</span><strong>{checkoutEnvironment === "ote" ? "TEST / OTE" : "LIVE / PRODUCTION"}</strong></div><div><span>Provider balance source</span><strong>DomainNameAPI usdBalance</strong></div><div><span>Customer billing</span><strong>KmerHosting customer credit</strong></div></div><div className="alert alert-info"><code>tryBalance</code> is the DNA TRY/TL currency balance. It is never used to represent TEST mode.</div><button className="button button-primary" disabled={save.isPending}>Save settings</button>{save.isSuccess && <div className="alert alert-success">Settings saved.</div>}{save.isError && <div className="alert alert-error">{errorText(save.error)}</div>}</form></section>;
+
+  return <AdminSection title="Platform settings" description="New operations use one explicit platform environment. Existing domains, orders, DNS records and jobs keep their immutable original environment." actions={<Button kind="secondary" size="sm" href="/admin/environments">Environment details & balances</Button>}>
+    <form className="carbon-form-stack" onSubmit={submit}>
+      <TextInput id="admin-support-email" name="supportEmail" type="email" labelText="Support email" defaultValue={settings.support_email} required />
+      <TextInput id="admin-low-balance" name="providerLowBalanceThresholdUsd" type="number" labelText="Provider low-balance threshold (USD)" min={0} step="0.01" defaultValue={settings.provider_low_balance_threshold_usd || 0} />
+      <TextArea id="admin-default-nameservers" name="defaultNameservers" labelText="Default nameservers" defaultValue={(settings.default_nameservers || []).join("\n")} required />
+      <Checkbox id="admin-maintenance" name="maintenanceMode" labelText="Maintenance mode" defaultChecked={Boolean(settings.maintenance_mode)} />
+
+      <Tile className="carbon-admin-settings-tile"><div className="card-heading"><div><h3>Full platform environment</h3><p>This switch changes the registrar environment used for all NEW availability searches, bulk searches, quotes and orders. It does not convert existing records and does not change maintenance mode.</p></div></div><div className="heading-actions"><Button type="button" kind={checkoutEnvironment === "ote" ? "primary" : "secondary"} disabled={checkoutEnvironment === "ote" || switchEnvironment.isPending} onClick={() => switchTo("ote")}>{checkoutEnvironment === "ote" ? "TEST / OTE — CURRENT" : "Switch full platform to TEST / OTE"}</Button><Button type="button" kind={checkoutEnvironment === "production" ? "primary" : "secondary"} disabled={checkoutEnvironment === "production" || switchEnvironment.isPending} onClick={() => switchTo("production")}>{checkoutEnvironment === "production" ? "LIVE / PRODUCTION — CURRENT" : "Switch full platform to LIVE / PRODUCTION"}</Button></div>{switchEnvironment.isSuccess ? <InlineNotification kind="success" lowContrast hideCloseButton title="Platform environment switched" subtitle="New operations now use the selected registrar environment." /> : null}{switchEnvironment.isError ? <ErrorNotice error={switchEnvironment.error} /> : null}</Tile>
+
+      <MetricGrid metrics={[["New-operation environment", checkoutEnvironment === "ote" ? "TEST / OTE" : "LIVE / PRODUCTION"], ["Provider balance source", "DomainNameAPI usdBalance"], ["Customer billing", "KmerHosting customer credit"]]} />
+      <InlineNotification kind="info" lowContrast hideCloseButton title="TRY balance" subtitle="tryBalance is the DNA TRY/TL currency balance. It is never used to represent TEST mode." />
+      <Button type="submit" disabled={save.isPending}>Save settings</Button>
+      {save.isSuccess ? <InlineNotification kind="success" lowContrast hideCloseButton title="Settings saved" subtitle="The domain platform settings were updated." /> : null}
+      {save.isError ? <ErrorNotice error={save.error} /> : null}
+    </form>
+  </AdminSection>;
 }
 
 export default function AdminPage() {
   const [tab, setTab] = useState<Tab>("overview");
   if (!getSession()) {
-    window.location.href = "/login";
+    window.location.href = "/auth";
     return null;
   }
   const tabs: { id: Tab; label: string }[] = [
@@ -211,5 +247,5 @@ export default function AdminPage() {
     { id: "jobs", label: "Jobs" },
     { id: "settings", label: "Settings" },
   ];
-  return <main className="admin-main"><div className="admin-topbar"><a href="/dashboard">← Customer dashboard</a><nav className="admin-nav-inline"><a href="/admin/environments">TEST / LIVE</a><a href="/admin/provider">Provider</a><a href="/admin/operations">Operations</a><a href="/admin/tlds">TLDs</a><a href="/admin/logs">Logs</a><a href="/admin/cron">Crons</a></nav></div><div className="page-heading"><div><span className="kicker">KmerHosting Domains</span><h1>Administration</h1><p>Environment-scoped DomainNameAPI operations with DNA as the only source of truth for registrar funds. Customer billing credit is tracked separately.</p></div></div><div className="admin-tabs">{tabs.map((item) => <button key={item.id} className={tab === item.id ? "active" : ""} onClick={() => setTab(item.id)}>{item.label}</button>)}</div>{tab === "overview" && <Overview />}{tab === "users" && <Users />}{tab === "orders" && <Orders />}{tab === "domains" && <Domains />}{tab === "payments" && <Payments />}{tab === "jobs" && <Jobs />}{tab === "settings" && <Settings />}</main>;
+  return <main className="admin-main carbon-admin-page"><div className="page-heading carbon-page-heading"><div><span className="kicker">KmerHosting Domains</span><h1>Administration</h1><p>Environment-scoped registrar operations with DomainNameAPI as the source of truth for registrar funds. Customer billing credit is tracked separately.</p></div></div><div className="carbon-admin-tabs" role="tablist" aria-label="Administration sections">{tabs.map((item) => <Button key={item.id} kind={tab === item.id ? "secondary" : "ghost"} size="sm" role="tab" aria-selected={tab === item.id} onClick={() => setTab(item.id)}>{item.label}</Button>)}</div><div className="carbon-admin-stack" role="tabpanel">{tab === "overview" ? <Overview /> : null}{tab === "users" ? <Users /> : null}{tab === "orders" ? <Orders /> : null}{tab === "domains" ? <Domains /> : null}{tab === "payments" ? <Payments /> : null}{tab === "jobs" ? <Jobs /> : null}{tab === "settings" ? <Settings /> : null}</div></main>;
 }
