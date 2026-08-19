@@ -1,0 +1,104 @@
+@use '@carbon/react/scss/spacing' as spacing;
+@use '@carbon/react/scss/type' as type;
+@use '@carbon/react/scss/breakpoint' as breakpoint;
+
+.carbon-native-page {
+  display: grid;
+  gap: spacing.$spacing-06;
+}
+
+.carbon-native-page > .cds--inline-notification,
+.carbon-dashboard-panel > .cds--inline-notification {
+  max-inline-size: none;
+}
+
+.carbon-notification-row,
+.carbon-action-tile,
+.carbon-quote {
+  border-block-start: 1px solid var(--cds-border-subtle-01);
+  background: var(--cds-layer-02);
+}
+
+.carbon-notification-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: spacing.$spacing-05;
+  padding: spacing.$spacing-05;
+}
+
+.carbon-notification-row > div {
+  display: grid;
+  gap: spacing.$spacing-02;
+}
+
+.carbon-notification-row p,
+.carbon-notification-row small,
+.carbon-action-tile p,
+.carbon-quote small {
+  color: var(--cds-text-secondary);
+}
+
+.carbon-action-grid {
+  row-gap: spacing.$spacing-05;
+}
+
+.carbon-action-tile {
+  min-block-size: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: spacing.$spacing-04;
+  padding: spacing.$spacing-05;
+}
+
+.carbon-action-tile .cds--btn {
+  margin-block-start: auto;
+}
+
+.carbon-glue-form,
+.carbon-contact-assignment {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: spacing.$spacing-04;
+  align-items: end;
+  margin-block-end: spacing.$spacing-06;
+}
+
+@include breakpoint.breakpoint('md') {
+  .carbon-glue-form {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) auto;
+  }
+
+  .carbon-contact-assignment {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+}
+
+.carbon-quote {
+  display: grid;
+  gap: spacing.$spacing-03;
+  margin-block-start: spacing.$spacing-05;
+  padding: spacing.$spacing-05;
+}
+
+.carbon-quote > span {
+  @include type.type-style('heading-05');
+}
+
+.khd-admin-tools-output {
+  max-inline-size: 100%;
+  overflow: auto;
+  margin: 0;
+  padding: spacing.$spacing-05;
+  background: var(--cds-layer-02);
+  color: var(--cds-text-primary);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  @include type.type-style('code-01');
+}
+
+.carbon-table-section small.dns-meta {
+  display: block;
+  margin-block-start: spacing.$spacing-02;
+}
