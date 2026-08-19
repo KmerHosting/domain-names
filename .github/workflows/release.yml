@@ -63,13 +63,12 @@ jobs:
           cat > release-notes.md <<EOF
           KmerHosting Domains $VERSION
 
-          - Rebuilds the domain portal around the canonical Carbon application shell used by KmerHosting Dashboard.
-          - Migrates customer, DNS, lifecycle, provider and administration screens to official Carbon React components.
-          - Aligns the application with Carbon g10 light and g90 dark themes, responsive breakpoints, semantic tokens and productive motion.
-          - Adds the Carbon Header, HeaderPanel, SideNav rail and SkipToContent navigation pattern across customer and admin experiences.
-          - Removes lucide-react from production dependencies and locks migration debt at zero native React controls/tables and zero Lucide imports.
-          - Preserves registrar, wallet/customer-credit billing, OTE/production isolation, DNS operations, SSO, order guards and admin safety rules.
-          - Includes automated Carbon source/style and shell-layout audits in CI.
+          - Applies Carbon g10/g90 theme tokens to the rendered app root and restores readable light/dark contrast across legacy and Carbon surfaces.
+          - Fixes inverse footer and CTA foreground/link colors with Carbon semantic inverse tokens.
+          - Aligns browser-facing Edge Functions with KmerHosting opaque domain-session authentication, preventing Supabase Invalid JWT gateway rejection while preserving per-function session and role validation.
+          - Adds the canonical Customer dashboard link to the administration sidebar.
+          - Preserves registrar environment isolation, wallet/customer-credit billing, DNS ownership checks, order guards and administrator safety rules.
+          - Includes automated Carbon contrast/shell and domain-session gateway audits in CI.
           EOF
 
       - name: Publish release
