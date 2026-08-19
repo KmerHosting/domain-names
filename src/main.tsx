@@ -15,6 +15,7 @@ import "./styles.css";
 import "./admin.css";
 import "./router-compat.css";
 import "./platform-sync.css";
+import "./carbon-admin-alignment.scss";
 import "./carbon-alignment.scss";
 
 const queryClient = new QueryClient({
