@@ -1,4 +1,23 @@
-import { FormEvent, ReactNode, useEffect, useMemo, useState } from "react";
+import {
+  Button,
+  Column,
+  Grid,
+  InlineLoading,
+  InlineNotification,
+  Select,
+  SelectItem,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Tag,
+  TextArea,
+  TextInput,
+  Tile,
+} from "@carbon/react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { dnsToolsApi, formatDate } from "./api";
 
 type Row = Record<string, any>;
@@ -39,13 +58,18 @@ function emptyRecord(): RecordFormState {
   return { name: "@", type: "A", value: "", ttl: "3600", priority: "10", weight: "0", port: "", target: "", flag: "0", tag: "issue" };
 }
 
-function Badge({ value }: { value?: string | null }) {
-  const text = String(value || "unknown");
-  return <span className={`status status-${text.toLowerCase().replaceAll("_", "-")}`}>{text.replaceAll("_", " ")}</span>;
+function tagType(value?: string | null): "green" | "red" | "warm-gray" | "blue" | "gray" {
+  const text = String(value || "unknown").toLowerCase().replaceAll("_", "-");
+  if (text.includes("active") || text.includes("synced") || text === "live") return "green";
+  if (text.includes("failed") || text.includes("error")) return "red";
+  if (text.includes("pending") || text.includes("retry")) return "warm-gray";
+  if (text.includes("ote") || text.includes("test") || text.includes("external")) return "blue";
+  return "gray";
 }
 
-function Field({ label, children }: { label: string; children: ReactNode }) {
-  return <label>{label}{children}</label>;
+function Badge({ value }: { value?: string | null }) {
+  const text = String(value || "unknown");
+  return <Tag type={tagType(text)}>{text.replaceAll("_", " ")}</Tag>;
 }
 
 function payload(form: RecordFormState): Row {
@@ -65,11 +89,11 @@ function formFromRecord(record: Row): RecordFormState {
     value: content,
     ttl: String(record.ttl || 3600),
     priority: String(record.priority ?? 10),
-    weight: "0",
-    port: "",
-    target: "",
-    flag: "0",
-    tag: "issue",
+    weight: String(record.weight ?? 0),
+    port: String(record.port ?? ""),
+    target: String(record.target ?? ""),
+    flag: String(record.flag ?? 0),
+    tag: String(record.tag ?? "issue"),
   };
 }
 
@@ -108,11 +132,8 @@ export function DnsSettingsPage() {
   const submitRecord = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     await run("record", async () => {
-      if (editingId) {
-        await dnsToolsApi(`/domains/${domainId}/records/${editingId}`, { method: "PUT", body: payload(record) });
-      } else {
-        await dnsToolsApi(`/domains/${domainId}/records`, { method: "POST", body: payload(record) });
-      }
+      if (editingId) await dnsToolsApi(`/domains/${domainId}/records/${editingId}`, { method: "PUT", body: payload(record) });
+      else await dnsToolsApi(`/domains/${domainId}/records`, { method: "POST", body: payload(record) });
       setEditingId(null);
       setRecord(emptyRecord());
     });
@@ -121,62 +142,42 @@ export function DnsSettingsPage() {
   const type = record.type.toUpperCase();
   const env = state?.domain.environment || "production";
 
-  return <main className="dashboard-main native-page-main"><div className="dashboard-content">
-    <div className="page-heading">
-      <div>
-        <a className="back-link" href={`/dashboard/domains/${domainId}`}>← Domain</a>
-        <div className="title-with-status"><h1>DNS settings</h1><span className={env === "ote" ? "status status-pending" : "status status-active"}>{env === "ote" ? "TEST / OTE" : "LIVE"}</span></div>
-        <p>{state?.domain.domainName || "Domain DNS management"}</p>
-      </div>
-      <div className="heading-actions">
-        <button className="button button-secondary" disabled={Boolean(busy)} onClick={() => run("sync", () => dnsToolsApi(`/domains/${domainId}/sync`, { method: "POST" }))}>Sync from provider</button>
-        <button className="button button-secondary" disabled={Boolean(busy)} onClick={() => load().catch((caught) => setError(errorText(caught)))}>Refresh</button>
-      </div>
+  return <main className="dashboard-content carbon-dns-page">
+    <div className="page-heading carbon-page-heading">
+      <div><a className="back-link" href={`/dashboard/domains/${domainId}`}>← Domain</a><div className="title-with-status"><h1>DNS settings</h1><Tag type={env === "ote" ? "blue" : "green"}>{env === "ote" ? "TEST / OTE" : "LIVE"}</Tag></div><p>{state?.domain.domainName || "Domain DNS management"}</p></div>
+      <div className="heading-actions"><Button kind="secondary" disabled={Boolean(busy)} onClick={() => void run("sync", () => dnsToolsApi(`/domains/${domainId}/sync`, { method: "POST" }))}>Sync from provider</Button><Button kind="ghost" disabled={Boolean(busy)} onClick={() => void load().catch((caught) => setError(errorText(caught)))}>Refresh</Button></div>
     </div>
 
-    {env === "ote" && <div className="alert alert-warning"><strong>Test domain.</strong> DNS changes are sent only to DomainNameAPI OTE and cannot affect the production registrar balance.</div>}
-    {state?.providerError && <div className="alert alert-warning"><strong>Provider sync failed.</strong> {state.providerError}. Local records remain visible and were not deleted.</div>}
-    {state?.warning && <div className="alert alert-warning"><strong>Nameserver warning.</strong> {state.warning}</div>}
-    {error && <div className="alert alert-error">{error}</div>}
+    {env === "ote" ? <InlineNotification kind="warning" lowContrast hideCloseButton title="Test domain" subtitle="DNS changes are sent only to DomainNameAPI OTE and cannot affect the production registrar balance." /> : null}
+    {state?.providerError ? <InlineNotification kind="warning" lowContrast hideCloseButton title="Provider sync failed" subtitle={`${state.providerError}. Local records remain visible and were not deleted.`} /> : null}
+    {state?.warning ? <InlineNotification kind="warning" lowContrast hideCloseButton title="Nameserver warning" subtitle={state.warning} /> : null}
+    {error ? <InlineNotification kind="error" lowContrast hideCloseButton title="DNS operation failed" subtitle={error} /> : null}
 
-    {!state ? <div className="loading">Loading DNS settings…</div> : <div className="dns-settings-grid">
-      <section className="card">
-        <div className="card-heading"><div><h2>Nameservers</h2><p>DomainNameAPI accepts between 2 and 13 nameservers.</p></div><Badge value={state.managedDns ? "managed_dns_active" : "external_dns"} /></div>
-        <div className="form-stack">
-          {nameservers.map((value, index) => <div className="dns-add-row" key={index}>
-            <input value={value} onChange={(event) => setNameservers(nameservers.map((item, position) => position === index ? event.target.value : item))} placeholder={`ns${index + 1}.example.com`} />
-            <button type="button" className="button button-secondary" disabled={nameservers.length <= 2} onClick={() => setNameservers(nameservers.filter((_, position) => position !== index))}>Remove</button>
-          </div>)}
-          <div className="heading-actions">
-            <button type="button" className="button button-secondary" disabled={nameservers.length >= 13} onClick={() => setNameservers([...nameservers, ""])}>Add nameserver</button>
-            <button type="button" className="button button-primary" disabled={Boolean(busy)} onClick={() => run("nameservers", () => dnsToolsApi(`/domains/${domainId}/nameservers`, { method: "PUT", body: { nameServers: nameservers.filter(Boolean) } }))}>Save nameservers</button>
-          </div>
+    {!state ? <InlineLoading description="Loading DNS settings…" /> : <Grid fullWidth className="carbon-dns-grid">
+      <Column sm={4} md={8} lg={8}><Tile className="carbon-dns-panel"><div className="card-heading"><div><h2>Nameservers</h2><p>DomainNameAPI accepts between 2 and 13 nameservers.</p></div><Badge value={state.managedDns ? "managed_dns_active" : "external_dns"} /></div>
+        <div className="carbon-form-stack">{nameservers.map((value, index) => <div className="carbon-inline-field" key={index}><TextInput id={`dns-ns-${index}`} labelText={`Nameserver ${index + 1}`} value={value} onChange={(event) => setNameservers(nameservers.map((item, position) => position === index ? event.target.value : item))} placeholder={`ns${index + 1}.example.com`} /><Button type="button" kind="danger--ghost" size="sm" disabled={nameservers.length <= 2} onClick={() => setNameservers(nameservers.filter((_, position) => position !== index))}>Remove</Button></div>)}
+          <div className="heading-actions"><Button type="button" kind="tertiary" size="sm" disabled={nameservers.length >= 13} onClick={() => setNameservers([...nameservers, ""])}>Add nameserver</Button><Button type="button" disabled={Boolean(busy)} onClick={() => void run("nameservers", () => dnsToolsApi(`/domains/${domainId}/nameservers`, { method: "PUT", body: { nameServers: nameservers.filter(Boolean) } }))}>Save nameservers</Button></div>
         </div>
-      </section>
+      </Tile></Column>
 
-      <section className="card">
-        <div className="card-heading"><div><h2>{editingId ? "Edit DNS record" : "Add DNS record"}</h2><p>Records are validated locally, sent to DomainNameAPI, then applied to the zone.</p></div></div>
-        <form className="form-stack" onSubmit={submitRecord}>
-          <div className="form-row">
-            <Field label="Name"><input value={record.name} onChange={(event) => setRecord({ ...record, name: event.target.value })} required /></Field>
-            <Field label="Type"><select value={type} onChange={(event) => setRecord({ ...emptyRecord(), name: record.name, type: event.target.value })}>{["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"].map((item) => <option key={item}>{item}</option>)}</select></Field>
-            <Field label="TTL"><input type="number" min="1" max="86400" value={record.ttl} onChange={(event) => setRecord({ ...record, ttl: event.target.value })} required /></Field>
-          </div>
-          {type === "MX" && <div className="form-row"><Field label="Priority"><input type="number" min="0" max="65535" value={record.priority} onChange={(event) => setRecord({ ...record, priority: event.target.value })} /></Field><Field label="Mail server"><input value={record.target} onChange={(event) => setRecord({ ...record, target: event.target.value })} required /></Field></div>}
-          {type === "SRV" && <><div className="form-row"><Field label="Priority"><input type="number" value={record.priority} onChange={(event) => setRecord({ ...record, priority: event.target.value })} /></Field><Field label="Weight"><input type="number" value={record.weight} onChange={(event) => setRecord({ ...record, weight: event.target.value })} /></Field><Field label="Port"><input type="number" min="1" max="65535" value={record.port} onChange={(event) => setRecord({ ...record, port: event.target.value })} required /></Field></div><Field label="Target"><input value={record.target} onChange={(event) => setRecord({ ...record, target: event.target.value })} required /></Field></>}
-          {type === "CAA" && <div className="form-row"><Field label="Flag"><input type="number" min="0" max="255" value={record.flag} onChange={(event) => setRecord({ ...record, flag: event.target.value })} /></Field><Field label="Tag"><select value={record.tag} onChange={(event) => setRecord({ ...record, tag: event.target.value })}><option>issue</option><option>issuewild</option><option>iodef</option></select></Field><Field label="Value"><input value={record.value} onChange={(event) => setRecord({ ...record, value: event.target.value })} required /></Field></div>}
-          {!['MX', 'SRV', 'CAA'].includes(type) && <Field label={type === "TXT" ? "Value" : "Value(s)"}><textarea value={record.value} onChange={(event) => setRecord({ ...record, value: event.target.value })} placeholder="One value per line or comma separated" required /></Field>}
-          <div className="heading-actions"><button className="button button-primary" disabled={busy === "record"}>{editingId ? "Save record" : "Add record"}</button>{editingId && <button type="button" className="button button-secondary" onClick={() => { setEditingId(null); setRecord(emptyRecord()); }}>Cancel</button>}</div>
+      <Column sm={4} md={8} lg={8}><Tile className="carbon-dns-panel"><div className="card-heading"><div><h2>{editingId ? "Edit DNS record" : "Add DNS record"}</h2><p>Records are validated locally, sent to the provider, then applied to the zone.</p></div></div>
+        <form className="carbon-form-stack" onSubmit={submitRecord}>
+          <Grid condensed><Column sm={4} md={3} lg={6}><TextInput id="dns-record-name" labelText="Name" value={record.name} onChange={(event) => setRecord({ ...record, name: event.target.value })} required /></Column><Column sm={4} md={2} lg={4}><Select id="dns-record-type" labelText="Type" value={type} onChange={(event) => setRecord({ ...emptyRecord(), name: record.name, type: event.target.value })}>{["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"].map((item) => <SelectItem key={item} value={item} text={item} />)}</Select></Column><Column sm={4} md={3} lg={6}><TextInput id="dns-record-ttl" type="number" labelText="TTL" min={1} max={86400} value={record.ttl} onChange={(event) => setRecord({ ...record, ttl: event.target.value })} required /></Column></Grid>
+
+          {type === "MX" ? <Grid condensed><Column sm={4} md={4} lg={8}><TextInput id="dns-mx-priority" type="number" labelText="Priority" min={0} max={65535} value={record.priority} onChange={(event) => setRecord({ ...record, priority: event.target.value })} /></Column><Column sm={4} md={4} lg={8}><TextInput id="dns-mx-target" labelText="Mail server" value={record.target} onChange={(event) => setRecord({ ...record, target: event.target.value })} required /></Column></Grid> : null}
+
+          {type === "SRV" ? <><Grid condensed><Column sm={4} md={2} lg={5}><TextInput id="dns-srv-priority" type="number" labelText="Priority" value={record.priority} onChange={(event) => setRecord({ ...record, priority: event.target.value })} /></Column><Column sm={4} md={2} lg={5}><TextInput id="dns-srv-weight" type="number" labelText="Weight" value={record.weight} onChange={(event) => setRecord({ ...record, weight: event.target.value })} /></Column><Column sm={4} md={4} lg={6}><TextInput id="dns-srv-port" type="number" labelText="Port" min={1} max={65535} value={record.port} onChange={(event) => setRecord({ ...record, port: event.target.value })} required /></Column></Grid><TextInput id="dns-srv-target" labelText="Target" value={record.target} onChange={(event) => setRecord({ ...record, target: event.target.value })} required /></> : null}
+
+          {type === "CAA" ? <Grid condensed><Column sm={4} md={2} lg={4}><TextInput id="dns-caa-flag" type="number" labelText="Flag" min={0} max={255} value={record.flag} onChange={(event) => setRecord({ ...record, flag: event.target.value })} /></Column><Column sm={4} md={2} lg={4}><Select id="dns-caa-tag" labelText="Tag" value={record.tag} onChange={(event) => setRecord({ ...record, tag: event.target.value })}><SelectItem value="issue" text="issue" /><SelectItem value="issuewild" text="issuewild" /><SelectItem value="iodef" text="iodef" /></Select></Column><Column sm={4} md={4} lg={8}><TextInput id="dns-caa-value" labelText="Value" value={record.value} onChange={(event) => setRecord({ ...record, value: event.target.value })} required /></Column></Grid> : null}
+
+          {!['MX', 'SRV', 'CAA'].includes(type) ? <TextArea id="dns-record-value" labelText={type === "TXT" ? "Value" : "Value(s)"} value={record.value} onChange={(event) => setRecord({ ...record, value: event.target.value })} placeholder="One value per line or comma separated" required /> : null}
+          <div className="heading-actions"><Button type="submit" disabled={busy === "record"}>{editingId ? "Save record" : "Add record"}</Button>{editingId ? <Button type="button" kind="secondary" onClick={() => { setEditingId(null); setRecord(emptyRecord()); }}>Cancel</Button> : null}</div>
         </form>
-      </section>
+      </Tile></Column>
 
-      <section className="card">
-        <div className="card-heading"><div><h2>DNS records</h2><p>{state.records.length} record(s) stored after provider synchronization.</p></div></div>
-        {state.records.length ? <div className="table-wrap"><table><thead><tr><th>Name</th><th>Type</th><th>Value</th><th>TTL</th><th>Status</th><th>Source</th><th>Synced</th><th>Actions</th></tr></thead><tbody>{state.records.map((item) => <tr key={item.id}>
-          <td>{item.name}</td><td><span className="record-type">{item.type}</span></td><td className="mono">{Array.isArray(item.contents) ? item.contents.join(", ") : "—"}</td><td>{item.ttl}</td><td><Badge value={item.status} /></td><td>{item.source || "local"}</td><td>{formatDate(item.synced_at || item.updated_at)}</td>
-          <td><div className="heading-actions"><button className="button button-secondary" onClick={() => { setEditingId(item.id); setRecord(formFromRecord(item)); }}>Edit</button><button className="button button-secondary" disabled={Boolean(busy)} onClick={() => run(`retry-${item.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${item.id}`, { method: "PUT", body: payload(formFromRecord(item)) }))}>Retry</button><button className="button button-secondary" disabled={Boolean(busy)} onClick={() => window.confirm(`Delete ${item.type} ${item.name}?`) && run(`delete-${item.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${item.id}`, { method: "DELETE" }))}>Delete</button></div></td>
-        </tr>)}</tbody></table></div> : <div className="empty-state"><h3>No DNS records</h3><p>Add a record or retry provider synchronization.</p></div>}
-      </section>
-    </div>}
-  </div></main>;
+      <Column sm={4} md={8} lg={16}><Tile className="carbon-dns-panel carbon-table-section"><div className="card-heading"><div><h2>DNS records</h2><p>{state.records.length} record(s) stored after provider synchronization.</p></div></div>
+        {state.records.length ? <Table size="lg"><TableHead><TableRow><TableHeader>Name</TableHeader><TableHeader>Type</TableHeader><TableHeader>Value</TableHeader><TableHeader>TTL</TableHeader><TableHeader>Status</TableHeader><TableHeader>Source</TableHeader><TableHeader>Synced</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{state.records.map((item) => <TableRow key={item.id}><TableCell>{item.name}</TableCell><TableCell><Tag type="cool-gray">{item.type}</Tag></TableCell><TableCell>{Array.isArray(item.contents) ? item.contents.join(", ") : "—"}</TableCell><TableCell>{item.ttl}</TableCell><TableCell><Badge value={item.status} /></TableCell><TableCell>{item.source || "local"}</TableCell><TableCell>{formatDate(item.synced_at || item.updated_at)}</TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => { setEditingId(item.id); setRecord(formFromRecord(item)); }}>Edit</Button><Button kind="ghost" size="sm" disabled={Boolean(busy)} onClick={() => void run(`retry-${item.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${item.id}`, { method: "PUT", body: payload(formFromRecord(item)) }))}>Retry</Button><Button kind="danger--ghost" size="sm" disabled={Boolean(busy)} onClick={() => window.confirm(`Delete ${item.type} ${item.name}?`) && void run(`delete-${item.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${item.id}`, { method: "DELETE" }))}>Delete</Button></div></TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No DNS records</h3><p>Add a record or retry provider synchronization.</p></Tile>}
+      </Tile></Column>
+    </Grid>}
+  </main>;
 }
