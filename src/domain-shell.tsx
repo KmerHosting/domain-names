@@ -94,6 +94,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
   const pathname = window.location.pathname;
   const privateShell = isPrivateShell(pathname);
   const adminShell = pathname.startsWith("/admin");
+  const onCustomerDashboard = pathname.startsWith("/dashboard");
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
@@ -194,7 +195,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                 <div className="domain-header-panel__actions">
                   {session ? (
                     <>
-                      {adminShell ? <Button kind="ghost" size="sm" href={CUSTOMER_DASHBOARD_URL} renderIcon={Dashboard}>Customer dashboard</Button> : null}
+                      {!onCustomerDashboard ? <Button kind="ghost" size="sm" href={CUSTOMER_DASHBOARD_URL} renderIcon={Dashboard}>Customer dashboard</Button> : null}
                       {!adminShell && isAdmin ? <Button kind="ghost" size="sm" href="/admin" renderIcon={Dashboard}>Administration</Button> : null}
                       <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/?view=account" renderIcon={Settings}>Central account</Button>
                       <Button kind="ghost" size="sm" renderIcon={Logout} onClick={() => void logOut()}>Sign out</Button>
