@@ -41,6 +41,11 @@ const protectedFunctions = [
   "domain-tld-provider-sync",
 ];
 
+const automationFunctions = [
+  "domain-jobs-v2",
+  "domain-automation-v2",
+];
+
 function sectionFor(name) {
   const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
   const match = config.match(new RegExp(`\\[functions\\.${escaped}\\]([\\s\\S]*?)(?=\\n\\[|$)`));
@@ -70,6 +75,27 @@ for (const name of protectedFunctions) {
   }
 }
 
+for (const name of automationFunctions) {
+  const section = sectionFor(name);
+  if (!section) {
+    violations.push(`Missing Supabase function configuration section for ${name}.`);
+    continue;
+  }
+  if (!/verify_jwt\s*=\s*false/.test(section)) {
+    violations.push(`${name} must use verify_jwt=false because cron requests authenticate inside the function with x-domain-cron-secret.`);
+  }
+
+  const sourcePath = path.join(root, "supabase/functions", name, "index.ts");
+  if (!fs.existsSync(sourcePath)) {
+    violations.push(`Missing automation function source: ${name}.`);
+    continue;
+  }
+  const source = fs.readFileSync(sourcePath, "utf8");
+  for (const required of ["x-domain-cron-secret", "domain_internal_cron_secret"]) {
+    if (!source.includes(required)) violations.push(`${name} is missing internal automation authentication marker: ${required}.`);
+  }
+}
+
 const publicSearch = fs.readFileSync(path.join(root, "supabase/functions/domain-search-fast/index.ts"), "utf8");
 for (const required of ["domain_rate_limits", "bulk-domain-search", "checkoutEnvironment"]) {
   if (!publicSearch.includes(required)) violations.push(`domain-search-fast is missing public-search protection/config marker: ${required}.`);
@@ -81,4 +107,4 @@ if (violations.length) {
   process.exit(1);
 }
 
-console.log(`Domain session gateway audit passed: ${browserFunctions.length} browser APIs bypass Supabase JWT interception and protected APIs retain KmerHosting session validation.`);
+console.log(`Domain session gateway audit passed: ${browserFunctions.length} browser APIs bypass Supabase JWT interception, protected APIs retain KmerHosting session validation, and ${automationFunctions.length} cron workers retain custom-secret authentication.`);

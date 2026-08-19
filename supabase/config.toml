@@ -56,3 +56,12 @@ verify_jwt = false
 
 [functions.domain-tld-provider-sync]
 verify_jwt = false
+
+# Internal automation endpoints authenticate with x-domain-cron-secret rather
+# than a Supabase Auth JWT. The Edge gateway must let those requests reach the
+# function body, where domain_internal_cron_secret is validated.
+[functions.domain-jobs-v2]
+verify_jwt = false
+
+[functions.domain-automation-v2]
+verify_jwt = false
