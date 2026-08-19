@@ -1,4 +1,16 @@
-import { Button, InlineLoading, InlineNotification, Tag, Tile } from "@carbon/react";
+import {
+  Button,
+  InlineLoading,
+  InlineNotification,
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+  Tag,
+  Tile,
+} from "@carbon/react";
 import { useEffect, useState } from "react";
 
 type Env = "ote" | "production";
@@ -137,7 +149,7 @@ export function AdminEnvironmentsPage() {
         </Tile>;
       })}</div>
 
-      <section className="card">
+      <Tile className="carbon-admin-section carbon-table-section">
         <div className="card-heading"><div><h2>KmerHosting customer credits</h2><p>These credits pay customer orders. They are not DomainNameAPI reseller funds.</p></div></div>
         <InlineNotification
           kind="info"
@@ -146,24 +158,24 @@ export function AdminEnvironmentsPage() {
           title="Credits are environment-specific"
           subtitle="TEST credit pays only OTE orders. LIVE credit pays only production orders. Every order is independently checked against the real DomainNameAPI usdBalance."
         />
-        <div className="table-wrap"><table><thead><tr><th>User</th><th>TEST credit</th><th>LIVE credit</th><th>Actions</th></tr></thead><tbody>{data.customerCredits.rows.map((user) => <tr key={user.user_id}>
-          <td><strong>{user.email}</strong><small>{user.role} · {user.status}</small></td>
-          <td className="test-credit">{money(user.ote_balance_usd)}</td>
-          <td className="live-credit">{money(user.production_balance_usd)}</td>
-          <td><div className="heading-actions">
+        <Table size="lg"><TableHead><TableRow><TableHeader>User</TableHeader><TableHeader>TEST credit</TableHeader><TableHeader>LIVE credit</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{data.customerCredits.rows.map((user) => <TableRow key={user.user_id}>
+          <TableCell><strong>{user.email}</strong><small>{user.role} · {user.status}</small></TableCell>
+          <TableCell className="test-credit">{money(user.ote_balance_usd)}</TableCell>
+          <TableCell className="live-credit">{money(user.production_balance_usd)}</TableCell>
+          <TableCell><div className="heading-actions">
             <Button kind="ghost" size="sm" disabled={busy} onClick={() => void addCredit(user, "ote")}>Add TEST credit</Button>
             <Button kind="ghost" size="sm" disabled={busy} onClick={() => void addCredit(user, "production")}>Add LIVE credit</Button>
-          </div></td>
-        </tr>)}</tbody></table></div>
-      </section>
+          </div></TableCell>
+        </TableRow>)}</TableBody></Table>
+      </Tile>
 
-      <section className="card">
+      <Tile className="carbon-admin-section">
         <h2>Source-of-truth rules</h2>
         <p><strong>OTE registrar funds:</strong> {data.semantics.oteProviderBalance}</p>
         <p><strong>LIVE registrar funds:</strong> {data.semantics.liveProviderBalance}</p>
         <p><strong>tryBalance:</strong> {data.semantics.tryBalance}</p>
         <p><strong>Customer credit:</strong> {data.semantics.customerCredit}</p>
-      </section>
+      </Tile>
     </>}
   </main>;
 }
