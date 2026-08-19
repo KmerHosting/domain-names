@@ -6,6 +6,7 @@ import {
   Loading,
   SkeletonPlaceholder,
   SkeletonText,
+  Theme,
   Tile,
 } from "@carbon/react";
 import {
@@ -144,9 +145,11 @@ export function DomainCarbonExperience({ children }: { children: ReactNode }) {
 
   return <ThemeContext.Provider value={context}>
     <GlobalTheme theme={theme}>
-      <Suspense fallback={<DomainLoadingScreen />}>
-        <div key={locationKey} className="domain-route-stage">{children}</div>
-      </Suspense>
+      <Theme theme={theme} className="domain-theme-root">
+        <Suspense fallback={<DomainLoadingScreen />}>
+          <div key={locationKey} className="domain-route-stage">{children}</div>
+        </Suspense>
+      </Theme>
     </GlobalTheme>
   </ThemeContext.Provider>;
 }
