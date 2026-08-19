@@ -47,9 +47,18 @@ const dashboardNavigation: NavItem[] = [
   { href: "/dashboard/profile", label: "Profile", icon: Settings },
 ];
 
+const adminNavigation: NavItem[] = [
+  { href: "/admin", label: "Administration", icon: Dashboard, exact: true },
+  { href: "/admin/environments", label: "Environments", icon: Settings },
+  { href: "/admin/provider", label: "Provider", icon: Application },
+  { href: "/admin/operations", label: "Operations", icon: Application },
+  { href: "/admin/tlds", label: "TLDs", icon: Application },
+  { href: "/admin/logs", label: "Logs", icon: Application },
+  { href: "/admin/cron", label: "Crons", icon: Application },
+];
+
 function useDomainSession() {
   const [session, setSession] = useState<Session | null>(() => getSession());
-
   useEffect(() => subscribeSession(() => setSession(getSession())), []);
   return session;
 }
@@ -62,11 +71,27 @@ function isPrivateShell(pathname: string) {
   return pathname.startsWith("/dashboard") || pathname.startsWith("/admin");
 }
 
+function NavigationLink({ item, pathname }: { item: NavItem; pathname: string }) {
+  const Icon = item.icon;
+  const active = isActivePath(item, pathname);
+  return (
+    <SideNavLink
+      href={item.href}
+      isActive={active}
+      aria-current={active ? "page" : undefined}
+      renderIcon={Icon}
+    >
+      {item.label}
+    </SideNavLink>
+  );
+}
+
 export function DomainApplicationShell({ children }: { children: ReactNode }) {
   const { isDark, toggleTheme } = useDomainTheme();
   const session = useDomainSession();
   const pathname = window.location.pathname;
   const privateShell = isPrivateShell(pathname);
+  const adminShell = pathname.startsWith("/admin");
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
 
   const logOut = async () => {
@@ -80,7 +105,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
       <HeaderContainer
         render={({ isSideNavExpanded, onClickSideNavExpand }) => (
           <>
-            <Header aria-label="KmerHosting Domains">
+            <Header aria-label={adminShell ? "KmerHosting Domains administration" : "KmerHosting Domains"}>
               <SkipToContent href="#main-content" />
               {privateShell ? (
                 <HeaderMenuButton
@@ -91,7 +116,9 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                   onClick={onClickSideNavExpand}
                 />
               ) : null}
-              <HeaderName href="/" prefix="KmerHosting">Domains</HeaderName>
+              <HeaderName href={adminShell ? "/admin" : "/"} prefix="KmerHosting">
+                {adminShell ? "Domains Admin" : "Domains"}
+              </HeaderName>
 
               {!privateShell ? (
                 <HeaderNavigation aria-label="KmerHosting Domains">
@@ -117,7 +144,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                 >
                   <Help size={20} />
                 </HeaderGlobalAction>
-                {session ? (
+                {session && !adminShell ? (
                   <HeaderGlobalAction
                     aria-label="Notifications"
                     tooltipAlignment="end"
@@ -144,13 +171,13 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
             >
               <div className="domain-header-panel__content">
                 <div className="domain-header-panel__heading">
-                  <h2>{session ? "Domain account" : "KmerHosting Account"}</h2>
-                  <p>{session ? "Your domain service session is active." : "Use your central account to access domain services."}</p>
+                  <h2>{adminShell ? "Administration" : session ? "Domain account" : "KmerHosting Account"}</h2>
+                  <p>{adminShell ? "Domain registrar administration tools." : session ? "Your domain service session is active." : "Use your central account to access domain services."}</p>
                 </div>
                 <div className="domain-header-panel__actions">
                   {session ? (
                     <>
-                      <Button kind="ghost" size="sm" href="/dashboard" renderIcon={Dashboard}>Domain dashboard</Button>
+                      {adminShell ? <Button kind="ghost" size="sm" href="/dashboard" renderIcon={Dashboard}>Customer dashboard</Button> : null}
                       <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/?view=account" renderIcon={Settings}>Central account</Button>
                       <Button kind="ghost" size="sm" renderIcon={Logout} onClick={() => void logOut()}>Sign out</Button>
                     </>
@@ -170,51 +197,35 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                 isRail
                 expanded={isSideNavExpanded}
                 isChildOfHeader
-                aria-label="KmerHosting Domains navigation"
+                aria-label={adminShell ? "Domain administration navigation" : "KmerHosting Domains navigation"}
                 className="domain-carbon-sidenav"
                 onOverlayClick={isSideNavExpanded ? onClickSideNavExpand : undefined}
               >
                 <SideNavItems>
-                  {dashboardNavigation.slice(0, 4).map((item) => {
-                    const Icon = item.icon;
-                    const active = isActivePath(item, pathname);
-                    return (
+                  {adminShell ? (
+                    <>
+                      {adminNavigation.slice(0, 4).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
+                      <SideNavDivider />
+                      {adminNavigation.slice(4).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
+                      <SideNavDivider />
+                      <SideNavLink href="/dashboard" renderIcon={Dashboard}>Customer dashboard</SideNavLink>
+                    </>
+                  ) : (
+                    <>
+                      {dashboardNavigation.slice(0, 4).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
+                      <SideNavDivider />
+                      {dashboardNavigation.slice(4).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
+                      <SideNavDivider />
                       <SideNavLink
-                        key={item.href}
-                        href={item.href}
-                        isActive={active}
-                        aria-current={active ? "page" : undefined}
-                        renderIcon={Icon}
+                        href="/dashboard/notifications"
+                        isActive={pathname === "/dashboard/notifications"}
+                        aria-current={pathname === "/dashboard/notifications" ? "page" : undefined}
+                        renderIcon={Notification}
                       >
-                        {item.label}
+                        Notifications
                       </SideNavLink>
-                    );
-                  })}
-                  <SideNavDivider />
-                  {dashboardNavigation.slice(4).map((item) => {
-                    const Icon = item.icon;
-                    const active = isActivePath(item, pathname);
-                    return (
-                      <SideNavLink
-                        key={item.href}
-                        href={item.href}
-                        isActive={active}
-                        aria-current={active ? "page" : undefined}
-                        renderIcon={Icon}
-                      >
-                        {item.label}
-                      </SideNavLink>
-                    );
-                  })}
-                  <SideNavDivider />
-                  <SideNavLink
-                    href="/dashboard/notifications"
-                    isActive={pathname === "/dashboard/notifications"}
-                    aria-current={pathname === "/dashboard/notifications" ? "page" : undefined}
-                    renderIcon={Notification}
-                  >
-                    Notifications
-                  </SideNavLink>
+                    </>
+                  )}
                 </SideNavItems>
               </SideNav>
             ) : null}
