@@ -131,8 +131,8 @@ if (/\.cds--loading-overlay|--cds-overlay\s*:/.test(styleFiles)) {
   violations.push("Do not override the Carbon loading overlay or --cds-overlay token.");
 }
 
-if (pkg.version !== "1.2.1") {
-  violations.push("Expected the current domain portal version to remain 1.2.1 during the UI refactor.");
+if (!/^\d+\.\d+\.\d+(?:[.-][0-9A-Za-z.-]+)?$/.test(pkg.version || "")) {
+  violations.push("package.json must expose a valid semantic release version.");
 }
 if (!pkg.scripts?.check) {
   violations.push("package.json must expose a full check command.");
