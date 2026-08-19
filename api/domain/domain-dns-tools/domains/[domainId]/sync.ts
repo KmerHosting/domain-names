@@ -1,2 +1,2 @@
 export const config = { runtime: "edge" };
-export { default } from "../../../../../lib/domain-dns-proxy";
+export { default } from "../../../../../lib/domain-dns-proxy.js";
