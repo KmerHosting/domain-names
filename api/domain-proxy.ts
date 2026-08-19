@@ -132,11 +132,11 @@ async function responseFromUpstream(upstream: Response, service: string, upstrea
       headers.append("Set-Cookie", sessionCookie(String(payload.session.token), payload.session.expiresAt));
       payload.session = { expiresAt: payload.session.expiresAt, mode: "httpOnlyCookie" };
     }
-    if (isLogout || upstream.status === 401) headers.append("Set-Cookie", clearCookie());
+    if (isLogout) headers.append("Set-Cookie", clearCookie());
     return new Response(JSON.stringify(payload), { status: upstream.status, headers });
   }
 
-  if (isLogout || upstream.status === 401) headers.append("Set-Cookie", clearCookie());
+  if (isLogout) headers.append("Set-Cookie", clearCookie());
   return new Response(await upstream.arrayBuffer(), { status: upstream.status, headers });
 }
 
@@ -154,7 +154,7 @@ export default async function handler(req: Request): Promise<Response> {
     ) {
       return jsonResponse({
         error: "external_payments_removed",
-        message: `External checkout has been removed. Pay from your USD account balance or contact ${SUPPORT_EMAIL} for a manual credit.`,
+        message: `External checkout has been removed. Pay from the USD account balance or contact ${SUPPORT_EMAIL} for a manual credit.`,
         supportEmail: SUPPORT_EMAIL,
       }, 410);
     }
