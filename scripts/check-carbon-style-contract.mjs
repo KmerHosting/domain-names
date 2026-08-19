@@ -12,6 +12,9 @@ const violations = [];
 if (!pkg.dependencies?.["@carbon/react"]) {
   violations.push("Missing @carbon/react production dependency.");
 }
+if (pkg.dependencies?.["lucide-react"]) {
+  violations.push("lucide-react is not allowed in the Carbon-aligned domain portal; use @carbon/react/icons.");
+}
 if (!pkg.devDependencies?.sass) {
   violations.push("Sass is required for Carbon foundation APIs.");
 }
@@ -113,17 +116,11 @@ const lucideImports = (source.match(/from\s+["']lucide-react["']/g) || []).lengt
 if (/<style(?:\s|>)/.test(source)) {
   violations.push("Inline <style> islands are not allowed in UI source; use Carbon Sass modules and semantic tokens.");
 }
-
-// Legacy route implementations are migrated incrementally. The new global
-// shell is canonical Carbon now, and this debt ceiling prevents regressions
-// while individual forms/tables are converted to Carbon React components.
-const MAX_NATIVE_CONTROL_DEBT = 148;
-const MAX_LUCIDE_IMPORT_DEBT = 2;
-if (nativeControlMatches > MAX_NATIVE_CONTROL_DEBT) {
-  violations.push(`Native control/table migration debt increased from ${MAX_NATIVE_CONTROL_DEBT} to ${nativeControlMatches}.`);
+if (nativeControlMatches !== 0) {
+  violations.push(`Native UI controls/tables are prohibited in React source; found ${nativeControlMatches}. Use @carbon/react components.`);
 }
-if (lucideImports > MAX_LUCIDE_IMPORT_DEBT) {
-  violations.push(`Lucide migration debt increased from ${MAX_LUCIDE_IMPORT_DEBT} to ${lucideImports}.`);
+if (lucideImports !== 0) {
+  violations.push(`Lucide imports are prohibited; found ${lucideImports}. Use @carbon/react/icons.`);
 }
 
 const styleFiles = fs.readdirSync(path.join(root, "src"))
@@ -149,4 +146,4 @@ if (violations.length) {
 
 console.log("Carbon foundation/source alignment OK.");
 console.log("Dashboard-aligned G10/G90 theme and canonical Carbon UI shell are guarded.");
-console.log(`Legacy component migration debt: ${nativeControlMatches} native control/table usages; ${lucideImports} lucide-react import sites.`);
+console.log("Carbon component migration debt: 0 native control/table usages; 0 lucide-react import sites.");
