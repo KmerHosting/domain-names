@@ -118,11 +118,11 @@ async function responseFromUpstream(upstream: Response, service: string, upstrea
       headers.append("Set-Cookie", sessionCookie(String(payload.session.token), payload.session.expiresAt));
       payload.session = { expiresAt: payload.session.expiresAt, mode: "httpOnlyCookie" };
     }
-    if (isLogout || upstream.status === 401) headers.append("Set-Cookie", clearCookie());
+    if (isLogout) headers.append("Set-Cookie", clearCookie());
     return new Response(JSON.stringify(payload), { status: upstream.status, headers });
   }
 
-  if (isLogout || upstream.status === 401) headers.append("Set-Cookie", clearCookie());
+  if (isLogout) headers.append("Set-Cookie", clearCookie());
   return new Response(await upstream.arrayBuffer(), { status: upstream.status, headers });
 }
 
@@ -133,7 +133,6 @@ export default async function handler(req: Request): Promise<Response> {
     const method = req.method.toUpperCase();
     let requestBody = method === "GET" || method === "HEAD" ? undefined : await req.arrayBuffer();
 
-    // External checkout and payment callbacks were removed. Orders are paid only from account balance.
     if (service === "domain-api" && (/^\/orders\/[0-9a-f-]+\/checkout$/i.test(upstreamPath) || upstreamPath === "/webhooks/camerpay")) {
       return jsonResponse({
         error: "external_payments_removed",
@@ -150,7 +149,6 @@ export default async function handler(req: Request): Promise<Response> {
       }, 410);
     }
 
-    // Keep the existing admin UI route, but execute the new atomic manual-wallet credit endpoint.
     const adminCredit = service === "domain-admin" ? upstreamPath.match(/^\/users\/([0-9a-f-]+)\/wallet-credit$/i) : null;
     if (adminCredit && method === "POST") {
       let payload: Record<string, unknown> = {};
@@ -164,15 +162,10 @@ export default async function handler(req: Request): Promise<Response> {
       requestBody = new TextEncoder().encode(JSON.stringify({ ...payload, userId: adminCredit[1] })).buffer;
     }
 
-    // Sensitive administrator user mutations use the hardened endpoint. This prevents
-    // self-suspension/self-demotion and protects the last administrator at the API layer.
     if (service === "domain-admin" && /^\/users\/[0-9a-f-]{36}$/i.test(upstreamPath) && (method === "PATCH" || method === "DELETE")) {
       service = "domain-admin-user-safety";
     }
 
-    // The public UI historically calls /domain-api/domains/check. Route that stable
-    // contract to the dedicated bulk-search service so one user action produces one
-    // DomainNameAPI bulk-search request instead of N sequential availability calls.
     if (service === "domain-api" && upstreamPath === "/domains/check" && method === "POST") {
       service = "domain-search-fast";
       upstreamPath = "/";
