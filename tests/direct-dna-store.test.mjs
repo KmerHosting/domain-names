@@ -15,11 +15,20 @@ test('all DNA catalog operations apply the fixed 30 percent resale markup', asyn
 test('storefront prices and order quotes are read from the live DNA catalog', async () => {
   const search = await read('supabase/functions/domain-search-fast/index.ts')
   const orders = await read('supabase/functions/domain-order-guard/index.ts')
+  const dnaClient = await read('supabase/functions/_shared/dna-client.ts')
   assert.match(search, /\/api\/v1\/products\/tlds/)
+  assert.match(search, /\/api\/v1\/domains\/bulk-search/)
+  assert.doesNotMatch(search, /\/api\/v1\/domains\/search/)
   assert.match(search, /DomainNameAPI live catalog/)
   assert.doesNotMatch(search, /from\("domain_tld_prices"\)/)
+  assert.doesNotMatch(search, /domain_registrar_proxy_env/)
   assert.match(orders, /\/api\/v1\/products\/tlds/)
+  assert.match(orders, /\/api\/v1\/domains\/bulk-search/)
+  assert.doesNotMatch(orders, /\/api\/v1\/domains\/search/)
   assert.doesNotMatch(orders, /domain_tld_period_prices/)
+  assert.doesNotMatch(orders, /domain_registrar_proxy_env/)
+  assert.match(dnaClient, /https:\/\/api\.domainresellerapi\.com/)
+  assert.match(dnaClient, /https:\/\/ote\.domainresellerapi\.com/)
 })
 
 test('OTE skips central charging while LIVE uses the central credit ledger', async () => {

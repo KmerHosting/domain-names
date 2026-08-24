@@ -102,7 +102,7 @@ for (const name of retiredFunctions) {
 }
 
 const publicSearch = fs.readFileSync(path.join(root, "supabase/functions/domain-search-fast/index.ts"), "utf8");
-for (const required of ["domain_rate_limits", "bulk-domain-search", "checkoutEnvironment"]) {
+for (const required of ["domain_rate_limits", "bulk-domain-search", "dnaConfiguration"]) {
   if (!publicSearch.includes(required)) violations.push(`domain-search-fast is missing public-search protection/config marker: ${required}.`);
 }
 

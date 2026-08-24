@@ -1,6 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
 import { exactDnaPrice, normalizeDnaCatalog, type DnaCatalogPrice } from "../_shared/dna-catalog.ts";
+import { directDnaRequest, DnaRequestError } from "../_shared/dna-client.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -124,23 +125,35 @@ function pick(object: any, paths: string[]) {
   return undefined;
 }
 
-function providerMessage(body: Json, status: number) {
-  return clean(pick(body, ["error.message", "error.details", "message", "operationMessage", "reason", "title", "raw"])) || `Domain service request failed (${status}).`;
-}
-
 async function providerRequest(environment: Environment, path: string, method = "GET", body: Json | Json[] | null = null, query: Json = {}) {
-  const { data, error } = await db.rpc("domain_registrar_proxy_env", { p_path: path, p_method: method, p_body: body, p_query: query, p_environment: environment });
-  if (error) throw new HttpError(502, "provider_proxy_failed", error.message, error);
-  const response = data as Json;
-  if (!response || Number(response.status) >= 400) {
-    const status = Number(response?.status || 502);
-    throw new HttpError(status >= 500 ? 502 : status, "provider_error", providerMessage(response?.body || {}, status), response?.body || {});
+  const { data: config, error: configError } = await db.from("domain_config").select("registrar_reseller_id").eq("id", true).single();
+  const resellerId = clean(config?.registrar_reseller_id);
+  const secretName = environment === "production" ? "domain_registrar_api_key" : "domain_registrar_ote_api_key";
+  const { data: secretValue, error: secretError } = await db.rpc("domain_secret", { p_name: secretName });
+  const apiKey = clean(secretValue);
+  if (configError || !resellerId || secretError || !apiKey) {
+    throw new HttpError(503, "registrar_not_configured", `DomainNameAPI ${environment.toUpperCase()} credentials are unavailable.`);
   }
-  return response.body as Json;
+  try {
+    return await directDnaRequest({ environment, resellerId, apiKey, path, method, body, query });
+  } catch (error) {
+    if (error instanceof DnaRequestError) {
+      throw new HttpError(error.status >= 500 ? error.status : error.status || 502, "provider_error", error.message, error.payload);
+    }
+    throw error;
+  }
 }
 
 function searchInfo(payload: Json) { return (payload.info || payload.data?.info || payload.data || payload) as Json; }
 function isAvailable(payload: Json) { const info = searchInfo(payload); const status = clean(info.status ?? payload.status ?? info.available ?? payload.available).toLowerCase().replace(/[\s_-]+/g, ""); return ["available", "true", "1", "free"].includes(status); }
+function bulkSearchResult(payload: Json, domainName: string) {
+  const rows = Array.isArray(payload)
+    ? payload
+    : [payload.infos, payload.data?.infos, payload.items, payload.data?.items].find(Array.isArray) || [];
+  const match = rows.find((item: Json) => clean(item?.domainName || item?.info?.domainName).toLowerCase() === domainName);
+  if (!match) throw new HttpError(502, "provider_search_result_missing", "DomainNameAPI did not return an availability result for this domain.");
+  return match as Json;
+}
 function booleanValue(value: unknown) { return [true, 1, "1", "true", "yes", "enabled", "active"].includes(value as any); }
 function positive(value: unknown) { const number = Number(value); return Number.isFinite(number) && number > 0 ? round2(number) : null; }
 
@@ -271,7 +284,10 @@ async function createOrder(req: Request, operation: Operation) {
     tld = await tldData(environment, domainTld(domainName));
     nameservers = normalizeNameservers(body.nameServers || body.nameservers, cfg.default_nameservers);
     attributes = validateAttributes(tld, body.tldAttributes);
-    providerPayload = await providerRequest(environment, "/api/v1/domains/search", "POST", { domainName });
+    providerPayload = bulkSearchResult(
+      await providerRequest(environment, "/api/v1/domains/bulk-search", "POST", [{ domainName }]),
+      domainName,
+    );
     if (!isAvailable(providerPayload)) throw new HttpError(409, "domain_unavailable", "The domain is not available for registration.", providerPayload);
     const price = exactPeriodPrice(tld, operation, years, environment);
     providerCost = price.providerCostUsd;
