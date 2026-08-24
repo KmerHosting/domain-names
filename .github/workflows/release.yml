@@ -1,85 +1,58 @@
-name: Publish Domains release
+name: Manual Domains release recovery
 
 on:
-  workflow_run:
-    workflows: [CI]
-    types: [completed]
   workflow_dispatch:
+    inputs:
+      ref:
+        description: Git ref to publish
+        required: false
+        default: main
+        type: string
 
 permissions:
   contents: write
 
 concurrency:
-  group: publish-domains-release
+  group: manual-domain-names-release
   cancel-in-progress: false
 
 jobs:
-  publish:
-    if: >-
-      github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' &&
-       github.event.workflow_run.event == 'push' &&
-       github.event.workflow_run.head_branch == 'main')
+  release:
     runs-on: ubuntu-24.04
     env:
       GH_TOKEN: ${{ github.token }}
-      RELEASE_REF: ${{ github.event_name == 'workflow_dispatch' && 'main' || github.event.workflow_run.head_sha }}
+      RELEASE_REF: ${{ inputs.ref || 'main' }}
 
     steps:
-      - name: Check out validated source
+      - name: Check out source
         uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_REF }}
           fetch-depth: 0
 
-      - name: Resolve version
+      - name: Resolve package version
         id: version
         shell: bash
         run: |
           set -Eeuo pipefail
-          VERSION="$(node -p "require('./package.json').version")"
+          VERSION="$(node -p 'require("./package.json").version')"
           [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]]
-          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "tag=v$VERSION" >> "$GITHUB_OUTPUT"
+          printf 'version=%s\n' "$VERSION" >> "$GITHUB_OUTPUT"
+          printf 'tag=v%s\n' "$VERSION" >> "$GITHUB_OUTPUT"
 
-      - name: Check existing release
-        id: existing
+      - name: Publish missing GitHub release
         shell: bash
         env:
           TAG: ${{ steps.version.outputs.tag }}
         run: |
+          set -Eeuo pipefail
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
-            echo "exists=true" >> "$GITHUB_OUTPUT"
-          else
-            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "Release $TAG already exists."
+            exit 0
           fi
-
-      - name: Generate release notes
-        if: steps.existing.outputs.exists != 'true'
-        shell: bash
-        env:
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
-          cat > release-notes.md <<EOF
-          KmerHosting Domains $VERSION
-
-          - Replaces the legacy public footer with the Carbon footer architecture used by KmerHosting/website.
-          - Uses a dedicated g100 footer theme with Carbon semantic tokens for consistent contrast.
-          - Adds responsive footer navigation groups and Carbon accordions on smaller screens.
-          - Adds KmerHosting resource, developer, legal, support and social links while preserving domain-specific navigation.
-          - Preserves custom-session authentication, registrar environment isolation, wallet/customer-credit billing, DNS ownership checks, order guards and administrator safety rules.
-          EOF
-
-      - name: Publish release
-        if: steps.existing.outputs.exists != 'true'
-        shell: bash
-        env:
-          TAG: ${{ steps.version.outputs.tag }}
-          VERSION: ${{ steps.version.outputs.version }}
-        run: |
           gh release create "$TAG" \
             --repo "$GITHUB_REPOSITORY" \
             --target "$RELEASE_REF" \
             --title "$TAG" \
-            --notes-file release-notes.md \
+            --generate-notes \
             --latest
