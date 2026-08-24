@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
+import { directDnaRequest, DnaRequestError } from "../_shared/dna-client.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -130,21 +131,6 @@ function pick(o: any, paths: string[]) {
   }
   return undefined;
 }
-function providerMessage(body: Json, status: number) {
-  return (
-    clean(
-      pick(body, [
-        "error.message",
-        "error.details",
-        "message",
-        "operationMessage",
-        "reason",
-        "title",
-        "raw",
-      ]),
-    ) || `Domain service request failed (${status}).`
-  );
-}
 async function dna(
   environment: Environment,
   path: string,
@@ -152,25 +138,32 @@ async function dna(
   body: Json | Json[] | null = null,
   query: Json = {},
 ) {
-  const { data, error } = await db.rpc("domain_registrar_proxy_env", {
-    p_path: path,
-    p_method: method,
-    p_body: body,
-    p_query: query,
-    p_environment: environment,
-  });
-  if (error)
-    throw new HttpError(502, "provider_proxy_failed", error.message, error);
-  const out = data as Json,
-    status = Number(out?.status || 0);
-  if (!out || status >= 400)
-    throw new HttpError(
-      status >= 500 ? 502 : status || 502,
-      "provider_error",
-      providerMessage(out?.body || {}, status),
-      out?.body || {},
-    );
-  return out.body as Json;
+  const [{ data: config, error: configError }, { data: apiKey, error: secretError }] = await Promise.all([
+    db.from("domain_config").select("registrar_reseller_id").eq("id", true).single(),
+    db.rpc("domain_secret", {
+      p_name: environment === "production" ? "domain_registrar_api_key" : "domain_registrar_ote_api_key",
+    }),
+  ]);
+  const resellerId = clean(config?.registrar_reseller_id);
+  if (configError || secretError || !resellerId || !clean(apiKey)) {
+    throw new HttpError(503, "registrar_not_configured", `DomainNameAPI ${environment.toUpperCase()} credentials are unavailable.`);
+  }
+  try {
+    return await directDnaRequest({
+      environment,
+      resellerId,
+      apiKey: clean(apiKey),
+      path,
+      method,
+      body,
+      query,
+    });
+  } catch (error) {
+    if (error instanceof DnaRequestError) {
+      throw new HttpError(error.status >= 500 ? error.status : error.status || 502, "provider_error", error.message, error.payload);
+    }
+    throw error;
+  }
 }
 function bool(v: unknown) {
   return [
@@ -299,14 +292,13 @@ function contactDto(c: Json, contactType: string) {
     phone: clean(c.phone).replace(/\D/g, "").slice(0, 16),
     faxCountryCode:
       clean(c.fax_country_code).replace(/\D/g, "").slice(0, 3) || null,
-    fax: clean(c.fax).replace(/\D/g, "").slice(0, 15) || null,
+    fax: clean(c.fax).replace(/\D/g, "").slice(0, 15),
     address: clean(c.address).slice(0, 256),
     city: clean(c.city).slice(0, 80),
     state: clean(c.state).slice(0, 80),
     postalCode: clean(c.postal_code).slice(0, 10),
     country: clean(c.country).toUpperCase().slice(0, 2),
-    discloseFlag: false,
-    isEmailVerified: Boolean(c.registrar_verified),
+    isHidden: false,
   };
 }
 function contactRoles(c: Json) {

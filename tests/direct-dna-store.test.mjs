@@ -15,6 +15,7 @@ test('all DNA catalog operations apply the fixed 30 percent resale markup', asyn
 test('storefront prices and order quotes are read from the live DNA catalog', async () => {
   const search = await read('supabase/functions/domain-search-fast/index.ts')
   const orders = await read('supabase/functions/domain-order-guard/index.ts')
+  const jobs = await read('supabase/functions/domain-jobs-v2/index.ts')
   const dnaClient = await read('supabase/functions/_shared/dna-client.ts')
   assert.match(search, /\/api\/v1\/products\/tlds/)
   assert.match(search, /\/api\/v1\/domains\/bulk-search/)
@@ -27,6 +28,9 @@ test('storefront prices and order quotes are read from the live DNA catalog', as
   assert.doesNotMatch(orders, /\/api\/v1\/domains\/search/)
   assert.doesNotMatch(orders, /domain_tld_period_prices/)
   assert.doesNotMatch(orders, /domain_registrar_proxy_env/)
+  assert.match(jobs, /isHidden: false/)
+  assert.doesNotMatch(jobs, /discloseFlag/)
+  assert.doesNotMatch(jobs, /domain_registrar_proxy_env/)
   assert.match(dnaClient, /https:\/\/api\.domainresellerapi\.com/)
   assert.match(dnaClient, /https:\/\/ote\.domainresellerapi\.com/)
 })
