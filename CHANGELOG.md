@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.5](https://github.com/KmerHosting/domain-names/compare/v1.3.4...v1.3.5) (2026-08-24)
+
+
+### Bug Fixes
+
+* **search:** clarify domain pricing and bulk input ([#27](https://github.com/KmerHosting/domain-names/issues/27)) ([26cd155](https://github.com/KmerHosting/domain-names/commit/26cd155817ea946de3f4630c104e546d06f0e9c6))
+
 ## [1.3.4](https://github.com/KmerHosting/domain-names/compare/v1.3.3...v1.3.4) (2026-08-24)
 
 
