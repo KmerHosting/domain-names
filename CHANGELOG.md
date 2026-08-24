@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.8](https://github.com/KmerHosting/domain-names/compare/v1.3.7...v1.3.8) (2026-08-24)
+
+
+### Bug Fixes
+
+* **wallet:** block cross-environment domain payments ([#33](https://github.com/KmerHosting/domain-names/issues/33)) ([8e413b3](https://github.com/KmerHosting/domain-names/commit/8e413b3bd40400464663a3ad786e0e584ba29836))
+
 ## [1.3.7](https://github.com/KmerHosting/domain-names/compare/v1.3.6...v1.3.7) (2026-08-24)
 
 
