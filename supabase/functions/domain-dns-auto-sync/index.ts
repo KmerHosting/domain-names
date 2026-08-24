@@ -3,8 +3,8 @@ import { createClient } from "@supabase/supabase-js";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-const CRON_SECRET = Deno.env.get("DOMAIN_CRON_SECRET") || Deno.env.get("DOMAIN_INTERNAL_SECRET") || "";
 const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
+const encoder = new TextEncoder();
 
 type Json = Record<string, any>;
 type Environment = "ote" | "production";
@@ -17,7 +17,9 @@ const now = () => new Date().toISOString();
 function headers(): HeadersInit { return { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-domain-cron-secret", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }; }
 function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: headers() }); }
 function pathOf(req: Request) { const path = new URL(req.url).pathname; const marker = "/domain-dns-auto-sync"; const index = path.indexOf(marker); return (index >= 0 ? path.slice(index + marker.length) : path).replace(/\/+$/, "") || "/"; }
-function assertCron(req: Request) { if (!CRON_SECRET || clean(req.headers.get("x-domain-cron-secret")) !== CRON_SECRET) throw new HttpError(401, "invalid_cron_secret", "Invalid cron secret."); }
+async function sha256(value: string) { const digest = new Uint8Array(await crypto.subtle.digest("SHA-256", encoder.encode(value))); return Array.from(digest).map((byte) => byte.toString(16).padStart(2, "0")).join(""); }
+async function secret(name: string) { const { data, error } = await db.rpc("domain_secret", { p_name: name }); const value = clean(data); if (error || !value) throw new HttpError(503, "secret_missing", `${name} is not configured.`); return value; }
+async function assertCron(req: Request) { const supplied = clean(req.headers.get("x-domain-cron-secret")); const expected = await secret("domain_internal_cron_secret"); if (!supplied || await sha256(supplied) !== await sha256(expected)) throw new HttpError(401, "invalid_cron_secret", "Invalid cron secret."); }
 function iso(value: unknown) { if (!value) return null; const date = new Date(String(value)); return Number.isNaN(date.getTime()) ? null : date.toISOString(); }
 function domainName(item: Json) { return lower(item.domainName || item.domainNameIdn || item.name || item.data?.domainName); }
 function providerItems(body: Json): Json[] { for (const value of [body.items, body.data?.items, body.domains, body.data?.domains, body.data, body]) if (Array.isArray(value)) return value; return []; }
@@ -98,7 +100,7 @@ async function syncEnvironment(environment: Environment) {
 }
 
 async function run(req: Request) {
-  assertCron(req);
+  await assertCron(req);
   const requested = lower(new URL(req.url).searchParams.get("environment"));
   const environments: Environment[] = requested === "ote" ? ["ote"] : requested === "production" ? ["production"] : ["ote", "production"];
   const results = [];
