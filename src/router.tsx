@@ -489,6 +489,7 @@ function OrdersPage() {
   });
   return <div className="dashboard-content"><PageHeading eyebrow="Orders" title="Domain orders" description="Orders are authorized when created: free against DNA OTE test funds, or charged directly to the central KmerHosting balance in LIVE." />
     {query.isError || retry.isError ? <ErrorNotice error={query.error || retry.error} /> : null}
+    {retry.isSuccess ? <InfoNotice kind="success" title="DNA retry queued" subtitle="The order was re-queued after DNA confirmed that the domain is not registered." /> : null}
     {query.isPending ? <LoadingBlock /> : query.data?.orders.length ? <div className="carbon-order-list">{query.data.orders.map((order) => {
       const environmentLabel = order.registrar_environment === "ote" ? "test_ote" : "live";
       const canRetry = order.registrar_environment === "ote" && ["processing", "failed"].includes(order.status);
