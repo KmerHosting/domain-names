@@ -24,7 +24,6 @@ import {
   Notification,
   Settings,
   UserAvatar,
-  Wallet,
 } from "@carbon/react/icons";
 import { ReactNode, useEffect, useState } from "react";
 import { api, clearSession, getSession, subscribeSession, type Session, type User } from "./api";
@@ -44,20 +43,9 @@ const dashboardNavigation: NavItem[] = [
   { href: "/dashboard", label: "Overview", icon: Dashboard, exact: true },
   { href: "/dashboard/domains", label: "Domains", icon: Application },
   { href: "/dashboard/orders", label: "Orders", icon: Application },
-  { href: "/dashboard/wallet", label: "Wallet", icon: Wallet },
   { href: "/dashboard/contacts", label: "Contacts", icon: UserAvatar },
   { href: "/dashboard/invoices", label: "Invoices", icon: Application },
   { href: "/dashboard/profile", label: "Profile", icon: Settings },
-];
-
-const adminNavigation: NavItem[] = [
-  { href: "/admin", label: "Administration", icon: Dashboard, exact: true },
-  { href: "/admin/environments", label: "Environments", icon: Settings },
-  { href: "/admin/provider", label: "Provider", icon: Application },
-  { href: "/admin/operations", label: "Operations", icon: Application },
-  { href: "/admin/tlds", label: "TLDs", icon: Application },
-  { href: "/admin/logs", label: "Logs", icon: Application },
-  { href: "/admin/cron", label: "Crons", icon: Application },
 ];
 
 function useDomainSession() {
@@ -70,9 +58,7 @@ function isActivePath(item: NavItem, pathname: string) {
   return item.exact ? pathname === item.href : pathname === item.href || pathname.startsWith(`${item.href}/`);
 }
 
-function isPrivateShell(pathname: string) {
-  return pathname.startsWith("/dashboard") || pathname.startsWith("/admin");
-}
+function isPrivateShell(pathname: string) { return pathname.startsWith("/dashboard"); }
 
 function NavigationLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const Icon = item.icon;
@@ -94,7 +80,6 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
   const session = useDomainSession();
   const pathname = window.location.pathname;
   const privateShell = isPrivateShell(pathname);
-  const adminShell = pathname.startsWith("/admin");
   const onCustomerDashboard = pathname.startsWith("/dashboard");
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
@@ -117,14 +102,12 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
     window.location.assign("/");
   };
 
-  const isAdmin = user?.role === "admin";
-
   return (
     <div className={privateShell ? "domain-app-shell domain-app-shell--private" : "domain-app-shell domain-app-shell--public"}>
       <HeaderContainer
         render={({ isSideNavExpanded, onClickSideNavExpand }) => (
           <>
-            <Header aria-label={adminShell ? "KmerHosting Domains administration" : "KmerHosting Domains"}>
+            <Header aria-label="KmerHosting Domains">
               <SkipToContent href="#main-content" />
               {privateShell ? (
                 <HeaderMenuButton
@@ -135,9 +118,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                   onClick={onClickSideNavExpand}
                 />
               ) : null}
-              <HeaderName href={adminShell ? "/admin" : "/"} prefix="KmerHosting">
-                {adminShell ? "Domains Admin" : "Domains"}
-              </HeaderName>
+              <HeaderName href="/" prefix="KmerHosting">Domains</HeaderName>
 
               {!privateShell ? (
                 <HeaderNavigation aria-label="KmerHosting Domains">
@@ -163,7 +144,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                 >
                   <Help size={20} />
                 </HeaderGlobalAction>
-                {session && !adminShell ? (
+                {session ? (
                   <HeaderGlobalAction
                     aria-label="Notifications"
                     tooltipAlignment="end"
@@ -190,14 +171,13 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
             >
               <div className="domain-header-panel__content">
                 <div className="domain-header-panel__heading">
-                  <h2>{adminShell ? "Administration" : session ? "Domain account" : "KmerHosting Account"}</h2>
-                  <p>{adminShell ? "Domain registrar administration tools." : session ? user?.email || "Your domain service session is active." : "Use your central account to access domain services."}</p>
+                  <h2>{session ? "Domain account" : "KmerHosting Account"}</h2>
+                  <p>{session ? user?.email || "Your domain service session is active." : "Use your central account to access domain services."}</p>
                 </div>
                 <div className="domain-header-panel__actions">
                   {session ? (
                     <>
                       {!onCustomerDashboard ? <Button kind="ghost" size="sm" href={CUSTOMER_DASHBOARD_URL} renderIcon={Dashboard}>Customer dashboard</Button> : null}
-                      {!adminShell && isAdmin ? <Button kind="ghost" size="sm" href="/admin" renderIcon={Dashboard}>Administration</Button> : null}
                       <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/?view=account" renderIcon={Settings}>Central account</Button>
                       <Button kind="ghost" size="sm" renderIcon={Logout} onClick={() => void logOut()}>Sign out</Button>
                     </>
@@ -217,36 +197,16 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                 isRail
                 expanded={isSideNavExpanded}
                 isChildOfHeader
-                aria-label={adminShell ? "Domain administration navigation" : "KmerHosting Domains navigation"}
+                aria-label="KmerHosting Domains navigation"
                 className="domain-carbon-sidenav"
                 onOverlayClick={isSideNavExpanded ? onClickSideNavExpand : undefined}
               >
                 <SideNavItems>
-                  {adminShell ? (
-                    <>
-                      {adminNavigation.slice(0, 4).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
-                      <SideNavDivider />
-                      {adminNavigation.slice(4).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
-                      <SideNavDivider />
-                      <SideNavLink href={CUSTOMER_DASHBOARD_URL} renderIcon={Dashboard}>Customer dashboard</SideNavLink>
-                    </>
-                  ) : (
-                    <>
-                      {dashboardNavigation.slice(0, 4).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
-                      <SideNavDivider />
-                      {dashboardNavigation.slice(4).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
-                      <SideNavDivider />
-                      <SideNavLink
-                        href="/dashboard/notifications"
-                        isActive={pathname === "/dashboard/notifications"}
-                        aria-current={pathname === "/dashboard/notifications" ? "page" : undefined}
-                        renderIcon={Notification}
-                      >
-                        Notifications
-                      </SideNavLink>
-                      {isAdmin ? <SideNavLink href="/admin" renderIcon={Dashboard}>Administration</SideNavLink> : null}
-                    </>
-                  )}
+                  {dashboardNavigation.slice(0, 3).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
+                  <SideNavDivider />
+                  {dashboardNavigation.slice(3).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
+                  <SideNavDivider />
+                  <SideNavLink href="/dashboard/notifications" isActive={pathname === "/dashboard/notifications"} aria-current={pathname === "/dashboard/notifications" ? "page" : undefined} renderIcon={Notification}>Notifications</SideNavLink>
                 </SideNavItems>
               </SideNav>
             ) : null}

@@ -42,7 +42,6 @@ import {
   orderGuardApi,
   setSession,
   subscribeSession,
-  walletApi,
   type Session,
   type User,
 } from "./api";
@@ -125,15 +124,9 @@ type DashboardPayload = {
   notifications: Row[];
   invoices: Row[];
   balanceUsd: number;
-};
-type WalletSummary = {
-  balanceUsd: number;
-  transactions: Row[];
-  orders: Order[];
-  checkoutEnvironment: "production" | "ote";
+  balanceSource: string;
+  registrarEnvironment: "production" | "ote";
   testMode: boolean;
-  supportEmail: string;
-  topupInstructions: string;
 };
 
 function useSession() {
@@ -209,9 +202,9 @@ function Brand() {
 
 function PublicFooter() {
   return <footer className="footer"><div className="container footer-grid">
-    <div><Brand /><p>Domain registration and management by KmerHosting LLC.</p></div>
+    <div><Brand /><p>Domain registration and management through DomainNameAPI.</p></div>
     <div><strong>Platform</strong><a href="/transfer-domain">Transfer a domain</a><a href="/auth">Customer sign in</a><a href="mailto:support@kmerhosting.com">Technical support</a></div>
-    <div><strong>Billing</strong><span>USD account balance</span><span>Manual credits by support</span><span>No external checkout</span></div>
+    <div><strong>Billing</strong><span>LIVE: central KmerHosting balance</span><span>TEST: DNA OTE balance</span><span>No domain wallet</span></div>
   </div><div className="container footer-bottom">© {new Date().getFullYear()} KmerHosting LLC. All rights reserved.</div></footer>;
 }
 
@@ -257,7 +250,7 @@ function HomePage() {
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState(false);
   const parsedDomains = parseDomainInput(query);
-  const prices = useQuery({ queryKey: ["prices"], queryFn: () => api<{ prices: TldPrice[] }>("/prices") });
+  const prices = useQuery({ queryKey: ["prices"], queryFn: () => domainSearchApi<{ prices: TldPrice[] }>("/prices") });
   const search = useMutation({
     mutationFn: (domains: string[]) => domainSearchApi<{ results: SearchResult[] }>("", { method: "POST", body: { domains } }),
     onMutate: () => setSearched(true),
@@ -312,7 +305,7 @@ function HomePage() {
       <div className="section-heading"><div><span className="kicker">Domain lifecycle</span><h2>Complete registrar management</h2></div><p>Domain operations stay focused on registration, transfer, DNS, contacts and security.</p></div>
       <Grid fullWidth className="carbon-card-grid">{[
         ["Registration and premium domains", "Availability, exact premium quote, supported periods and registry attributes."],
-        ["Transfers, renewals and restores", "Eligibility checks and operation pricing before wallet payment."],
+        ["Transfers, renewals and restores", "Eligibility checks and live DomainNameAPI pricing for every operation."],
         ["DNS and nameservers", "A, AAAA, CNAME, MX, TXT, NS, SRV and CAA records with synchronization."],
         ["Lock and privacy", "Registrar-backed theft protection and WHOIS privacy controls."],
         ["WHOIS contacts", "Provider handles, verification and registry contact roles."],
@@ -413,7 +406,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
 
   if (!session) return <main className="section"><div className="container narrow"><EmptyState title="Sign in required" text="Sign in before creating a domain order." action={<Button href="/auth">Sign in</Button>} /></div></main>;
 
-  return <main className="section"><div className="container"><PageHeading eyebrow={type === "registration" ? "Register domain" : "Transfer domain"} title={type === "registration" ? "Create a registration order" : "Transfer a domain to KmerHosting"} description="Creating the order does not charge your balance. You review and pay it separately from your USD account balance." />
+  return <main className="section"><div className="container"><PageHeading eyebrow={type === "registration" ? "Register domain" : "Transfer domain"} title={type === "registration" ? "Register with DomainNameAPI" : "Transfer with DomainNameAPI"} description="The exact DNA price is confirmed now. OTE uses test funds; LIVE charges your central KmerHosting balance and immediately queues the provider operation." />
     <Grid fullWidth className="carbon-purchase-grid"><Column sm={4} md={8} lg={16}><Tile className="carbon-order-form">
       <form className="carbon-form-stack" onSubmit={check}>
         <TextInput id="order-domain" labelText="Domain name" value={domainName} onChange={(event) => { setDomainName(event.target.value); availability.reset(); }} placeholder="example.com" required />
@@ -430,7 +423,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
         <Toggle id="custom-nameservers" labelText="Nameservers" labelA="Default" labelB="Custom" toggled={customNameservers} onToggle={setCustomNameservers} />
         {customNameservers ? <div className="carbon-form-stack">{nameservers.map((value, index) => <div className="carbon-inline-field" key={index}><TextInput id={`nameserver-${index}`} labelText={`Nameserver ${index + 1}`} value={value} onChange={(event) => setNameservers(nameservers.map((item, position) => position === index ? event.target.value : item))} placeholder={`ns${index + 1}.example.com`} required /><Button type="button" kind="danger--ghost" size="sm" disabled={nameservers.length <= 2} onClick={() => setNameservers(nameservers.filter((_, position) => position !== index))}>Remove</Button></div>)}<Button type="button" kind="tertiary" size="sm" disabled={nameservers.length >= 13} onClick={() => setNameservers([...nameservers, ""])}>Add nameserver</Button></div> : null}
         <AttributeFields definitions={type === "registration" ? selectedPrice?.provider_attributes || [] : []} values={attributes} onChange={setAttributes} />
-        <Button type="button" disabled={createOrder.isPending || !contactId} onClick={order}>{createOrder.isPending ? "Creating exact quote…" : "Create wallet order"}</Button>
+        <Button type="button" disabled={createOrder.isPending || !contactId} onClick={order}>{createOrder.isPending ? "Confirming with DNA…" : type === "registration" ? "Confirm registration" : "Confirm transfer"}</Button>
         {createOrder.isError ? <ErrorNotice error={createOrder.error} title="Order creation failed" /> : null}
       </div> : null}
     </Tile></Column></Grid>
@@ -451,8 +444,9 @@ function DashboardOverview() {
   if (query.isPending) return <div className="dashboard-content"><LoadingBlock /></div>;
   if (query.isError) return <div className="dashboard-content"><ErrorNotice error={query.error} /></div>;
   const data = query.data!;
-  return <div className="dashboard-content"><PageHeading eyebrow="Account overview" title="Dashboard" description="Domains, orders, wallet and lifecycle activity." actions={<Button href="/register-domain">Register domain</Button>} />
-    <MetricGrid metrics={[["Domains", data.domains.length], ["Open orders", data.orders.filter((item) => !["completed", "cancelled", "refunded"].includes(item.status)).length], ["USD balance", formatMoney(data.balanceUsd)], ["Unread notifications", data.notifications.filter((item) => !item.read_at).length]]} />
+  return <div className="dashboard-content"><PageHeading eyebrow="Account overview" title="Dashboard" description="Domains and orders connected directly to DomainNameAPI." actions={<Button href="/register-domain">Register domain</Button>} />
+    <InfoNotice kind={data.testMode ? "warning" : "info"} title={data.testMode ? "TEST / OTE" : "LIVE / Production"} subtitle={data.testMode ? "Orders use DNA OTE test funds and never charge your central balance." : "Orders use DNA production and charge your central KmerHosting balance."} />
+    <MetricGrid metrics={[["Domains", data.domains.length], ["Open orders", data.orders.filter((item) => !["completed", "cancelled", "refunded"].includes(item.status)).length], [data.balanceSource, formatMoney(data.balanceUsd)], ["Unread notifications", data.notifications.filter((item) => !item.read_at).length]]} />
     <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Recent domains</h2></div><a href="/dashboard/domains">View all</a></div>{data.domains.length ? <div className="carbon-activity-list">{data.domains.slice(0, 5).map((domain) => <ClickableTile href={`/dashboard/domains/${domain.id}`} key={domain.id}><strong>{domain.domain_name}</strong><span>Expires {formatDate(domain.expires_at)}</span><StatusBadge value={domain.status} /></ClickableTile>)}</div> : <EmptyState title="No domains" text="Register or transfer your first domain." />}</Tile></Column>
     <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Recent orders</h2></div><a href="/dashboard/orders">View all</a></div>{data.orders.length ? <div className="carbon-activity-list">{data.orders.slice(0, 5).map((order) => <Tile className="carbon-activity-row" key={order.id}><strong>{order.domain_name}</strong><span>{order.type} · {formatMoney(order.price_usd)}</span><StatusBadge value={order.status} /></Tile>)}</div> : <EmptyState title="No orders" text="Your domain orders will appear here." />}</Tile></Column></Grid>
   </div>;
@@ -475,7 +469,7 @@ function DomainDetailPage() {
   const domain = query.data.domain;
   return <div className="dashboard-content"><PageHeading eyebrow="Domain" title={domain.domain_name} description={`Last provider sync ${formatDate(domain.last_synced_at)}.`} actions={<><Button href={`/dashboard/domains/${domain.id}/manage`}>Manage domain</Button><Button kind="secondary" href={`/dashboard/domains/${domain.id}/dns`}>DNS settings</Button></>} />
     <div className="heading-actions carbon-heading-tags"><StatusBadge value={domain.registrar_environment === "ote" ? "test_ote" : "live"} /><StatusBadge value={domain.status} /></div>
-    {domain.registrar_environment === "ote" ? <InfoNotice kind="warning" title="Test domain" subtitle="Orders, wallet debits and domain changes stay inside the OTE test environment." /> : null}
+    {domain.registrar_environment === "ote" ? <InfoNotice kind="warning" title="Test domain" subtitle="Domain changes are sent to DNA OTE and never debit the central KmerHosting balance." /> : null}
     <MetricGrid metrics={[["Registered", formatDate(domain.registered_at)], ["Expires", formatDate(domain.expires_at)], ["Lock", domain.locked ? "Enabled" : "Disabled"], ["Privacy", domain.privacy_enabled ? "Enabled" : "Disabled"]]} />
     <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><h2>Automatic renewal</h2><p>Uses the USD account balance only after exact provider pricing and balance checks.</p><Toggle id="domain-auto-renew" labelText="Automatic renewal" labelA="Disabled" labelB="Enabled" toggled={domain.auto_renew} disabled={autoRenew.isPending} onToggle={(enabled) => autoRenew.mutate(enabled)} />{autoRenew.isError ? <ErrorNotice error={autoRenew.error} /> : null}</Tile></Column>
     <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Nameservers</h2></div><a href={`/dashboard/domains/${domain.id}/dns`}>Edit</a></div><div className="carbon-activity-list">{(domain.nameservers || []).map((nameserver) => <Tile className="carbon-activity-row" key={nameserver}><strong>{nameserver}</strong></Tile>)}</div></Tile></Column></Grid>
@@ -484,32 +478,13 @@ function DomainDetailPage() {
 }
 
 function OrdersPage() {
-  const client = useQueryClient();
   const query = useQuery({ queryKey: ["orders"], queryFn: () => api<{ orders: Order[] }>("/orders"), refetchInterval: 20000 });
-  const wallet = useQuery({ queryKey: ["wallet-summary"], queryFn: () => walletApi<WalletSummary>("/summary") });
-  const pay = useMutation({ mutationFn: (orderId: string) => walletApi("/pay-order", { method: "POST", body: { orderId }, idempotencyKey: newIdempotencyKey("wallet-pay") }), onSuccess: () => { client.invalidateQueries({ queryKey: ["orders"] }); client.invalidateQueries({ queryKey: ["wallet-summary"] }); } });
-  const walletOrders = new Map((wallet.data?.orders || []).map((order) => [order.id, order]));
-  return <div className="dashboard-content"><PageHeading eyebrow="Orders" title="Domain orders" description="Pay pending orders from the matching TEST or LIVE USD account balance." actions={<Button kind="secondary" href="/dashboard/wallet">Balance {formatMoney(wallet.data?.balanceUsd || 0)}</Button>} />
-    {query.isError || pay.isError ? <ErrorNotice error={query.error || pay.error} /> : null}
+  return <div className="dashboard-content"><PageHeading eyebrow="Orders" title="Domain orders" description="Orders are authorized when created: free against DNA OTE test funds, or charged directly to the central KmerHosting balance in LIVE." />
+    {query.isError ? <ErrorNotice error={query.error} /> : null}
     {query.isPending ? <LoadingBlock /> : query.data?.orders.length ? <div className="carbon-order-list">{query.data.orders.map((order) => {
-      const walletOrder = walletOrders.get(order.id);
-      const environmentMatches = walletOrder?.payableInCurrentEnvironment ?? (Boolean(wallet.data) && order.registrar_environment === wallet.data?.checkoutEnvironment);
-      const pending = ["pending_payment", "payment_pending"].includes(order.status);
-      const enoughCredit = Number(wallet.data?.balanceUsd || 0) >= Number(order.price_usd);
       const environmentLabel = order.registrar_environment === "ote" ? "test_ote" : "live";
-      return <Tile className="carbon-order-row" key={order.id}><div><strong>{order.domain_name}</strong><span>{order.order_number} · {order.type} · {formatDate(order.created_at)}</span>{pending && !environmentMatches && wallet.data ? <small>This {order.registrar_environment === "ote" ? "TEST / OTE" : "LIVE"} order is kept for history and can only be paid when {order.registrar_environment === "ote" ? "TEST / OTE" : "LIVE"} checkout is active.</small> : null}{order.failure_message ? <small>{order.failure_message}</small> : null}</div><div className="heading-actions"><strong>{formatMoney(order.price_usd)}</strong><StatusBadge value={environmentLabel} /><StatusBadge value={order.status} />{pending ? <Button disabled={pay.isPending || wallet.isPending || !environmentMatches || !enoughCredit} onClick={() => window.confirm(`Pay ${formatMoney(order.price_usd)} from your ${order.registrar_environment === "ote" ? "TEST / OTE" : "LIVE"} account balance?`) && pay.mutate(order.id)}>{!environmentMatches && wallet.data ? `Unavailable in ${wallet.data.checkoutEnvironment === "ote" ? "TEST / OTE" : "LIVE"}` : "Pay from balance"}</Button> : null}</div></Tile>;
+      return <Tile className="carbon-order-row" key={order.id}><div><strong>{order.domain_name}</strong><span>{order.order_number} · {order.type} · {formatDate(order.created_at)}</span><small>{order.registrar_environment === "ote" ? "DNA OTE test order · central charge $0.00" : "Charged to the central KmerHosting balance"}</small>{order.failure_message ? <small>{order.failure_message}</small> : null}</div><div className="heading-actions"><strong>{formatMoney(order.price_usd)}</strong><StatusBadge value={environmentLabel} /><StatusBadge value={order.status} /></div></Tile>;
     })}</div> : <EmptyState title="No orders" text="Registration, transfer, renewal and restore orders appear here." />}
-  </div>;
-}
-
-function WalletPage() {
-  const query = useQuery({ queryKey: ["wallet-summary"], queryFn: () => walletApi<WalletSummary>("/summary"), refetchInterval: 30000 });
-  return <div className="dashboard-content"><PageHeading eyebrow="Billing" title="USD account balance" description="Online top-ups are disabled. Credits are added manually by support." />
-    {query.isPending ? <LoadingBlock /> : query.isError ? <ErrorNotice error={query.error} /> : <>
-      <MetricGrid metrics={[["Available balance", formatMoney(query.data?.balanceUsd || 0)], ["Top-up method", "Manual support credit"]]} />
-      <InlineNotification kind="info" lowContrast hideCloseButton title="Top-up instructions" subtitle={query.data?.topupInstructions || "Contact support to add credit."} actions={<Button kind="ghost" size="sm" href={`mailto:${query.data?.supportEmail}`}>Contact support</Button>} />
-      <Tile className="carbon-table-section"><h2>Wallet transactions</h2>{query.data?.transactions.length ? <Table size="lg"><TableHead><TableRow><TableHeader>Date</TableHeader><TableHeader>Type</TableHeader><TableHeader>Reference</TableHeader><TableHeader>Amount</TableHeader><TableHeader>Balance after</TableHeader></TableRow></TableHead><TableBody>{query.data.transactions.map((item) => <TableRow key={item.id}><TableCell>{formatDate(item.created_at)}</TableCell><TableCell>{item.transaction_type}</TableCell><TableCell>{item.reference || "—"}</TableCell><TableCell>{formatMoney(item.amount_usd)}</TableCell><TableCell>{formatMoney(item.balance_after_usd)}</TableCell></TableRow>)}</TableBody></Table> : <EmptyState title="No wallet transactions" text="Manual credits and order debits will appear here." />}</Tile>
-    </>}
   </div>;
 }
 
@@ -546,8 +521,8 @@ function ContactsPage() {
 
 function InvoicesPage() {
   const query = useQuery({ queryKey: ["invoices"], queryFn: () => api<{ invoices: Row[] }>("/invoices") });
-  return <div className="dashboard-content"><PageHeading eyebrow="Documents" title="Invoices" description="Wallet-paid domain order invoices." />
-    {query.isPending ? <LoadingBlock /> : query.isError ? <ErrorNotice error={query.error} /> : query.data?.invoices.length ? <Tile className="carbon-table-section"><Table size="lg"><TableHead><TableRow><TableHeader>Invoice</TableHeader><TableHeader>Domain</TableHeader><TableHeader>Type</TableHeader><TableHeader>Date</TableHeader><TableHeader>Amount</TableHeader><TableHeader>Status</TableHeader><TableHeader>Document</TableHeader></TableRow></TableHead><TableBody>{query.data.invoices.map((invoice) => <TableRow key={invoice.id}><TableCell>{invoice.invoice_number}</TableCell><TableCell>{invoice.domain_orders?.domain_name || "—"}</TableCell><TableCell>{invoice.domain_orders?.type || "—"}</TableCell><TableCell>{formatDate(invoice.issued_at)}</TableCell><TableCell>{formatMoney(invoice.amount_usd)}</TableCell><TableCell><StatusBadge value={invoice.status} /></TableCell><TableCell><Button kind="ghost" size="sm" onClick={() => downloadDomainDocument(`/invoices/${invoice.id}`, `${invoice.invoice_number}.pdf`).catch((error) => alert(errorText(error)))}>Download PDF</Button></TableCell></TableRow>)}</TableBody></Table></Tile> : <EmptyState title="No invoices" text="Invoices are generated after wallet payment." />}
+  return <div className="dashboard-content"><PageHeading eyebrow="Documents" title="Invoices" description="Invoices for LIVE orders charged to your central KmerHosting balance." />
+    {query.isPending ? <LoadingBlock /> : query.isError ? <ErrorNotice error={query.error} /> : query.data?.invoices.length ? <Tile className="carbon-table-section"><Table size="lg"><TableHead><TableRow><TableHeader>Invoice</TableHeader><TableHeader>Domain</TableHeader><TableHeader>Type</TableHeader><TableHeader>Date</TableHeader><TableHeader>Amount</TableHeader><TableHeader>Status</TableHeader><TableHeader>Document</TableHeader></TableRow></TableHead><TableBody>{query.data.invoices.map((invoice) => <TableRow key={invoice.id}><TableCell>{invoice.invoice_number}</TableCell><TableCell>{invoice.domain_orders?.domain_name || "—"}</TableCell><TableCell>{invoice.domain_orders?.type || "—"}</TableCell><TableCell>{formatDate(invoice.issued_at)}</TableCell><TableCell>{formatMoney(invoice.amount_usd)}</TableCell><TableCell><StatusBadge value={invoice.status} /></TableCell><TableCell><Button kind="ghost" size="sm" onClick={() => downloadDomainDocument(`/invoices/${invoice.id}`, `${invoice.invoice_number}.pdf`).catch((error) => alert(errorText(error)))}>Download PDF</Button></TableCell></TableRow>)}</TableBody></Table></Tile> : <EmptyState title="No invoices" text="LIVE invoices appear after a direct central-balance charge." />}
   </div>;
 }
 
@@ -583,7 +558,6 @@ const dashboardIndexRoute = createRoute({ getParentRoute: () => dashboardRoute, 
 const domainsRoute = createRoute({ getParentRoute: () => dashboardRoute, path: "/domains", component: DomainsPage });
 const domainDetailRoute = createRoute({ getParentRoute: () => dashboardRoute, path: "/domains/$domainId", component: DomainDetailPage });
 const ordersRoute = createRoute({ getParentRoute: () => dashboardRoute, path: "/orders", component: OrdersPage });
-const walletRoute = createRoute({ getParentRoute: () => dashboardRoute, path: "/wallet", component: WalletPage });
 const contactsRoute = createRoute({ getParentRoute: () => dashboardRoute, path: "/contacts", component: ContactsPage });
 const invoicesRoute = createRoute({ getParentRoute: () => dashboardRoute, path: "/invoices", component: InvoicesPage });
 const profileRoute = createRoute({ getParentRoute: () => dashboardRoute, path: "/profile", component: ProfilePage });
@@ -594,7 +568,7 @@ const routeTree = rootRoute.addChildren([
   registerRoute,
   transferRoute,
   returnRoute,
-  dashboardRoute.addChildren([dashboardIndexRoute, domainsRoute, domainDetailRoute, ordersRoute, walletRoute, contactsRoute, invoicesRoute, profileRoute]),
+  dashboardRoute.addChildren([dashboardIndexRoute, domainsRoute, domainDetailRoute, ordersRoute, contactsRoute, invoicesRoute, profileRoute]),
 ]);
 
 export const router = createRouter({ routeTree, defaultPreload: "intent", scrollRestoration: true });

@@ -416,11 +416,11 @@ async function validatePaid(
   if (o.status === "completed") return false;
   const payableState =
     o.status === "paid" || (allowProcessing && o.status === "processing");
-  if (!payableState || o.payment_method !== "wallet" || !o.paid_at)
+  if (!payableState || !["central_credit", "ote_test"].includes(o.payment_method) || !o.paid_at)
     throw new HttpError(
       409,
       "order_not_ready",
-      "Only wallet-paid orders can be processed.",
+      "Only directly authorized DNA orders can be processed.",
     );
   if (
     !q ||
@@ -1046,7 +1046,7 @@ async function run(limit = 20) {
             updated_at: now(),
           })
           .eq("id", job.order_id);
-        await db.rpc("domain_refund_order_to_wallet", {
+        await db.rpc("domain_refund_order_direct", {
           p_order_id: job.order_id,
           p_reason: msg,
         });

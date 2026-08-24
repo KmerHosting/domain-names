@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
+import { exactDnaPrice, normalizeDnaCatalog, type DnaCatalogPrice } from "../_shared/dna-catalog.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -106,10 +107,9 @@ async function platformConfig() {
   const { data, error } = await db.from("domain_config").select("*").eq("id", true).single();
   if (error || !data) throw new HttpError(500, "configuration_missing", "Domain platform configuration is missing.");
   if (data.maintenance_mode) throw new HttpError(503, "maintenance_mode", clean(data.checkout_pause_message) || "Domain orders are temporarily paused.");
-  const environment = clean(data.customer_checkout_environment || data.registrar_environment).toLowerCase();
+  const environment = clean(data.registrar_environment).toLowerCase();
   if (environment !== "production" && environment !== "ote") throw new HttpError(503, "registrar_environment_invalid", "The domain environment is not configured correctly.");
-  if (data.payment_mode !== "wallet_only" || data.wallet_topup_mode !== "manual_support") throw new HttpError(503, "billing_configuration_invalid", "The account-balance billing configuration is invalid.");
-  return { ...data, registrar_environment: environment as Environment, customer_checkout_environment: environment as Environment } as Json & { registrar_environment: Environment; customer_checkout_environment: Environment };
+  return { ...data, registrar_environment: environment as Environment } as Json & { registrar_environment: Environment };
 }
 
 function pick(object: any, paths: string[]) {
@@ -174,18 +174,21 @@ async function providerBalance(environment: Environment, requiredUsd: number) {
   };
 }
 
-async function tldData(tld: string) {
-  const { data, error } = await db.from("domain_tld_prices").select("*").eq("tld", tld).eq("enabled", true).eq("provider_available", true).maybeSingle();
-  if (error) throw error;
-  if (!data) throw new HttpError(409, "tld_not_sellable", "This extension is not currently available for sale.", { tld });
-  return data as Json;
+async function tldData(environment: Environment, tld: string) {
+  const payload = await providerRequest(environment, "/api/v1/products/tlds", "GET", null, {
+    Currency: "USD",
+    SkipCount: 0,
+    MaxResultCount: 1000,
+  });
+  const data = normalizeDnaCatalog(payload, environment).find((item) => item.tld === tld);
+  if (!data) throw new HttpError(409, "tld_not_sellable", "DomainNameAPI does not currently offer this extension.", { tld, registrarEnvironment: environment });
+  return data;
 }
 
-async function exactPeriodPrice(tld: string, operation: Operation, years: number, environment: Environment) {
-  const { data, error } = await db.from("domain_tld_period_prices").select("*").eq("tld", tld).eq("operation", operation).eq("period_years", years).eq("registrar_environment", environment).maybeSingle();
-  if (error) throw error;
-  if (!data || Number(data.provider_cost_usd) <= 0 || Number(data.customer_price_usd) <= 0) throw new HttpError(409, "period_price_missing", "An exact price is not available for this operation and period in the current environment.", { tld, operation, years, registrarEnvironment: environment });
-  return data as Json;
+function exactPeriodPrice(tld: DnaCatalogPrice, operation: Operation, years: number, environment: Environment) {
+  const data = exactDnaPrice(tld, operation, years);
+  if (!data) throw new HttpError(409, "period_price_missing", "DomainNameAPI does not offer this operation and period.", { tld: tld.tld, operation, years, registrarEnvironment: environment });
+  return data;
 }
 
 function validateAttributes(tld: Json, raw: unknown) {
@@ -220,10 +223,21 @@ async function ownedDomain(id: string, userId: string, environment: Environment)
 function contactSnapshot(contact: Json) { const { registrar_metadata: _metadata, ...safe } = contact; return safe; }
 async function insertQuote(input: Json, environment: Environment) { const { data, error } = await db.from("domain_provider_quotes").insert({ ...input, registrar_environment: environment, expires_at: new Date(Date.now() + 15 * 60_000).toISOString() }).select("*").single(); if (error || !data) throw new HttpError(500, "quote_create_failed", "Unable to create the exact quote.", error); return data as Json; }
 
+async function checkoutOrder(userId: string, orderId: string) {
+  const { data, error } = await db.rpc("domain_checkout_direct", { p_user_id: userId, p_order_id: orderId });
+  if (error) {
+    const message = clean(error.message);
+    if (message.includes("insufficient_central_credit")) throw new HttpError(409, "insufficient_central_credit", "Your central KmerHosting balance is insufficient for this LIVE order.");
+    if (message.includes("central_identity_not_linked")) throw new HttpError(409, "central_identity_not_linked", "This domain account is not linked to the central KmerHosting account.");
+    throw new HttpError(500, "direct_checkout_failed", "The order could not be charged and queued.", error);
+  }
+  return data as Json;
+}
+
 async function createOrder(req: Request, operation: Operation) {
   const user = await authenticatedUser(req);
   const cfg = await platformConfig();
-  const environment = cfg.customer_checkout_environment;
+  const environment = cfg.registrar_environment;
   const testMode = environment === "ote";
   const body = await req.json().catch(() => ({})) as Json;
   const idempotencyKey = clean(req.headers.get("idempotency-key") || body.idempotencyKey) || `${environment}:${operation}:${crypto.randomUUID()}`;
@@ -231,13 +245,15 @@ async function createOrder(req: Request, operation: Operation) {
   const { data: existing } = await db.from("domain_orders").select("*").eq("user_id", user.id).eq("idempotency_key", idempotencyKey).maybeSingle();
   if (existing) {
     if (existing.registrar_environment !== environment) throw new HttpError(409, "idempotency_environment_mismatch", "This request key was already used in another environment.");
-    return json(req, { order: existing, reused: true, registrarEnvironment: environment, testMode });
+    const checkout = await checkoutOrder(user.id, existing.id);
+    const { data: paidOrder } = await db.from("domain_orders").select("*").eq("id", existing.id).single();
+    return json(req, { order: paidOrder || existing, checkout, reused: true, registrarEnvironment: environment, testMode });
   }
 
   let domainName = normalizeDomain(body.domainName);
   let domain: Json | null = null;
   let contact: Json | null = null;
-  let tld: Json;
+  let tld: DnaCatalogPrice;
   let years = Math.max(1, Math.min(10, Math.round(Number(body.years || body.period || 1))));
   let providerPayload: Json = {};
   let providerCost = 0;
@@ -252,14 +268,14 @@ async function createOrder(req: Request, operation: Operation) {
   if (operation === "registration") {
     if (!validDomain(domainName)) throw new HttpError(400, "invalid_domain", "A valid domain name is required.");
     contact = await ownedContact(clean(body.contactId), user.id);
-    tld = await tldData(domainTld(domainName));
+    tld = await tldData(environment, domainTld(domainName));
     nameservers = normalizeNameservers(body.nameServers || body.nameservers, cfg.default_nameservers);
     attributes = validateAttributes(tld, body.tldAttributes);
     providerPayload = await providerRequest(environment, "/api/v1/domains/search", "POST", { domainName });
     if (!isAvailable(providerPayload)) throw new HttpError(409, "domain_unavailable", "The domain is not available for registration.", providerPayload);
-    const price = await exactPeriodPrice(tld.tld, operation, years, environment);
-    providerCost = round2(Number(price.provider_cost_usd));
-    customerPrice = round2(Number(price.customer_price_usd));
+    const price = exactPeriodPrice(tld, operation, years, environment);
+    providerCost = price.providerCostUsd;
+    customerPrice = price.customerPriceUsd;
     const info = searchInfo(providerPayload);
     premium = booleanValue(info.isPremium ?? info.premium);
     if (premium) {
@@ -274,33 +290,33 @@ async function createOrder(req: Request, operation: Operation) {
     contact = await ownedContact(clean(body.contactId), user.id);
     const authCode = clean(body.authCode);
     if (authCode.length < 4 || authCode.length > 35) throw new HttpError(400, "auth_code_required", "A valid transfer authorization code is required.");
-    tld = await tldData(domainTld(domainName));
+    tld = await tldData(environment, domainTld(domainName));
     const check = await providerRequest(environment, "/api/v1/domains/transfers/check", "POST", { domainName, authCode });
     const transferable = booleanValue(check.transferAvailabilityStatus ?? check.data?.transferAvailabilityStatus);
     if (!transferable) throw new HttpError(409, "transfer_not_available", clean(check.message || check.data?.message) || "The domain is not currently transferable.", check);
     providerPayload = check;
-    const price = await exactPeriodPrice(tld.tld, operation, years, environment);
-    providerCost = round2(Number(price.provider_cost_usd));
-    customerPrice = round2(Number(price.customer_price_usd));
+    const price = exactPeriodPrice(tld, operation, years, environment);
+    providerCost = price.providerCostUsd;
+    customerPrice = price.customerPriceUsd;
     authCipher = await encryptSensitive(authCode);
     nameservers = normalizeNameservers(body.nameServers || body.nameservers, cfg.default_nameservers);
   } else {
     domain = await ownedDomain(clean(body.domainId), user.id, environment);
     domainName = domain.domain_name;
-    tld = await tldData(domain.tld || domainTld(domainName));
+    tld = await tldData(environment, domain.tld || domainTld(domainName));
     if (operation === "renewal") {
       providerPayload = await providerRequest(environment, "/api/v1/domains/renew/check", "POST", { domainName, period: years });
-      const price = await exactPeriodPrice(tld.tld, operation, years, environment);
-      providerCost = round2(Number(price.provider_cost_usd));
-      customerPrice = round2(Number(price.customer_price_usd));
+      const price = exactPeriodPrice(tld, operation, years, environment);
+      providerCost = price.providerCostUsd;
+      customerPrice = price.customerPriceUsd;
     } else {
       years = 1;
       providerPayload = await providerRequest(environment, "/api/v1/domains/info", "GET", null, { DomainName: domainName });
       const providerStatus = clean(providerPayload.status || providerPayload.statusCode || domain.status).toLowerCase();
       if (!/redemption|expired|pendingdelete|restore/.test(providerStatus)) throw new HttpError(409, "restore_not_eligible", "This domain is not currently eligible for restoration.", { status: providerStatus });
-      const price = await exactPeriodPrice(tld.tld, operation, 1, environment);
-      providerCost = round2(Number(price.provider_cost_usd));
-      customerPrice = round2(Number(price.customer_price_usd));
+      const price = exactPeriodPrice(tld, operation, 1, environment);
+      providerCost = price.providerCostUsd;
+      customerPrice = price.customerPriceUsd;
     }
     nameservers = Array.isArray(domain.nameservers) ? domain.nameservers : [];
   }
@@ -356,16 +372,20 @@ async function createOrder(req: Request, operation: Operation) {
   });
   if (error || !order) throw new HttpError(500, "order_create_failed", error?.message || "Unable to create the order.", error);
 
+  const checkout = await checkoutOrder(user.id, order.id);
+  const { data: paidOrder } = await db.from("domain_orders").select("*").eq("id", order.id).single();
+
   return json(req, {
-    order,
+    order: paidOrder || order,
     quote,
+    checkout,
     billing: {
-      mode: "wallet_only",
-      supportEmail: cfg.support_email,
+      mode: testMode ? "ote_test" : "central_credit",
       registrarEnvironment: environment,
       testMode,
-      customerBalanceKind: "KmerHosting customer credit",
-      providerBalanceKind: "DomainNameAPI reseller usdBalance",
+      chargedCentralUsd: testMode ? 0 : customerPrice,
+      balanceSource: testMode ? "DomainNameAPI OTE usdBalance" : "KmerHosting central balance",
+      providerBalanceKind: "DomainNameAPI direct usdBalance",
     },
   }, 201);
 }
@@ -380,10 +400,10 @@ Deno.serve(async (req) => {
         ok: true,
         service: "KmerHosting Domain Order Guard",
         version: 7,
-        registrarEnvironment: cfg.customer_checkout_environment,
-        testMode: cfg.customer_checkout_environment === "ote",
+        registrarEnvironment: cfg.registrar_environment,
+        testMode: cfg.registrar_environment === "ote",
         providerBalanceSource: "DomainNameAPI deposit/accounts/me usdBalance",
-        paymentMode: "wallet_only",
+        paymentMode: cfg.registrar_environment === "ote" ? "ote_test" : "central_credit",
         timestamp: now(),
       });
     }

@@ -1,5 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
+import { normalizeDnaCatalog, type DnaCatalogPrice } from "../_shared/dna-catalog.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -72,11 +73,11 @@ function providerMessage(out: Json) {
 
 async function checkoutEnvironment(): Promise<Environment> {
   const { data, error } = await db.from("domain_config")
-    .select("customer_checkout_environment,registrar_environment")
+    .select("registrar_environment")
     .eq("id", true)
     .single();
   if (error) throw new HttpError(500, "configuration_missing", "Domain platform configuration is unavailable.", error);
-  const value = clean(data?.customer_checkout_environment || data?.registrar_environment).toLowerCase();
+  const value = clean(data?.registrar_environment).toLowerCase();
   return value === "ote" ? "ote" : "production";
 }
 
@@ -157,12 +158,21 @@ function infos(payload: any): Json[] {
   return candidates.find(Array.isArray) || [];
 }
 
-async function pricesFor(domains: string[]) {
-  const tlds = [...new Set(domains.map(tld))];
-  const { data, error } = await db.from("domain_tld_prices").select("*").in("tld", tlds).eq("enabled", true);
-  if (error) throw new HttpError(500, "price_lookup_failed", "Unable to load domain pricing.", error);
-  const map = new Map<string, Json>();
-  for (const price of data || []) map.set(price.tld, price as Json);
+async function liveCatalog(environment: Environment) {
+  const payload = await registrar("/api/v1/products/tlds", "GET", undefined, {
+    Currency: "USD",
+    SkipCount: 0,
+    MaxResultCount: 1000,
+  }, environment);
+  const prices = normalizeDnaCatalog(payload, environment);
+  if (!prices.length) throw new HttpError(502, "provider_catalog_empty", "DomainNameAPI returned an empty TLD catalog.");
+  return prices;
+}
+
+async function pricesFor(domains: string[], environment: Environment) {
+  const requested = new Set(domains.map(tld));
+  const map = new Map<string, DnaCatalogPrice>();
+  for (const price of await liveCatalog(environment)) if (requested.has(price.tld)) map.set(price.tld, price);
   return map;
 }
 
@@ -176,7 +186,7 @@ async function check(req: Request) {
   if (!domains.length) throw new HttpError(400, "invalid_domain", "At least one valid domain is required.", { invalid });
 
   const environment = await checkoutEnvironment();
-  const prices = await pricesFor(domains);
+  const prices = await pricesFor(domains, environment);
   const supported = domains.filter((domainName) => prices.has(tld(domainName)));
   const unsupported = domains.filter((domainName) => !prices.has(tld(domainName))).map((domainName) => ({
     domainName,
@@ -249,12 +259,25 @@ async function check(req: Request) {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors(req) });
   try {
+    if (req.method === "GET" && new URL(req.url).pathname.endsWith("/prices")) {
+      const environment = await checkoutEnvironment();
+      return json(req, {
+        prices: await liveCatalog(environment),
+        registrarEnvironment: environment,
+        testMode: environment === "ote",
+        priceSource: "DomainNameAPI live catalog",
+        markupPercent: 30,
+        generatedAt: now(),
+      });
+    }
     if (req.method === "GET") {
       return json(req, {
         ok: true,
         service: "KmerHosting Bulk Domain Search",
         dnaVersion: "3.0.1",
-        endpoint: "domains/bulk-search",
+        endpoints: ["domains/bulk-search", "products/tlds"],
+        priceSource: "DomainNameAPI live catalog",
+        markupPercent: 30,
         maxDomains: 20,
         timestamp: now(),
       });

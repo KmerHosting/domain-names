@@ -8,9 +8,19 @@ import {
 } from "./core.ts";
 import {
   camerPayStatus, initiateCamerPay, isPaymentPaid, newInvoiceId, paymentFields,
-  searchDomain, verifyCamerPayWebhook,
+  registrarCall, searchDomain, verifyCamerPayWebhook,
 } from "./providers.ts";
 import { markPaymentPaid, runAutomation, runEmails, runJobs } from "./worker.ts";
+import { normalizeDnaCatalog } from "../_shared/dna-catalog.ts";
+
+async function directCatalog() {
+  const cfg = await getConfig();
+  const environment = clean(cfg.registrar_environment).toLowerCase() === "ote" ? "ote" : "production";
+  const payload = await registrarCall("/api/v1/products/tlds", "GET", undefined, { Currency: "USD", SkipCount: 0, MaxResultCount: 1000 });
+  const prices = normalizeDnaCatalog(payload, environment);
+  if (!prices.length) throw new ApiError(502, "provider_catalog_empty", "DomainNameAPI returned an empty TLD catalog.");
+  return { environment, prices };
+}
 
 function errorResponse(req: Request, error: unknown): Response {
   if (error instanceof ApiError) return json(req, { error: error.code, message: error.message, details: error.details }, error.status);
@@ -263,18 +273,31 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
   }
   if (req.method === "GET" && path === "/dashboard") {
     const cfg = await getConfig();
-    const checkoutEnvironment = clean(cfg.customer_checkout_environment || cfg.registrar_environment).toLowerCase() === "ote" ? "ote" : "production";
-    const [domains, orders, notifications, invoices, environmentBalance] = await Promise.all([
+    const checkoutEnvironment = clean(cfg.registrar_environment).toLowerCase() === "ote" ? "ote" : "production";
+    const [domains, orders, notifications, invoices] = await Promise.all([
       db.from("domain_domains").select("*").eq("user_id", auth.user.id).order("created_at", { ascending: false }),
       db.from("domain_orders").select("*").eq("user_id", auth.user.id).order("created_at", { ascending: false }).limit(10),
       db.from("domain_notifications").select("*").eq("user_id", auth.user.id).order("created_at", { ascending: false }).limit(10),
       db.from("domain_invoices").select("*").eq("user_id", auth.user.id).order("issued_at", { ascending: false }).limit(10),
-      db.from("domain_user_environment_balances").select("balance_usd").eq("user_id", auth.user.id).eq("registrar_environment", checkoutEnvironment).maybeSingle(),
     ]);
-    if (environmentBalance.error) throw new ApiError(500, "dashboard_balance_failed", "Unable to load the active account balance.", environmentBalance.error);
+    let balanceUsd = 0;
+    let balanceSource = "KmerHosting central balance";
+    if (checkoutEnvironment === "ote") {
+      const account = await registrarCall("/api/v1/deposit/accounts/me", "GET", undefined, { currency: "USD" });
+      const rawBalance = account.usdBalance ?? account.data?.usdBalance ?? account.account?.usdBalance ?? account.result?.usdBalance;
+      balanceUsd = Number(rawBalance);
+      if (!Number.isFinite(balanceUsd)) throw new ApiError(502, "provider_usd_balance_unreadable", "DomainNameAPI did not return a readable OTE usdBalance.");
+      balanceSource = "DomainNameAPI OTE usdBalance";
+    } else {
+      const identity = await db.from("dashboard_product_identities").select("user_id").eq("product", "domain").eq("external_user_id", auth.user.id).maybeSingle();
+      if (identity.error || !identity.data) throw new ApiError(409, "central_identity_not_linked", "This domain account is not linked to the central KmerHosting account.", identity.error);
+      const central = await db.from("dashboard_credit_balances").select("balance_micros").eq("user_id", identity.data.user_id).maybeSingle();
+      if (central.error) throw new ApiError(500, "central_balance_failed", "Unable to load the central KmerHosting balance.", central.error);
+      balanceUsd = Number(central.data?.balance_micros || 0) / 1_000_000;
+    }
     return json(req, {
       domains: domains.data || [], orders: orders.data || [], notifications: notifications.data || [], invoices: invoices.data || [],
-      balanceUsd: Number(environmentBalance.data?.balance_usd || 0), checkoutEnvironment, testMode: checkoutEnvironment === "ote",
+      balanceUsd, balanceSource, registrarEnvironment: checkoutEnvironment, testMode: checkoutEnvironment === "ote",
     });
   }
   if (path === "/contacts" && req.method === "GET") {
@@ -408,9 +431,9 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
     const result = await db.from("domain_orders").select("*,domain_payments(*)").eq("user_id", auth.user.id).order("created_at", { ascending: false });
     return json(req, { orders: result.data || [] });
   }
-  if (req.method === "POST" && path === "/orders/registration") return await createOrder(req, "registration", auth, await bodyJson(req));
-  if (req.method === "POST" && path === "/orders/transfer") return await createOrder(req, "transfer", auth, await bodyJson(req));
-  if (req.method === "POST" && path === "/orders/renewal") return await createOrder(req, "renewal", auth, await bodyJson(req));
+  if (req.method === "POST" && ["/orders/registration", "/orders/transfer", "/orders/renewal"].includes(path)) {
+    throw new ApiError(410, "legacy_checkout_removed", "Use the direct DNA order endpoint. Separate checkout has been removed.");
+  }
   const checkoutMatch = path.match(/^\/orders\/([0-9a-f-]+)\/checkout$/i);
   if (checkoutMatch && req.method === "POST") return await checkout(req, auth, checkoutMatch[1]);
   const orderMatch = path.match(/^\/orders\/([0-9a-f-]+)$/i);
@@ -423,13 +446,7 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
   if (paymentMatch && req.method === "GET") {
     const { data: payment, error } = await db.from("domain_payments").select("*").eq("order_id", paymentMatch[1]).eq("user_id", auth.user.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (error || !payment) throw new ApiError(404, "payment_not_found", "Payment not found.");
-    if (payment.status !== "paid" && payment.provider_reference) {
-      const payload = await camerPayStatus(payment.provider_reference);
-      await db.from("domain_payments").update({ raw_payload: payload }).eq("id", payment.id);
-      if (isPaymentPaid(payload, Number(payment.amount_xaf))) await markPaymentPaid(payment, payload);
-    }
-    const refreshed = await db.from("domain_payments").select("*").eq("id", payment.id).single();
-    return json(req, { payment: refreshed.data });
+    return json(req, { payment });
   }
   if (req.method === "GET" && path === "/notifications") {
     const result = await db.from("domain_notifications").select("*").eq("user_id", auth.user.id).order("created_at", { ascending: false }).limit(100);
@@ -444,10 +461,6 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
     const result = await db.from("domain_invoices").select("*,domain_orders(domain_name,type,order_number)").eq("user_id", auth.user.id).order("issued_at", { ascending: false });
     return json(req, { invoices: result.data || [] });
   }
-  if (req.method === "GET" && path === "/admin/runtime") {
-    if (auth.user.role !== "admin") throw new ApiError(403, "forbidden", "Administrator access is required.");
-    return json(req, { runtime: await runtimeStatus(), config: await getConfig() });
-  }
   throw new ApiError(404, "not_found", "Endpoint not found.");
 }
 
@@ -461,8 +474,8 @@ async function publicRoutes(req: Request, path: string): Promise<Response | null
     });
   }
   if (req.method === "GET" && path === "/prices") {
-    const result = await db.from("domain_tld_prices").select("*").eq("enabled", true).order("popular", { ascending: false }).order("registration_price_usd");
-    return json(req, { currency: "USD", prices: result.data || [] });
+    const catalog = await directCatalog();
+    return json(req, { currency: "USD", prices: catalog.prices, registrarEnvironment: catalog.environment, testMode: catalog.environment === "ote", priceSource: "DomainNameAPI live catalog", markupPercent: 30 });
   }
   if (req.method === "POST" && path === "/domains/check") {
     await enforceRateLimit(`domain-check:${clientIp(req)}`, 30, 60);
@@ -470,14 +483,15 @@ async function publicRoutes(req: Request, path: string): Promise<Response | null
     const values = Array.isArray(body.domains) ? body.domains : [body.domainName];
     const domains = [...new Set(values.map(normalizeDomain).filter(validDomain))].slice(0, 20);
     if (!domains.length) throw new ApiError(400, "invalid_domain", "At least one valid domain is required.");
+    const catalog = await directCatalog();
+    const priceByTld = new Map(catalog.prices.map((price) => [price.tld, price]));
     const results = [];
     for (const domainName of domains) {
       const registrar = await searchDomain(domainName);
       const tld = getTld(domainName);
-      const price = await db.from("domain_tld_prices").select("*").eq("tld", tld).eq("enabled", true).maybeSingle();
-      results.push({ domainName, registrar, price: price.data || null });
+      results.push({ domainName, registrar, price: priceByTld.get(tld) || null });
     }
-    return json(req, { results });
+    return json(req, { results, registrarEnvironment: catalog.environment, testMode: catalog.environment === "ote", priceSource: "DomainNameAPI live catalog" });
   }
   return null;
 }

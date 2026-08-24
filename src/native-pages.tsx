@@ -34,17 +34,12 @@ type Row = Record<string, any>;
 type Route =
   | { kind: "notifications" }
   | { kind: "domainManage"; domainId: string }
-  | { kind: "admin"; page: "provider" | "cron" | "logs" | "tlds" }
   | null;
 
 function route(pathname = window.location.pathname): Route {
   if (pathname === "/dashboard/notifications") return { kind: "notifications" };
   const manage = pathname.match(/^\/dashboard\/domains\/([^/]+)\/manage$/);
   if (manage) return { kind: "domainManage", domainId: manage[1] };
-  if (pathname === "/admin/provider") return { kind: "admin", page: "provider" };
-  if (pathname === "/admin/cron") return { kind: "admin", page: "cron" };
-  if (pathname === "/admin/logs") return { kind: "admin", page: "logs" };
-  if (pathname === "/admin/tlds") return { kind: "admin", page: "tlds" };
   return null;
 }
 
@@ -152,7 +147,7 @@ function DomainManagePage({ domainId }: { domainId: string }) {
   const epp = useMutation({ mutationFn: () => customerToolsApi<{ transferCode: string }>(`/domains/${domainId}/transfer-code`, { method: "POST", body: { confirm: true } }), onSuccess: (data) => setTransferCode(data.transferCode) });
   const transferAction = useMutation({ mutationFn: (action: string) => customerToolsApi(`/domains/${domainId}/transfer/${action}`, { method: "POST", body: { confirm: true } }), onSuccess: () => sync.mutate() });
   const getQuote = useMutation({ mutationFn: (operation: "renewal" | "restore") => customerToolsApi<{ quote: Row }>(`/domains/${domainId}/quote?operation=${operation}&years=1`), onSuccess: (data) => setQuote(data.quote) });
-  const createOrder = useMutation({ mutationFn: (operation: "renewal" | "restore") => customerToolsApi<{ order: Row }>(`/domains/${domainId}/orders/${operation}`, { method: "POST", body: { years: 1 }, idempotencyKey: newIdempotencyKey(operation) }), onSuccess: (data) => { setOrderMessage(`Order ${data.order?.order_number || "created"} is ready. Pay it from your USD account balance.`); setQuote(null); } });
+  const createOrder = useMutation({ mutationFn: (operation: "renewal" | "restore") => customerToolsApi<{ order: Row }>(`/domains/${domainId}/orders/${operation}`, { method: "POST", body: { years: 1 }, idempotencyKey: newIdempotencyKey(operation) }), onSuccess: (data) => { setOrderMessage(`Order ${data.order?.order_number || "created"} was authorized and queued with DomainNameAPI.`); setQuote(null); } });
 
   if (domainQuery.isPending) return <Shell title="Domain management" subtitle="Loading domain data." back="/dashboard/domains"><Loading /></Shell>;
   if (domainQuery.isError || !domain) return <Shell title="Domain management" subtitle="Unable to load this domain." back="/dashboard/domains"><ErrorNotice error={domainQuery.error} /></Shell>;
@@ -160,12 +155,12 @@ function DomainManagePage({ domainId }: { domainId: string }) {
   const busy = sync.isPending || lock.isPending || privacy.isPending;
 
   return <Shell title={domain.domain_name} subtitle="Registrar-backed domain controls, lifecycle operations and DNS." back={`/dashboard/domains/${domainId}`}>
-    {test ? <InlineNotification kind="warning" lowContrast hideCloseButton title="TEST / OTE domain" subtitle="Domain actions and wallet debits stay in the test environment. Production purchases and the production provider balance remain untouched." /> : null}
+    {test ? <InlineNotification kind="warning" lowContrast hideCloseButton title="TEST / OTE domain" subtitle="Domain actions use DNA OTE test funds and never charge the central KmerHosting balance." /> : null}
     <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Registrar state</h2><p>Last synchronized {formatDate(domain.last_synced_at)}.</p></div><div className="heading-actions"><Badge value={domain.status} /><Tag type={test ? "blue" : "green"}>{test ? "TEST / OTE" : "LIVE"}</Tag></div></div><MetricGrid metrics={[["Expires", formatDate(domain.expires_at)], ["Lock", domain.locked ? "Enabled" : "Disabled"], ["Privacy", domain.privacy_enabled ? "Enabled" : "Disabled"], ["Auto-renew", domain.auto_renew ? "Enabled" : "Disabled"]]} /><div className="heading-actions"><Button kind="secondary" disabled={busy} onClick={() => sync.mutate()}>Sync provider state</Button><Button kind="ghost" href={`/dashboard/domains/${domainId}/dns`}>DNS and nameservers</Button></div>{sync.isError ? <ErrorNotice error={sync.error} /> : null}</Tile>
 
     <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Security and transfer code</h2><p>These actions are sent to the registrar and then synchronized locally.</p></div></div><Grid fullWidth className="carbon-action-grid"><Column sm={4} md={4} lg={5}><Tile className="carbon-action-tile"><Toggle id="domain-lock" labelText="Registrar lock" labelA="Unlocked" labelB="Locked" toggled={Boolean(domain.locked)} disabled={lock.isPending} onToggle={(enabled) => lock.mutate(enabled)} /><p>Change the EPP/theft-protection lock.</p></Tile></Column><Column sm={4} md={4} lg={5}><Tile className="carbon-action-tile"><Toggle id="domain-privacy" labelText="WHOIS privacy" labelA="Disabled" labelB="Enabled" toggled={Boolean(domain.privacy_enabled)} disabled={privacy.isPending} onToggle={(enabled) => privacy.mutate(enabled)} /><p>Change WHOIS privacy where the TLD supports it.</p></Tile></Column><Column sm={4} md={8} lg={6}><ProviderAction title="Reveal transfer code" description="Displays the EPP/auth code. Keep it private." busy={epp.isPending} action={() => window.confirm("Reveal the transfer code?") && epp.mutate()} /></Column></Grid>{transferCode ? <InlineNotification kind="warning" lowContrast hideCloseButton title="Transfer code" subtitle={transferCode} /> : null}{lock.isError || privacy.isError || epp.isError ? <ErrorNotice error={lock.error || privacy.error || epp.error} /> : null}</Tile>
 
-    {!test ? <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Renew or restore</h2><p>Pricing is checked against the exact provider period price before an order is created.</p></div></div><Grid fullWidth className="carbon-action-grid"><Column sm={4} md={4} lg={8}><ProviderAction title="Check renewal quote" description="One-year renewal eligibility and USD price." busy={getQuote.isPending} action={() => getQuote.mutate("renewal")} /></Column><Column sm={4} md={4} lg={8}><ProviderAction title="Check restore quote" description="Restore eligibility and exact restore price." busy={getQuote.isPending} action={() => getQuote.mutate("restore")} /></Column></Grid>{quote ? <Tile className="carbon-quote"><strong>{String(quote.operation).toUpperCase()}</strong><span>{formatMoney(quote.customerPriceUsd, quote.currency || "USD")}</span><small>Provider cost {formatMoney(quote.providerCostUsd, quote.currency || "USD")} · {quote.periodYears} year(s)</small><Button disabled={createOrder.isPending} onClick={() => createOrder.mutate(quote.operation)}>Create wallet order</Button></Tile> : null}{orderMessage ? <InlineNotification kind="success" lowContrast hideCloseButton title="Wallet order ready" subtitle={orderMessage} actions={<Button kind="ghost" size="sm" href="/dashboard/orders">Open orders</Button>} /> : null}{getQuote.isError || createOrder.isError ? <ErrorNotice error={getQuote.error || createOrder.error} /> : null}</Tile> : null}
+    <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Renew or restore</h2><p>Pricing is read from DNA now and includes the 30% resale markup.</p></div></div><Grid fullWidth className="carbon-action-grid"><Column sm={4} md={4} lg={8}><ProviderAction title="Check renewal quote" description="One-year renewal eligibility and live DNA price." busy={getQuote.isPending} action={() => getQuote.mutate("renewal")} /></Column><Column sm={4} md={4} lg={8}><ProviderAction title="Check restore quote" description="Restore eligibility and live DNA price." busy={getQuote.isPending} action={() => getQuote.mutate("restore")} /></Column></Grid>{quote ? <Tile className="carbon-quote"><strong>{String(quote.operation).toUpperCase()}</strong><span>{formatMoney(quote.customerPriceUsd, quote.currency || "USD")}</span><small>DNA cost {formatMoney(quote.providerCostUsd, quote.currency || "USD")} + 30% · {quote.periodYears} year(s)</small><Button disabled={createOrder.isPending} onClick={() => createOrder.mutate(quote.operation)}>{test ? "Queue OTE test order" : "Charge central balance and confirm"}</Button></Tile> : null}{orderMessage ? <InlineNotification kind="success" lowContrast hideCloseButton title="Order queued" subtitle={orderMessage} actions={<Button kind="ghost" size="sm" href="/dashboard/orders">Open orders</Button>} /> : null}{getQuote.isError || createOrder.isError ? <ErrorNotice error={getQuote.error || createOrder.error} /> : null}</Tile>
 
     {domain.status === "transfer_pending" ? <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Transfer status</h2><p>Query or act on a pending incoming/outgoing transfer.</p></div></div><div className="heading-actions">{["query", "approve", "reject", "cancel"].map((action) => <Button key={action} kind={action === "reject" || action === "cancel" ? "danger--ghost" : "secondary"} disabled={transferAction.isPending} onClick={() => window.confirm(`${action} transfer for ${domain.domain_name}?`) && transferAction.mutate(action)}>{action}</Button>)}</div>{transferAction.isError ? <ErrorNotice error={transferAction.error} /> : null}</Tile> : null}
 
@@ -213,9 +208,5 @@ export function NativePageRouter() {
   }
   if (!current) return null;
   if (current.kind === "notifications") return <NotificationsPage />;
-  if (current.kind === "domainManage") return <DomainManagePage domainId={current.domainId} />;
-  if (current.page === "provider") return <AdminProviderPage />;
-  if (current.page === "cron") return <AdminCronPage />;
-  if (current.page === "logs") return <AdminLogsPage />;
-  return <AdminTldsPage />;
+  return <DomainManagePage domainId={current.domainId} />;
 }
