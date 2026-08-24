@@ -262,13 +262,20 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
     throw new ApiError(403, "central_profile_only", "Profile changes are managed from your central KmerHosting Account.");
   }
   if (req.method === "GET" && path === "/dashboard") {
-    const [domains, orders, notifications, invoices] = await Promise.all([
+    const cfg = await getConfig();
+    const checkoutEnvironment = clean(cfg.customer_checkout_environment || cfg.registrar_environment).toLowerCase() === "ote" ? "ote" : "production";
+    const [domains, orders, notifications, invoices, environmentBalance] = await Promise.all([
       db.from("domain_domains").select("*").eq("user_id", auth.user.id).order("created_at", { ascending: false }),
       db.from("domain_orders").select("*").eq("user_id", auth.user.id).order("created_at", { ascending: false }).limit(10),
       db.from("domain_notifications").select("*").eq("user_id", auth.user.id).order("created_at", { ascending: false }).limit(10),
       db.from("domain_invoices").select("*").eq("user_id", auth.user.id).order("issued_at", { ascending: false }).limit(10),
+      db.from("domain_user_environment_balances").select("balance_usd").eq("user_id", auth.user.id).eq("registrar_environment", checkoutEnvironment).maybeSingle(),
     ]);
-    return json(req, { domains: domains.data || [], orders: orders.data || [], notifications: notifications.data || [], invoices: invoices.data || [] });
+    if (environmentBalance.error) throw new ApiError(500, "dashboard_balance_failed", "Unable to load the active account balance.", environmentBalance.error);
+    return json(req, {
+      domains: domains.data || [], orders: orders.data || [], notifications: notifications.data || [], invoices: invoices.data || [],
+      balanceUsd: Number(environmentBalance.data?.balance_usd || 0), checkoutEnvironment, testMode: checkoutEnvironment === "ote",
+    });
   }
   if (path === "/contacts" && req.method === "GET") {
     const result = await db.from("domain_contacts").select("*").eq("user_id", auth.user.id).order("is_default", { ascending: false }).order("created_at");
