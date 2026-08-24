@@ -3,17 +3,21 @@
   "private": true,
   "version": "1.3.3",
   "type": "module",
+  "packageManager": "bun@1.4.0",
+  "engines": {
+    "bun": ">=1.4.0"
+  },
   "scripts": {
     "dev": "vite",
-    "check:styles": "node scripts/check-carbon-style-contract.mjs",
-    "audit:shell": "node scripts/audit-shell-layout.mjs",
-    "audit:auth": "node scripts/audit-domain-session-gateway.mjs",
-    "test": "node --test tests/*.test.mjs",
-    "build": "npm run check:styles && npm run audit:shell && npm run audit:auth && vite build",
-    "build:strict": "npm run check:styles && npm run audit:shell && npm run audit:auth && tsc -p tsconfig.app.json --pretty false && vite build",
+    "check:styles": "bun scripts/check-carbon-style-contract.mjs",
+    "audit:shell": "bun scripts/audit-shell-layout.mjs",
+    "audit:auth": "bun scripts/audit-domain-session-gateway.mjs",
+    "test": "bun test tests/*.test.mjs",
+    "build": "bun run check:styles && bun run audit:shell && bun run audit:auth && vite build",
+    "build:strict": "bun run check:styles && bun run audit:shell && bun run audit:auth && tsc -p tsconfig.app.json --pretty false && vite build",
     "preview": "vite preview",
     "typecheck": "tsc -p tsconfig.app.json --pretty false",
-    "check": "npm test && npm run check:styles && npm run audit:shell && npm run audit:auth && npm run typecheck && vite build"
+    "check": "bun run test && bun run check:styles && bun run audit:shell && bun run audit:auth && bun run typecheck && vite build"
   },
   "dependencies": {
     "@carbon/react": "^1.114.0",
