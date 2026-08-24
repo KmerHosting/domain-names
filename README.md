@@ -52,8 +52,8 @@ Passwords are hashed with bcrypt in the Edge Function. OTP codes and session tok
 
 ```bash
 cp .env.example .env.local
-npm install
-npm run dev
+bun install --frozen-lockfile
+bun run dev
 ```
 
 Open `http://localhost:5173`.
@@ -61,8 +61,8 @@ Open `http://localhost:5173`.
 ## Production build
 
 ```bash
-npm run typecheck
-npm run build
+bun run typecheck
+bun run build
 ```
 
 The output is written to `dist/`.
@@ -71,7 +71,7 @@ The output is written to `dist/`.
 
 1. Import this repository.
 2. Framework preset: **Vite**.
-3. Build command: `npm run build`.
+3. Build command: `bun run build`.
 4. Output directory: `dist`.
 5. Configure `SUPABASE_FUNCTIONS_BASE` and `SUPABASE_PUBLISHABLE_KEY` as server-side variables.
 6. Keep `VITE_DOMAIN_PROXY_BASE=/api/domain`.
