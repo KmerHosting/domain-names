@@ -9,41 +9,34 @@ const browserFunctions = [
   "domain-api",
   "domain-platform-status",
   "domain-search-fast",
-  "domain-wallet",
-  "domain-admin",
-  "domain-admin-user-safety",
-  "domain-admin-monitor",
-  "domain-operations-monitor",
-  "domain-ops",
   "domain-documents",
   "domain-order-guard",
   "domain-customer-tools",
   "domain-dns-tools",
-  "domain-provider-balance",
-  "domain-environment-status",
-  "domain-environment-switch",
-  "domain-environment-credit",
-  "domain-tld-provider-sync",
 ];
 
 const protectedFunctions = [
-  "domain-wallet",
-  "domain-admin",
-  "domain-admin-user-safety",
-  "domain-operations-monitor",
   "domain-documents",
   "domain-order-guard",
   "domain-customer-tools",
   "domain-dns-tools",
-  "domain-provider-balance",
-  "domain-environment-status",
-  "domain-environment-switch",
-  "domain-tld-provider-sync",
 ];
 
-const automationFunctions = [
-  "domain-jobs-v2",
+const automationFunctions = ["domain-jobs-v2"];
+
+const retiredFunctions = [
+  "domain-admin-user-safety",
+  "domain-admin",
   "domain-automation-v2",
+  "domain-dns-auto-sync",
+  "domain-environment-status",
+  "domain-environment-switch",
+  "domain-operations-monitor",
+  "domain-payment-status",
+  "domain-provider-balance",
+  "domain-tld-provider-sync",
+  "domain-tld-sync-worker",
+  "domain-wallet",
 ];
 
 function sectionFor(name) {
@@ -96,6 +89,18 @@ for (const name of automationFunctions) {
   }
 }
 
+for (const name of retiredFunctions) {
+  const sourcePath = path.join(root, "supabase/functions", name, "index.ts");
+  if (!fs.existsSync(sourcePath)) {
+    violations.push(`Missing retired-service tombstone: ${name}.`);
+    continue;
+  }
+  const source = fs.readFileSync(sourcePath, "utf8");
+  for (const required of ["legacy_domain_service_removed", "status: 410"]) {
+    if (!source.includes(required)) violations.push(`${name} is missing retired-service marker: ${required}.`);
+  }
+}
+
 const publicSearch = fs.readFileSync(path.join(root, "supabase/functions/domain-search-fast/index.ts"), "utf8");
 for (const required of ["domain_rate_limits", "bulk-domain-search", "checkoutEnvironment"]) {
   if (!publicSearch.includes(required)) violations.push(`domain-search-fast is missing public-search protection/config marker: ${required}.`);
@@ -107,4 +112,4 @@ if (violations.length) {
   process.exit(1);
 }
 
-console.log(`Domain session gateway audit passed: ${browserFunctions.length} browser APIs bypass Supabase JWT interception, protected APIs retain KmerHosting session validation, and ${automationFunctions.length} cron workers retain custom-secret authentication.`);
+console.log(`Domain session gateway audit passed: ${browserFunctions.length} active browser APIs are configured, ${protectedFunctions.length} protected APIs retain KmerHosting session validation, ${automationFunctions.length} cron worker retains custom-secret authentication, and ${retiredFunctions.length} legacy services remain closed with HTTP 410 tombstones.`);
