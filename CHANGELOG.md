@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.7](https://github.com/KmerHosting/domain-names/compare/v1.3.6...v1.3.7) (2026-08-24)
+
+
+### Bug Fixes
+
+* **ote:** enable deterministic domain availability testing ([#31](https://github.com/KmerHosting/domain-names/issues/31)) ([061baf4](https://github.com/KmerHosting/domain-names/commit/061baf48146fdaeafe6922efd2f4dfde8878a8a2))
+
 ## [1.3.6](https://github.com/KmerHosting/domain-names/compare/v1.3.5...v1.3.6) (2026-08-24)
 
 
