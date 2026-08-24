@@ -112,6 +112,7 @@ type Order = {
   created_at: string;
   failure_message?: string | null;
   provider_quote_id?: string | null;
+  payableInCurrentEnvironment?: boolean;
 };
 type SearchResult = {
   domainName: string;
@@ -129,6 +130,8 @@ type WalletSummary = {
   balanceUsd: number;
   transactions: Row[];
   orders: Order[];
+  checkoutEnvironment: "production" | "ote";
+  testMode: boolean;
   supportEmail: string;
   topupInstructions: string;
 };
@@ -492,9 +495,17 @@ function OrdersPage() {
   const query = useQuery({ queryKey: ["orders"], queryFn: () => api<{ orders: Order[] }>("/orders"), refetchInterval: 20000 });
   const wallet = useQuery({ queryKey: ["wallet-summary"], queryFn: () => walletApi<WalletSummary>("/summary") });
   const pay = useMutation({ mutationFn: (orderId: string) => walletApi("/pay-order", { method: "POST", body: { orderId }, idempotencyKey: newIdempotencyKey("wallet-pay") }), onSuccess: () => { client.invalidateQueries({ queryKey: ["orders"] }); client.invalidateQueries({ queryKey: ["wallet-summary"] }); } });
-  return <div className="dashboard-content"><PageHeading eyebrow="Orders" title="Domain orders" description="Pay pending orders from your USD account balance." actions={<Button kind="secondary" href="/dashboard/wallet">Balance {formatMoney(wallet.data?.balanceUsd || 0)}</Button>} />
+  const walletOrders = new Map((wallet.data?.orders || []).map((order) => [order.id, order]));
+  return <div className="dashboard-content"><PageHeading eyebrow="Orders" title="Domain orders" description="Pay pending orders from the matching TEST or LIVE USD account balance." actions={<Button kind="secondary" href="/dashboard/wallet">Balance {formatMoney(wallet.data?.balanceUsd || 0)}</Button>} />
     {query.isError || pay.isError ? <ErrorNotice error={query.error || pay.error} /> : null}
-    {query.isPending ? <LoadingBlock /> : query.data?.orders.length ? <div className="carbon-order-list">{query.data.orders.map((order) => <Tile className="carbon-order-row" key={order.id}><div><strong>{order.domain_name}</strong><span>{order.order_number} · {order.type} · {formatDate(order.created_at)}</span>{order.failure_message ? <small>{order.failure_message}</small> : null}</div><div className="heading-actions"><strong>{formatMoney(order.price_usd)}</strong><StatusBadge value={order.status} />{["pending_payment", "payment_pending"].includes(order.status) ? <Button disabled={pay.isPending || Number(wallet.data?.balanceUsd || 0) < Number(order.price_usd)} onClick={() => window.confirm(`Pay ${formatMoney(order.price_usd)} from your account balance?`) && pay.mutate(order.id)}>Pay from balance</Button> : null}</div></Tile>)}</div> : <EmptyState title="No orders" text="Registration, transfer, renewal and restore orders appear here." />}
+    {query.isPending ? <LoadingBlock /> : query.data?.orders.length ? <div className="carbon-order-list">{query.data.orders.map((order) => {
+      const walletOrder = walletOrders.get(order.id);
+      const environmentMatches = walletOrder?.payableInCurrentEnvironment ?? (Boolean(wallet.data) && order.registrar_environment === wallet.data?.checkoutEnvironment);
+      const pending = ["pending_payment", "payment_pending"].includes(order.status);
+      const enoughCredit = Number(wallet.data?.balanceUsd || 0) >= Number(order.price_usd);
+      const environmentLabel = order.registrar_environment === "ote" ? "test_ote" : "live";
+      return <Tile className="carbon-order-row" key={order.id}><div><strong>{order.domain_name}</strong><span>{order.order_number} · {order.type} · {formatDate(order.created_at)}</span>{pending && !environmentMatches && wallet.data ? <small>This {order.registrar_environment === "ote" ? "TEST / OTE" : "LIVE"} order is kept for history and can only be paid when {order.registrar_environment === "ote" ? "TEST / OTE" : "LIVE"} checkout is active.</small> : null}{order.failure_message ? <small>{order.failure_message}</small> : null}</div><div className="heading-actions"><strong>{formatMoney(order.price_usd)}</strong><StatusBadge value={environmentLabel} /><StatusBadge value={order.status} />{pending ? <Button disabled={pay.isPending || wallet.isPending || !environmentMatches || !enoughCredit} onClick={() => window.confirm(`Pay ${formatMoney(order.price_usd)} from your ${order.registrar_environment === "ote" ? "TEST / OTE" : "LIVE"} account balance?`) && pay.mutate(order.id)}>{!environmentMatches && wallet.data ? `Unavailable in ${wallet.data.checkoutEnvironment === "ote" ? "TEST / OTE" : "LIVE"}` : "Pay from balance"}</Button> : null}</div></Tile>;
+    })}</div> : <EmptyState title="No orders" text="Registration, transfer, renewal and restore orders appear here." />}
   </div>;
 }
 
