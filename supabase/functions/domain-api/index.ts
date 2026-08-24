@@ -7,7 +7,7 @@ import {
   validDomain, validEmail, verifyPassword,
 } from "./core.ts";
 import {
-  camerPayStatus, initiateCamerPay, isPaymentPaid, newInvoiceId, paymentFields,
+  camerPayStatus, domainInfo, initiateCamerPay, isPaymentPaid, newInvoiceId, paymentFields,
   registrarCall, searchDomain, verifyCamerPayWebhook,
 } from "./providers.ts";
 import { markPaymentPaid, runAutomation, runEmails, runJobs } from "./worker.ts";
@@ -265,6 +265,53 @@ async function checkout(req: Request, auth: Json, orderId: string): Promise<Resp
   }
 }
 
+async function retryOrder(req: Request, auth: Json, orderId: string): Promise<Response> {
+  await enforceRateLimit(`order-retry:${auth.user.id}`, 6, 60);
+  const orderResult = await db.from("domain_orders")
+    .select("id,domain_name,domain_id,registrar_environment,status,user_id")
+    .eq("id", orderId).eq("user_id", auth.user.id).maybeSingle();
+  if (orderResult.error || !orderResult.data) throw new ApiError(404, "order_not_found", "Order not found.");
+  const order = orderResult.data;
+  if (order.registrar_environment !== "ote") throw new ApiError(409, "retry_ote_only", "Manual retry is available only for DNA OTE orders.");
+  if (order.domain_id) throw new ApiError(409, "order_already_reconciled", "This order already has a managed domain.");
+  if (!["queued", "processing", "failed"].includes(order.status)) throw new ApiError(409, "order_not_retryable", "This order is not waiting for a provider operation.");
+
+  const cfg = await getConfig();
+  if (cfg.registrar_environment !== "ote") throw new ApiError(409, "ote_not_active", "DNA OTE is not the active registrar environment.");
+
+  // Never re-submit a registration until DNA confirms the name is still absent.
+  try {
+    await domainInfo(order.domain_name);
+    throw new ApiError(409, "provider_domain_exists", "DNA already reports this domain. The order needs reconciliation instead of another registration.");
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "provider_domain_exists") throw error;
+    if (!(error instanceof ApiError && error.status === 404)) throw error;
+  }
+
+  const jobResult = await db.from("domain_jobs")
+    .select("id,status,attempts,max_attempts,run_after,updated_at")
+    .eq("order_id", order.id).eq("type", "register_domain")
+    .order("created_at", { ascending: false }).limit(1).maybeSingle();
+  if (jobResult.error || !jobResult.data) throw new ApiError(409, "registration_job_missing", "The registration job could not be found.");
+  const job = jobResult.data;
+  if (job.status !== "failed") {
+    if (["pending", "running"].includes(job.status)) throw new ApiError(409, "retry_already_queued", "The DNA operation is already queued.");
+    throw new ApiError(409, "job_not_retryable", "The DNA operation is not in a retryable state.");
+  }
+  if (Number(job.attempts) >= Number(job.max_attempts)) throw new ApiError(409, "retry_limit_reached", "The maximum DNA retry attempts have been reached.");
+  const lastUpdate = Date.parse(String(job.updated_at || ""));
+  if (Number.isFinite(lastUpdate) && Date.now() - lastUpdate < 30_000) throw new ApiError(429, "retry_cooldown", "Please wait 30 seconds before retrying this DNA operation.");
+
+  const now = new Date().toISOString();
+  const updated = await db.from("domain_jobs").update({
+    status: "pending", run_after: now, locked_at: null, locked_by: null, last_error: null, updated_at: now,
+  }).eq("id", job.id).eq("status", "failed").lt("attempts", Number(job.max_attempts)).select("id,status,attempts,max_attempts").maybeSingle();
+  if (updated.error || !updated.data) throw new ApiError(409, "retry_race", "The DNA operation changed before it could be retried. Refresh and try again.");
+  await db.from("domain_orders").update({ status: "processing", failure_code: null, failure_message: null, updated_at: now }).eq("id", order.id).eq("user_id", auth.user.id);
+  await audit(req, "order.provider_retry_requested", auth.user.id, "order", order.id, { jobId: job.id, registrarEnvironment: "ote", attempts: Number(job.attempts) });
+  return json(req, { success: true, status: "queued", orderId: order.id, jobId: job.id, attempts: Number(job.attempts), maxAttempts: Number(job.max_attempts), registrarEnvironment: "ote" }, 202);
+}
+
 async function protectedRoutes(req: Request, path: string): Promise<Response> {
   const auth = await requireAuth(req);
   if (req.method === "GET" && path === "/me") return json(req, { user: publicUser(auth.user) });
@@ -437,6 +484,7 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
   const checkoutMatch = path.match(/^\/orders\/([0-9a-f-]+)\/checkout$/i);
   if (checkoutMatch && req.method === "POST") return await checkout(req, auth, checkoutMatch[1]);
   const orderMatch = path.match(/^\/orders\/([0-9a-f-]+)$/i);
+  if (orderMatch && req.method === "POST") return await retryOrder(req, auth, orderMatch[1]);
   if (orderMatch && req.method === "GET") {
     const result = await db.from("domain_orders").select("*,domain_payments(*),domain_invoices(*)").eq("id", orderMatch[1]).eq("user_id", auth.user.id).single();
     if (result.error) throw new ApiError(404, "order_not_found", "Order not found.");

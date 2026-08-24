@@ -51,3 +51,15 @@ test('customer UI exposes neither a domain wallet nor an administration route', 
   assert.doesNotMatch(shell, /adminNavigation|href="\/admin"|\/dashboard\/wallet/)
   assert.doesNotMatch(main, /AdminPage|AdminEnvironmentsPage|AdminOperationsPage/)
 })
+
+test('OTE orders expose a guarded DNA retry action', async () => {
+  const backend = await read('supabase/functions/domain-api/index.ts')
+  const router = await read('src/router.tsx')
+  assert.match(backend, /async function retryOrder\(/)
+  assert.match(backend, /await domainInfo\(order\.domain_name\)/)
+  assert.match(backend, /status: "pending", run_after: now/)
+  assert.match(backend, /\.eq\("status", "failed"\)/)
+  assert.match(backend, /retry_ote_only/)
+  assert.match(router, /Retry DNA operation/)
+  assert.match(router, /api\(`\/orders\/\$\{orderId\}`, \{ method: "POST" \}\)/)
+})

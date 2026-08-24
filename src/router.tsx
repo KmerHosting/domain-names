@@ -478,12 +478,21 @@ function DomainDetailPage() {
 }
 
 function OrdersPage() {
+  const client = useQueryClient();
   const query = useQuery({ queryKey: ["orders"], queryFn: () => api<{ orders: Order[] }>("/orders"), refetchInterval: 20000 });
+  const retry = useMutation({
+    mutationFn: (orderId: string) => api(`/orders/${orderId}`, { method: "POST" }),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ["orders"] });
+      client.invalidateQueries({ queryKey: ["dashboard"] });
+    },
+  });
   return <div className="dashboard-content"><PageHeading eyebrow="Orders" title="Domain orders" description="Orders are authorized when created: free against DNA OTE test funds, or charged directly to the central KmerHosting balance in LIVE." />
-    {query.isError ? <ErrorNotice error={query.error} /> : null}
+    {query.isError || retry.isError ? <ErrorNotice error={query.error || retry.error} /> : null}
     {query.isPending ? <LoadingBlock /> : query.data?.orders.length ? <div className="carbon-order-list">{query.data.orders.map((order) => {
       const environmentLabel = order.registrar_environment === "ote" ? "test_ote" : "live";
-      return <Tile className="carbon-order-row" key={order.id}><div><strong>{order.domain_name}</strong><span>{order.order_number} · {order.type} · {formatDate(order.created_at)}</span><small>{order.registrar_environment === "ote" ? "DNA OTE test order · central charge $0.00" : "Charged to the central KmerHosting balance"}</small>{order.failure_message ? <small>{order.failure_message}</small> : null}</div><div className="heading-actions"><strong>{formatMoney(order.price_usd)}</strong><StatusBadge value={environmentLabel} /><StatusBadge value={order.status} /></div></Tile>;
+      const canRetry = order.registrar_environment === "ote" && ["processing", "failed"].includes(order.status);
+      return <Tile className="carbon-order-row" key={order.id}><div><strong>{order.domain_name}</strong><span>{order.order_number} · {order.type} · {formatDate(order.created_at)}</span><small>{order.registrar_environment === "ote" ? "DNA OTE test order · central charge $0.00" : "Charged to the central KmerHosting balance"}</small>{order.failure_message ? <small>{order.failure_message}</small> : null}</div><div className="heading-actions"><strong>{formatMoney(order.price_usd)}</strong><StatusBadge value={environmentLabel} /><StatusBadge value={order.status} />{canRetry ? <Button kind="ghost" size="sm" disabled={retry.isPending} onClick={() => retry.mutate(order.id)}>{retry.isPending ? "Retrying…" : "Retry DNA operation"}</Button> : null}</div></Tile>;
     })}</div> : <EmptyState title="No orders" text="Registration, transfer, renewal and restore orders appear here." />}
   </div>;
 }
