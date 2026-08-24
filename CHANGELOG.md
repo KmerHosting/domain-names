@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.9](https://github.com/KmerHosting/domain-names/compare/v1.3.8...v1.3.9) (2026-08-24)
+
+
+### Bug Fixes
+
+* align dashboard wallet and safely retry registrations ([#35](https://github.com/KmerHosting/domain-names/issues/35)) ([a73ceec](https://github.com/KmerHosting/domain-names/commit/a73ceec16815b7a34dbbf4064a7d75ec167b3325))
+
 ## [1.3.8](https://github.com/KmerHosting/domain-names/compare/v1.3.7...v1.3.8) (2026-08-24)
 
 
