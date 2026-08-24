@@ -7,34 +7,116 @@ const CRON_SECRET = Deno.env.get("DOMAIN_CRON_SECRET") || Deno.env.get("DOMAIN_I
 const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, { auth: { persistSession: false, autoRefreshToken: false } });
 
 type Json = Record<string, any>;
+type Environment = "ote" | "production";
 class HttpError extends Error { constructor(public status: number, public code: string, message: string, public details?: unknown) { super(message); } }
-const clean = (v: unknown) => String(v ?? "").trim();
-const lower = (v: unknown) => clean(v).toLowerCase();
-const upper = (v: unknown) => clean(v).toUpperCase();
+const clean = (value: unknown) => String(value ?? "").trim();
+const lower = (value: unknown) => clean(value).toLowerCase();
+const upper = (value: unknown) => clean(value).toUpperCase();
 const now = () => new Date().toISOString();
-function cors(): HeadersInit { return { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-domain-cron-secret", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }; }
-function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: cors() }); }
-function pathOf(req: Request) { const p = new URL(req.url).pathname; const marker = "/domain-dns-auto-sync"; const i = p.indexOf(marker); return (i >= 0 ? p.slice(i + marker.length) : p).replace(/\/+$/, "") || "/"; }
-function assertCron(req: Request) { const provided = clean(req.headers.get("x-domain-cron-secret")); if (!CRON_SECRET || provided !== CRON_SECRET) throw new HttpError(401, "invalid_cron_secret", "Invalid cron secret."); }
-function providerArray(body: any): any[] { const candidates = [body?.data?.records, body?.records, body?.data?.zones, body?.zones, body?.result?.records, body?.result, body?.data, body]; for (const c of candidates) if (Array.isArray(c)) return c; return []; }
-function recordKey(r: Json) { return `${lower(r.name || "@")}::${upper(r.type)}::${Array.isArray(r.contents) ? r.contents.map(lower).join("|") : lower(r.contents)}::${r.priority ?? ""}::${JSON.stringify(r.metadata || {})}`; }
-function providerRecord(raw: Json) { const name = lower(raw.name ?? raw.Name ?? raw.host ?? raw.recordName ?? "@").replace(/\.$/, "") || "@"; const type = upper(raw.type ?? raw.Type ?? raw.recordType ?? raw.RecordType); const ttlValue = Number(raw.ttl ?? raw.TTL ?? 3600); const contents = Array.isArray(raw.contents) ? raw.contents : Array.isArray(raw.values) ? raw.values : [raw.content ?? raw.value ?? raw.target ?? raw.Record].filter((v) => v !== undefined); const priorityValue = raw.priority ?? raw.Priority ?? raw.preference ?? null; const metadata: Json = { providerRaw: raw }; if (raw.weight !== undefined) metadata.weight = Number(raw.weight); if (raw.port !== undefined) metadata.port = Number(raw.port); if (raw.flag !== undefined) metadata.flag = Number(raw.flag); if (raw.tag !== undefined) metadata.tag = clean(raw.tag); const row = { name, type, ttl: Number.isFinite(ttlValue) ? ttlValue : 3600, contents: contents.map(clean).filter(Boolean), priority: priorityValue === null || priorityValue === undefined ? null : Number(priorityValue), metadata, source: "provider", provider_record_id: clean(raw.id ?? raw.recordId ?? raw.zoneId) || null }; return { ...row, record_key: recordKey(row) }; }
-async function registrar(path: string, method = "GET", bodyArg?: Json | null, query: Json = {}) { const { data, error } = await db.rpc("domain_registrar_proxy", { p_path: path, p_method: method, p_body: bodyArg ?? null, p_query: query }); if (error) throw new HttpError(504, "registrar_proxy_failed", error.message, error); const out = data as Json; if (!out || Number(out.status) >= 400) throw new HttpError(Number(out?.status || 502), "provider_error", clean(out?.body?.message || out?.body?.error || `Provider failed (${out?.status || "unknown"}).`), out?.body); return out.body as Json; }
-async function syncOne(domain: Json) {
-  const provider = await registrar("/api/v1/domains/zones", "GET", null, { domainName: domain.domain_name });
-  const normalized = providerArray(provider).map(providerRecord).filter((r) => r.type && r.name && r.contents.length);
-  const seen = normalized.map((r) => r.record_key);
-  let imported = 0;
-  for (const r of normalized) {
-    const payload = { domain_id: domain.id, user_id: domain.user_id, name: r.name, type: r.type, contents: r.contents, ttl: r.ttl, priority: r.priority, status: "active", registrar_response: r.metadata.providerRaw || {}, source: "provider", provider_record_id: r.provider_record_id, record_key: r.record_key, metadata: r.metadata, registrar_environment: domain.registrar_environment, last_operation: "sync", last_error: null, synced_at: now(), updated_at: now() };
-    const { error } = await db.from("domain_dns_records").upsert(payload, { onConflict: "domain_id,record_key" });
-    if (error) throw new HttpError(500, "dns_sync_failed", error.message, error);
-    imported++;
-  }
-  if (seen.length) await db.from("domain_dns_records").update({ status: "stale", last_operation: "sync", last_error: "Record was not returned by provider during the last DNS sync.", synced_at: now(), updated_at: now() }).eq("domain_id", domain.id).eq("source", "provider").not("record_key", "in", `(${seen.map((x) => `"${String(x).replaceAll('"', '""')}"`).join(",")})`);
-  else await db.from("domain_dns_records").update({ status: "stale", last_operation: "sync", last_error: "Provider returned no DNS records during the last DNS sync.", synced_at: now(), updated_at: now() }).eq("domain_id", domain.id).eq("source", "provider");
-  await db.from("domain_domains").update({ metadata: { ...(domain.metadata || {}), lastDnsAutoSyncAt: now() }, last_synced_at: now(), updated_at: now() }).eq("id", domain.id);
-  return { domain: domain.domain_name, imported, providerReturned: normalized.length };
+
+function headers(): HeadersInit { return { "Access-Control-Allow-Origin": "*", "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-domain-cron-secret", "Access-Control-Allow-Methods": "GET,POST,OPTIONS", "Content-Type": "application/json; charset=utf-8", "Cache-Control": "no-store", "X-Content-Type-Options": "nosniff" }; }
+function json(body: unknown, status = 200) { return new Response(JSON.stringify(body), { status, headers: headers() }); }
+function pathOf(req: Request) { const path = new URL(req.url).pathname; const marker = "/domain-dns-auto-sync"; const index = path.indexOf(marker); return (index >= 0 ? path.slice(index + marker.length) : path).replace(/\/+$/, "") || "/"; }
+function assertCron(req: Request) { if (!CRON_SECRET || clean(req.headers.get("x-domain-cron-secret")) !== CRON_SECRET) throw new HttpError(401, "invalid_cron_secret", "Invalid cron secret."); }
+function iso(value: unknown) { if (!value) return null; const date = new Date(String(value)); return Number.isNaN(date.getTime()) ? null : date.toISOString(); }
+function domainName(item: Json) { return lower(item.domainName || item.domainNameIdn || item.name || item.data?.domainName); }
+function providerItems(body: Json): Json[] { for (const value of [body.items, body.data?.items, body.domains, body.data?.domains, body.data, body]) if (Array.isArray(value)) return value; return []; }
+function zoneItems(body: Json): Json[] { for (const value of [body.data?.records, body.records, body.data?.zones, body.zones, body.result?.records, body.result, body.data, body]) if (Array.isArray(value)) return value; return []; }
+function recordKey(record: Json) { return `${lower(record.name || "@")}::${upper(record.type)}::${record.contents.map(lower).join("|")}::${record.priority ?? ""}`; }
+function providerRecord(raw: Json) { const name = lower(raw.name ?? raw.Name ?? raw.host ?? raw.recordName ?? "@").replace(/\.$/, "") || "@"; const type = upper(raw.type ?? raw.Type ?? raw.recordType ?? raw.RecordType); const contents = (Array.isArray(raw.contents) ? raw.contents : Array.isArray(raw.values) ? raw.values : [raw.content ?? raw.value ?? raw.target ?? raw.Record]).map(clean).filter(Boolean); const priorityValue = raw.priority ?? raw.Priority ?? raw.preference ?? null; const metadata: Json = { providerRaw: raw }; if (raw.weight !== undefined) metadata.weight = Number(raw.weight); if (raw.port !== undefined) metadata.port = Number(raw.port); if (raw.flag !== undefined) metadata.flag = Number(raw.flag); if (raw.tag !== undefined) metadata.tag = clean(raw.tag); const record = { name, type, ttl: Number(raw.ttl ?? raw.TTL ?? 3600) || 3600, contents, priority: priorityValue == null ? null : Number(priorityValue), metadata, source: "provider", provider_record_id: clean(raw.id ?? raw.recordId ?? raw.zoneId) || null }; return { ...record, record_key: recordKey(record) }; }
+
+async function provider(environment: Environment, path: string, method = "GET", body: Json | null = null, query: Json = {}) {
+  const { data, error } = await db.rpc("domain_registrar_proxy_env", { p_path: path, p_method: method, p_body: body, p_query: query, p_environment: environment });
+  if (error) throw new HttpError(502, "provider_proxy_failed", error.message, error);
+  const response = data as Json;
+  const status = Number(response?.status || 0);
+  if (!response || status >= 400) throw new HttpError(status >= 500 ? 502 : status || 502, "provider_error", clean(response?.body?.message || response?.body?.error || `DomainNameAPI failed (${status || "unknown"}).`), response?.body);
+  return response.body as Json;
 }
-async function run(req: Request) { assertCron(req); const { data: cfg, error: cfgError } = await db.from("domain_config").select("registrar_environment").eq("id", true).single(); if (cfgError || !cfg) throw new HttpError(500, "config_missing", "Domain configuration is missing."); const { data: domains, error } = await db.from("domain_domains").select("id,user_id,domain_name,status,nameservers,metadata,registrar_environment").eq("registrar_environment", cfg.registrar_environment).in("status", ["active", "registered", "completed"]).limit(100); if (error) throw new HttpError(500, "domain_query_failed", error.message, error); const results: Json[] = []; const failures: Json[] = []; for (const domain of domains || []) { try { results.push(await syncOne(domain as Json)); } catch (e) { failures.push({ domain: domain.domain_name, error: e instanceof Error ? e.message : String(e) }); } } return json({ ok: failures.length === 0, environment: cfg.registrar_environment, processed: results.length, failed: failures.length, results, failures, timestamp: now() }, failures.length ? 207 : 200); }
-Deno.serve(async (req) => { if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: cors() }); try { const path = pathOf(req); if (req.method === "GET" && (path === "/" || path === "/health")) return json({ ok: true, service: "KmerHosting Domain DNS Auto Sync", version: 1, timestamp: now() }); if (req.method === "POST" && path === "/run") return await run(req); return json({ error: "not_found", message: "Endpoint not found." }, 404); } catch (e) { if (e instanceof HttpError) return json({ error: e.code, message: e.message, details: e.details }, e.status); console.error(e); return json({ error: "internal_error", message: e instanceof Error ? e.message : "Unexpected error." }, 500); } });
+
+function inventoryRow(environment: Environment, item: Json) {
+  return {
+    registrar_environment: environment,
+    domain_name: domainName(item),
+    provider_status: clean(item.statusCode || item.status || "active"),
+    registrar_domain_id: clean(item.objectId || item.domainId || item.id) || null,
+    registered_at: iso(item.startDate || item.creationDate),
+    expires_at: iso(item.expirationDate || item.expiresAt),
+    nameservers: (item.nameServers || item.nameservers || []).map(clean).filter(Boolean),
+    locked: item.lockStatus == null ? null : Boolean(item.lockStatus),
+    privacy_enabled: item.privacyProtectionStatus == null ? null : Boolean(item.privacyProtectionStatus),
+    provider_payload: item,
+    present_at_provider: true,
+    last_seen_at: now(),
+    updated_at: now(),
+  };
+}
+
+async function syncDns(domain: Json, environment: Environment) {
+  const raw = await provider(environment, "/api/v1/domains/zones", "GET", null, { domainName: domain.domain_name });
+  const records = zoneItems(raw).map(providerRecord).filter((record) => record.name && record.type && record.contents.length);
+  const seen = records.map((record) => record.record_key);
+  for (const record of records) {
+    const { error } = await db.from("domain_dns_records").upsert({ domain_id: domain.id, user_id: domain.user_id, ...record, status: "active", registrar_response: record.metadata.providerRaw, registrar_environment: environment, last_operation: "sync", last_error: null, synced_at: now(), updated_at: now() }, { onConflict: "domain_id,record_key" });
+    if (error) throw new HttpError(500, "dns_sync_failed", error.message, error);
+  }
+  let stale = db.from("domain_dns_records").update({ status: "stale", last_operation: "sync", last_error: "Record was not returned by DomainNameAPI.", synced_at: now(), updated_at: now() }).eq("domain_id", domain.id).eq("source", "provider");
+  if (seen.length) stale = stale.not("record_key", "in", `(${seen.map((key) => `"${String(key).replaceAll('"', '""')}"`).join(",")})`);
+  await stale;
+  return records.length;
+}
+
+async function syncEnvironment(environment: Environment) {
+  const raw = await provider(environment, "/api/v1/domains");
+  const items = providerItems(raw).filter((item) => domainName(item));
+  const names = new Set(items.map(domainName));
+  await db.from("domain_provider_inventory").update({ present_at_provider: false, updated_at: now() }).eq("registrar_environment", environment);
+  for (const item of items) {
+    const { error } = await db.from("domain_provider_inventory").upsert(inventoryRow(environment, item), { onConflict: "registrar_environment,domain_name" });
+    if (error) throw new HttpError(500, "inventory_sync_failed", error.message, error);
+  }
+
+  const { data: localDomains, error } = await db.from("domain_domains").select("*").eq("registrar_environment", environment);
+  if (error) throw new HttpError(500, "domain_query_failed", error.message, error);
+  let confirmed = 0;
+  let missing = 0;
+  let dnsRecords = 0;
+  const failures: Json[] = [];
+  for (const local of localDomains || []) {
+    if (!names.has(lower(local.domain_name))) {
+      missing++;
+      await db.from("domain_domains").update({ status: "provider_missing", metadata: { ...(local.metadata || {}), providerMissingAt: now(), providerAuthoritative: true }, updated_at: now() }).eq("id", local.id);
+      continue;
+    }
+    confirmed++;
+    const item = items.find((candidate) => domainName(candidate) === lower(local.domain_name))!;
+    const row = inventoryRow(environment, item);
+    await db.from("domain_domains").update({ status: "active", registrar_domain_id: row.registrar_domain_id || local.registrar_domain_id, registered_at: row.registered_at || local.registered_at, expires_at: row.expires_at || local.expires_at, nameservers: row.nameservers, locked: row.locked ?? local.locked, privacy_enabled: row.privacy_enabled ?? local.privacy_enabled, metadata: { ...(local.metadata || {}), lastProviderInfo: item, providerAuthoritative: true, providerMissingAt: null }, last_synced_at: now(), updated_at: now() }).eq("id", local.id);
+    try { dnsRecords += await syncDns(local, environment); } catch (syncError) { failures.push({ domainName: local.domain_name, message: syncError instanceof Error ? syncError.message : String(syncError) }); }
+  }
+  return { environment, providerDomains: items.length, localConfirmed: confirmed, localMissing: missing, dnsRecords, failures };
+}
+
+async function run(req: Request) {
+  assertCron(req);
+  const requested = lower(new URL(req.url).searchParams.get("environment"));
+  const environments: Environment[] = requested === "ote" ? ["ote"] : requested === "production" ? ["production"] : ["ote", "production"];
+  const results = [];
+  for (const environment of environments) results.push(await syncEnvironment(environment));
+  const failed = results.reduce((count, result) => count + result.failures.length, 0);
+  return json({ ok: failed === 0, authoritativeSource: "DomainNameAPI", results, timestamp: now() }, failed ? 207 : 200);
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response(null, { status: 204, headers: headers() });
+  try {
+    const path = pathOf(req);
+    if (req.method === "GET" && (path === "/" || path === "/health")) return json({ ok: true, service: "KmerHosting DomainNameAPI Portfolio and DNS Sync", version: 2, environments: ["ote", "production"], timestamp: now() });
+    if (req.method === "POST" && path === "/run") return await run(req);
+    return json({ error: "not_found", message: "Endpoint not found." }, 404);
+  } catch (error) {
+    if (error instanceof HttpError) return json({ error: error.code, message: error.message, details: error.details }, error.status);
+    console.error(error);
+    return json({ error: "internal_error", message: error instanceof Error ? error.message : "Unexpected error." }, 500);
+  }
+});

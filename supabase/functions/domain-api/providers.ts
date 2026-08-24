@@ -50,54 +50,8 @@ export async function registrarCall(path: string, method = "GET", body?: unknown
   return payload;
 }
 
-function deterministicOteAvailability(domainName: string): boolean {
-  let hash = 2166136261;
-  for (const character of domainName) {
-    hash ^= character.charCodeAt(0);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0) % 4 !== 0;
-}
-
-function simulatedOteSearch(domainName: string): Json {
-  const available = deterministicOteAvailability(domainName);
-  return {
-    success: true,
-    code: "OTE_SEARCH_SIMULATED",
-    operationMessage: "DomainNameAPI OTE search is unavailable; a deterministic test result was generated.",
-    info: {
-      domainName,
-      tld: domainName.split(".").at(-1) || "",
-      isPremium: false,
-      isDocumentRequired: false,
-      currency: "USD",
-      period: 1,
-      price: 0,
-      reason: "ote_provider_search_unavailable",
-      status: available ? "available" : "unavailable",
-      availabilitySource: "ote_simulation",
-      simulatedOte: true,
-    },
-  };
-}
-
-function oteSearchUnavailable(error: unknown): boolean {
-  if (!(error instanceof ApiError) || error.code !== "registrar_error") return false;
-  const details = error.details as Json | undefined;
-  const providerCode = clean(pick(details || {}, ["error.code", "providerBody.error.code", "code"]));
-  return ["Dna.DomainService:Domain:10017", "Dna.DomainService:General:10001"].includes(providerCode);
-}
-
 export async function searchDomain(domainName: string): Promise<Json> {
-  try {
-    return await registrarCall("/api/v1/domains/search", "POST", { domainName });
-  } catch (error) {
-    const cfg = await getConfig();
-    if (cfg.registrar_environment === "ote" && oteSearchUnavailable(error)) {
-      return simulatedOteSearch(domainName);
-    }
-    throw error;
-  }
+  return await registrarCall("/api/v1/domains/search", "POST", { domainName });
 }
 
 export async function registerDomain(input: {
