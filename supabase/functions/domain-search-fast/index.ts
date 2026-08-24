@@ -70,44 +70,6 @@ function providerMessage(out: Json) {
     `Registrar request failed (${out?.status || "unknown"}).`;
 }
 
-function deterministicOteAvailability(domainName: string) {
-  let hash = 2166136261;
-  for (const character of domainName) {
-    hash ^= character.charCodeAt(0);
-    hash = Math.imul(hash, 16777619);
-  }
-  return (hash >>> 0) % 4 !== 0;
-}
-
-function simulatedOteSearch(domainName: string): Json {
-  const available = deterministicOteAvailability(domainName);
-  return {
-    success: true,
-    code: "OTE_SEARCH_SIMULATED",
-    operationMessage: "DomainNameAPI OTE search is unavailable; a deterministic test result was generated.",
-    info: {
-      domainName,
-      tld: domainName.split(".").at(-1) || "",
-      isPremium: false,
-      isDocumentRequired: false,
-      currency: "USD",
-      period: 1,
-      price: 0,
-      reason: "ote_provider_search_unavailable",
-      status: available ? "available" : "unavailable",
-      availabilitySource: "ote_simulation",
-      simulatedOte: true,
-    },
-  };
-}
-
-function oteSearchUnavailable(error: unknown, environment: Environment) {
-  if (environment !== "ote" || !(error instanceof HttpError) || error.code !== "registrar_error") return false;
-  const details = error.details as Json | undefined;
-  const providerCode = clean(pick(details || {}, ["providerBody.error.code", "error.code", "code"]));
-  return ["Dna.DomainService:Domain:10017", "Dna.DomainService:General:10001"].includes(providerCode);
-}
-
 async function checkoutEnvironment(): Promise<Environment> {
   const { data, error } = await db.from("domain_config")
     .select("customer_checkout_environment,registrar_environment")
@@ -231,32 +193,20 @@ async function check(req: Request) {
 
   const providerResults: Json[] = [];
   if (supported.length === 1) {
-    let raw: Json;
-    try {
-      raw = await registrar("/api/v1/domains/search", "POST", { domainName: supported[0] }, {}, environment);
-    } catch (error) {
-      if (!oteSearchUnavailable(error, environment)) throw error;
-      raw = simulatedOteSearch(supported[0]);
-    }
+    const raw = await registrar("/api/v1/domains/search", "POST", { domainName: supported[0] }, {}, environment);
     providerResults.push({
       domainName: supported[0],
       registrar: normalizeProviderResult(supported[0], raw, environment),
       price: prices.get(tld(supported[0])) || null,
     });
   } else if (supported.length > 1) {
-    let raw: Json;
-    try {
-      raw = await registrar(
-        "/api/v1/domains/bulk-search",
-        "POST",
-        supported.map((domainName) => ({ domainName })),
-        {},
-        environment,
-      );
-    } catch (error) {
-      if (!oteSearchUnavailable(error, environment)) throw error;
-      raw = { infos: supported.map(simulatedOteSearch) };
-    }
+    const raw = await registrar(
+      "/api/v1/domains/bulk-search",
+      "POST",
+      supported.map((domainName) => ({ domainName })),
+      {},
+      environment,
+    );
     const byDomain = new Map<string, Json>();
     for (const info of infos(raw)) {
       const domainName = clean(info.domainName || info.info?.domainName || info.data?.domainName).toLowerCase();

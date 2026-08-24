@@ -160,12 +160,6 @@ function isAvailable(registrar: Row): boolean {
   return ["available", "true", "free", "1"].includes(String(raw || "").toLowerCase().replace(/[\s_-]+/g, ""));
 }
 
-function isSimulatedOte(registrar: Row): boolean {
-  const info = providerInfo(registrar);
-  return Boolean(info.simulatedOte ?? registrar.simulatedOte) ||
-    String((info.availabilitySource ?? registrar.availabilitySource) || "").toLowerCase() === "ote_simulation";
-}
-
 function premiumDisplayPrice(result: SearchResult): number | null {
   if (!result.price) return null;
   const info = providerInfo(result.registrar);
@@ -295,9 +289,8 @@ function HomePage() {
           const available = isAvailable(result.registrar);
           const info = providerInfo(result.registrar);
           const premium = Boolean(info.isPremium ?? info.premium);
-          const simulatedOte = isSimulatedOte(result.registrar);
           return <Tile className="carbon-result-row" key={result.domainName}>
-            <div><strong>{result.domainName}</strong>{simulatedOte ? <Tag type="purple">OTE simulated</Tag> : null}<p>{simulatedOte ? available ? "Available in OTE simulation" : "Unavailable in OTE simulation" : available ? premium ? "Available premium domain" : "Available to register" : "Not available"}</p></div>
+            <div><strong>{result.domainName}</strong><p>{available ? premium ? "Available premium domain" : "Available to register" : "Not available"}</p></div>
             <DomainPriceBreakdown result={result} dueToday={available && result.price ? "registration" : (result.price?.transfer_price_usd || 0) > 0 ? "transfer" : null} />
             <div className="carbon-result-row__meta">{premium ? <Tag type="purple">Premium</Tag> : null}<StatusBadge value={available ? "active" : "disabled"} />{available && result.price ? <Button href={`/register-domain?domain=${encodeURIComponent(result.domainName)}`}>Purchase</Button> : (result.price?.transfer_price_usd || 0) > 0 ? <Button kind="secondary" href={`/transfer-domain?domain=${encodeURIComponent(result.domainName)}`}>Transfer</Button> : null}</div>
           </Tile>;
@@ -427,7 +420,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
         <Button type="submit" kind="secondary" disabled={availability.isPending}>{availability.isPending ? "Checking…" : type === "registration" ? "Check availability and pricing" : "Load transfer pricing"}</Button>
       </form>
       {availability.isError ? <ErrorNotice error={availability.error} title="Unable to quote domain" /> : null}
-      {result ? <><InfoNotice kind={type === "registration" && !isAvailable(result.registrar) ? "warning" : "success"} title={type === "registration" ? isAvailable(result.registrar) ? `${result.domainName} is available` : `${result.domainName} is not available` : `Transfer pricing loaded for ${result.domainName}`} subtitle={isSimulatedOte(result.registrar) ? "OTE simulated availability for integration testing only. It does not reflect the live registry." : "Review purchase, transfer and renewal pricing before continuing."} /><DomainPriceBreakdown result={result} dueToday={type === "registration" && !isAvailable(result.registrar) ? null : type} /></> : null}
+      {result ? <><InfoNotice kind={type === "registration" && !isAvailable(result.registrar) ? "warning" : "success"} title={type === "registration" ? isAvailable(result.registrar) ? `${result.domainName} is available` : `${result.domainName} is not available` : `Transfer pricing loaded for ${result.domainName}`} subtitle="Review purchase, transfer and renewal pricing before continuing." /><DomainPriceBreakdown result={result} dueToday={type === "registration" && !isAvailable(result.registrar) ? null : type} /></> : null}
 
       {(type === "transfer" || result && isAvailable(result.registrar) && selectedPrice) ? <div className="carbon-form-stack carbon-order-options">
         <Select id="order-contact" labelText="WHOIS contact" value={contactId} onChange={(event) => setContactId(event.target.value)}><SelectItem value="" text="Select a contact" />{(contacts.data?.contacts || []).map((contact) => <SelectItem key={contact.id} value={contact.id} text={`${contactName(contact)} · ${contact.email}`} />)}</Select>
