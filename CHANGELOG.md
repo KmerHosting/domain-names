@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.3.6](https://github.com/KmerHosting/domain-names/compare/v1.3.5...v1.3.6) (2026-08-24)
+
+
+### Bug Fixes
+
+* **order:** remove redundant wallet workflow card ([#29](https://github.com/KmerHosting/domain-names/issues/29)) ([48eb6ae](https://github.com/KmerHosting/domain-names/commit/48eb6ae2c8bbae6e415c901d5ce9e2f87cda788b))
+
 ## [1.3.5](https://github.com/KmerHosting/domain-names/compare/v1.3.4...v1.3.5) (2026-08-24)
 
 
