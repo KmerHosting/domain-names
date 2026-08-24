@@ -410,7 +410,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
   if (!session) return <main className="section"><div className="container narrow"><EmptyState title="Sign in required" text="Sign in before creating a domain order." action={<Button href="/auth">Sign in</Button>} /></div></main>;
 
   return <main className="section"><div className="container"><PageHeading eyebrow={type === "registration" ? "Register domain" : "Transfer domain"} title={type === "registration" ? "Create a registration order" : "Transfer a domain to KmerHosting"} description="Creating the order does not charge your balance. You review and pay it separately from your USD account balance." />
-    <Grid fullWidth className="carbon-purchase-grid"><Column sm={4} md={8} lg={10}><Tile className="carbon-order-form">
+    <Grid fullWidth className="carbon-purchase-grid"><Column sm={4} md={8} lg={16}><Tile className="carbon-order-form">
       <form className="carbon-form-stack" onSubmit={check}>
         <TextInput id="order-domain" labelText="Domain name" value={domainName} onChange={(event) => { setDomainName(event.target.value); availability.reset(); }} placeholder="example.com" required />
         <Button type="submit" kind="secondary" disabled={availability.isPending}>{availability.isPending ? "Checking…" : type === "registration" ? "Check availability and pricing" : "Load transfer pricing"}</Button>
@@ -429,8 +429,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
         <Button type="button" disabled={createOrder.isPending || !contactId} onClick={order}>{createOrder.isPending ? "Creating exact quote…" : "Create wallet order"}</Button>
         {createOrder.isError ? <ErrorNotice error={createOrder.error} title="Order creation failed" /> : null}
       </div> : null}
-    </Tile></Column>
-    <Column sm={4} md={8} lg={{ span: 5, offset: 1 }}><Tile className="carbon-order-summary"><span className="kicker">Order workflow</span><h2>Wallet-first billing</h2><p>The registrar quote is created first. Payment is a separate action from the account balance, so no external checkout is triggered from this form.</p></Tile></Column></Grid>
+    </Tile></Column></Grid>
   </div></main>;
 }
 
