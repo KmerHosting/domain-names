@@ -49,6 +49,7 @@
   grid-template-columns: minmax(0, 1fr);
   gap: spacing.$spacing-03;
   max-inline-size: 52rem;
+  align-items: end;
 }
 
 @include breakpoint.breakpoint('md') {
@@ -57,13 +58,13 @@
   }
 }
 
-.carbon-search-form .cds--search,
-.carbon-search-form .cds--search-input {
-  block-size: 4rem;
+.carbon-search-form .cds--text-area {
+  min-block-size: 6rem;
+  resize: vertical;
 }
 
 .carbon-search-form .cds--btn {
-  min-block-size: 4rem;
+  min-block-size: 3rem;
 }
 
 .carbon-hero__summary,
@@ -163,6 +164,41 @@
   align-items: center;
   flex-wrap: wrap;
   gap: spacing.$spacing-03;
+}
+
+.carbon-domain-price-breakdown {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(8.5rem, 1fr));
+  min-inline-size: min(100%, 38rem);
+  gap: 1px;
+  background: var(--cds-border-subtle-01);
+}
+
+.carbon-domain-price-breakdown > div {
+  display: grid;
+  gap: spacing.$spacing-02;
+  padding: spacing.$spacing-04;
+  background: var(--cds-layer-02);
+}
+
+.carbon-domain-price-breakdown span {
+  color: var(--cds-text-secondary);
+  @include type.type-style('label-01');
+}
+
+.carbon-domain-price-breakdown strong {
+  color: var(--cds-text-primary);
+  @include type.type-style('heading-compact-01');
+}
+
+.carbon-domain-price-breakdown__due {
+  border-inline-start: 2px solid var(--cds-support-success);
+}
+
+@include breakpoint.breakpoint('lg') {
+  .carbon-domain-price-breakdown {
+    grid-template-columns: repeat(4, minmax(8.5rem, 1fr));
+  }
 }
 
 .carbon-card-grid,

@@ -16,7 +16,6 @@ import {
   Grid,
   InlineLoading,
   InlineNotification,
-  Search as CarbonSearch,
   Select,
   SelectItem,
   Table,
@@ -26,6 +25,7 @@ import {
   TableHeader,
   TableRow,
   Tag,
+  TextArea,
   TextInput,
   Tile,
   Toggle,
@@ -167,6 +167,36 @@ function premiumDisplayPrice(result: SearchResult): number | null {
   return Number(result.price.registration_price_usd || 0);
 }
 
+function parseDomainInput(value: string): string[] {
+  return Array.from(new Set(
+    value
+      .toLowerCase()
+      .split(/[\s,;]+/)
+      .map((domain) => domain.trim())
+      .filter(Boolean),
+  )).slice(0, 20);
+}
+
+function supportedPrice(value: unknown): number | null {
+  const amount = Number(value);
+  return Number.isFinite(amount) && amount > 0 ? amount : null;
+}
+
+function DomainPriceBreakdown({ result, dueToday }: { result: SearchResult; dueToday: "registration" | "transfer" | null }) {
+  const purchasePrice = premiumDisplayPrice(result);
+  const transferPrice = supportedPrice(result.price?.transfer_price_usd);
+  const renewalPrice = supportedPrice(result.price?.renewal_price_usd);
+  const dueTodayPrice = dueToday === "registration" ? purchasePrice : dueToday === "transfer" ? transferPrice : null;
+  const display = (amount: number | null) => amount === null ? "Unavailable" : formatMoney(amount);
+
+  return <div className="carbon-domain-price-breakdown" aria-label={`Pricing for ${result.domainName}`}>
+    <div><span>Purchase price</span><strong>{display(purchasePrice)}</strong></div>
+    <div><span>Transfer price</span><strong>{display(transferPrice)}</strong></div>
+    <div><span>Renewal price</span><strong>{display(renewalPrice)}</strong></div>
+    <div className="carbon-domain-price-breakdown__due"><span>Due today{dueToday === "transfer" ? " · transfer" : dueToday === "registration" ? " · purchase" : ""}</span><strong>{dueToday ? display(dueTodayPrice) : "No purchase available"}</strong></div>
+  </div>;
+}
+
 function Brand() {
   return <a href="/" className="brand carbon-brand" aria-label="KmerHosting Domains">
     <strong>KmerHosting</strong><span>Domains</span>
@@ -222,6 +252,7 @@ function MetricGrid({ metrics }: { metrics: Array<[string, ReactNode]> }) {
 function HomePage() {
   const [query, setQuery] = useState("");
   const [searched, setSearched] = useState(false);
+  const parsedDomains = parseDomainInput(query);
   const prices = useQuery({ queryKey: ["prices"], queryFn: () => api<{ prices: TldPrice[] }>("/prices") });
   const search = useMutation({
     mutationFn: (domains: string[]) => api<{ results: SearchResult[] }>("/domains/check", { method: "POST", body: { domains } }),
@@ -229,35 +260,21 @@ function HomePage() {
   });
   const submit = (event: FormEvent) => {
     event.preventDefault();
-    const domains = query.split(/[\s,;]+/).map((value) => value.trim()).filter(Boolean).slice(0, 20);
-    if (domains.length) search.mutate(domains);
+    if (parsedDomains.length) search.mutate(parsedDomains);
   };
 
   return <><main>
     <section className="carbon-hero" id="search">
       <Grid fullWidth className="carbon-hero__grid">
-        <Column sm={4} md={8} lg={10}>
+        <Column sm={4} md={8} lg={12}>
           <span className="kicker">KmerHosting Domains</span>
           <h1>Search, buy and manage domains.</h1>
           <p className="carbon-lead">Live availability, provider-backed pricing and complete domain lifecycle management from one service.</p>
           <form className="carbon-search-form" onSubmit={submit}>
-            <CarbonSearch id="domain-search" size="lg" labelText="Domain search" placeholder="yourbrand.com or multiple domains" value={query} onChange={(event) => setQuery(event.target.value)} />
-            <Button type="submit" size="lg" disabled={search.isPending}>{search.isPending ? "Checking…" : "Search domains"}</Button>
+            <TextArea id="domain-search" labelText="Domain names" helperText="Enter one domain per line. Commas, semicolons and spaces also work. Maximum 20 domains." placeholder={"yourbrand.com\nanothername.cm"} rows={3} value={query} onChange={(event) => setQuery(event.target.value)} />
+            <Button type="submit" size="lg" disabled={search.isPending || !parsedDomains.length}>{search.isPending ? "Checking…" : parsedDomains.length > 1 ? `Search ${parsedDomains.length} domains` : "Search domain"}</Button>
           </form>
-          <p className="search-hint">Bulk search up to 20 domains. Prices and balances are in USD.</p>
-        </Column>
-        <Column sm={4} md={8} lg={{ span: 5, offset: 1 }}>
-          <Tile className="carbon-hero__summary">
-            <span className="kicker">Service status</span>
-            <h2>Provider-backed controls</h2>
-            <p>Search, register, transfer, renew, restore, DNS and registrar security.</p>
-            <div className="carbon-summary-list">
-              <div><span>Billing</span><strong>USD wallet</strong></div>
-              <div><span>Registrar</span><strong>Production</strong></div>
-              <div><span>Account</span><strong>Central KmerHosting SSO</strong></div>
-            </div>
-            <StatusBadge value="live" />
-          </Tile>
+          <p className="search-hint">{parsedDomains.length ? `${parsedDomains.length} unique domain${parsedDomains.length === 1 ? "" : "s"} ready to search.` : "Paste a list or enter a single domain. Prices and balances are in USD."}</p>
         </Column>
       </Grid>
 
@@ -268,11 +285,10 @@ function HomePage() {
           const available = isAvailable(result.registrar);
           const info = providerInfo(result.registrar);
           const premium = Boolean(info.isPremium ?? info.premium);
-          const price = premiumDisplayPrice(result);
           return <Tile className="carbon-result-row" key={result.domainName}>
             <div><strong>{result.domainName}</strong><p>{available ? premium ? "Available premium domain" : "Available to register" : "Not available"}</p></div>
-            <div className="carbon-result-row__meta"><strong>{price !== null ? formatMoney(price) : "Unsupported TLD"}</strong>{premium ? <Tag type="purple">Premium</Tag> : null}<StatusBadge value={available ? "active" : "disabled"} /></div>
-            {available && result.price ? <Button href={`/register-domain?domain=${encodeURIComponent(result.domainName)}`}>Continue</Button> : null}
+            <DomainPriceBreakdown result={result} dueToday={available && result.price ? "registration" : (result.price?.transfer_price_usd || 0) > 0 ? "transfer" : null} />
+            <div className="carbon-result-row__meta">{premium ? <Tag type="purple">Premium</Tag> : null}<StatusBadge value={available ? "active" : "disabled"} />{available && result.price ? <Button href={`/register-domain?domain=${encodeURIComponent(result.domainName)}`}>Purchase</Button> : (result.price?.transfer_price_usd || 0) > 0 ? <Button kind="secondary" href={`/transfer-domain?domain=${encodeURIComponent(result.domainName)}`}>Transfer</Button> : null}</div>
           </Tile>;
         })}
       </div> : null}
@@ -350,7 +366,7 @@ function AttributeFields({ definitions, values, onChange }: { definitions: Provi
 
 function PurchasePage({ type }: { type: "registration" | "transfer" }) {
   const session = useSession();
-  const initialDomain = type === "registration" ? new URLSearchParams(window.location.search).get("domain") || "" : "";
+  const initialDomain = new URLSearchParams(window.location.search).get("domain") || "";
   const [domainName, setDomainName] = useState(initialDomain);
   const [years, setYears] = useState(1);
   const [contactId, setContactId] = useState("");
@@ -400,7 +416,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
         <Button type="submit" kind="secondary" disabled={availability.isPending}>{availability.isPending ? "Checking…" : type === "registration" ? "Check availability and pricing" : "Load transfer pricing"}</Button>
       </form>
       {availability.isError ? <ErrorNotice error={availability.error} title="Unable to quote domain" /> : null}
-      {result ? <InfoNotice kind={type === "registration" && !isAvailable(result.registrar) ? "warning" : "success"} title={type === "registration" ? isAvailable(result.registrar) ? `${result.domainName} is available` : `${result.domainName} is not available` : `Transfer pricing loaded for ${result.domainName}`} subtitle={premiumDisplayPrice(result) !== null ? `Current price: ${formatMoney(premiumDisplayPrice(result) || 0)}` : "Pricing unavailable for this extension."} /> : null}
+      {result ? <><InfoNotice kind={type === "registration" && !isAvailable(result.registrar) ? "warning" : "success"} title={type === "registration" ? isAvailable(result.registrar) ? `${result.domainName} is available` : `${result.domainName} is not available` : `Transfer pricing loaded for ${result.domainName}`} subtitle="Review purchase, transfer and renewal pricing before continuing." /><DomainPriceBreakdown result={result} dueToday={type === "registration" && !isAvailable(result.registrar) ? null : type} /></> : null}
 
       {(type === "transfer" || result && isAvailable(result.registrar) && selectedPrice) ? <div className="carbon-form-stack carbon-order-options">
         <Select id="order-contact" labelText="WHOIS contact" value={contactId} onChange={(event) => setContactId(event.target.value)}><SelectItem value="" text="Select a contact" />{(contacts.data?.contacts || []).map((contact) => <SelectItem key={contact.id} value={contact.id} text={`${contactName(contact)} · ${contact.email}`} />)}</Select>
