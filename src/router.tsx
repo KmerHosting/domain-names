@@ -481,7 +481,7 @@ function OrdersPage() {
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["orders"], queryFn: () => api<{ orders: Order[] }>("/orders"), refetchInterval: 20000 });
   const retry = useMutation({
-    mutationFn: (orderId: string) => api(`/orders/${orderId}`, { method: "POST" }),
+    mutationFn: (orderId: string) => api(`/orders/${orderId}/retry`, { method: "POST" }),
     onSuccess: () => {
       client.invalidateQueries({ queryKey: ["orders"] });
       client.invalidateQueries({ queryKey: ["dashboard"] });

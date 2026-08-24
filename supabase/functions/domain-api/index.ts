@@ -483,8 +483,9 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
   }
   const checkoutMatch = path.match(/^\/orders\/([0-9a-f-]+)\/checkout$/i);
   if (checkoutMatch && req.method === "POST") return await checkout(req, auth, checkoutMatch[1]);
+  const retryMatch = path.match(/^\/orders\/([0-9a-f-]+)\/retry$/i);
+  if (retryMatch && req.method === "POST") return await retryOrder(req, auth, retryMatch[1]);
   const orderMatch = path.match(/^\/orders\/([0-9a-f-]+)$/i);
-  if (orderMatch && req.method === "POST") return await retryOrder(req, auth, orderMatch[1]);
   if (orderMatch && req.method === "GET") {
     const result = await db.from("domain_orders").select("*,domain_payments(*),domain_invoices(*)").eq("id", orderMatch[1]).eq("user_id", auth.user.id).single();
     if (result.error) throw new ApiError(404, "order_not_found", "Order not found.");
