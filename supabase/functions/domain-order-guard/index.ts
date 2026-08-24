@@ -128,6 +128,44 @@ function providerMessage(body: Json, status: number) {
   return clean(pick(body, ["error.message", "error.details", "message", "operationMessage", "reason", "title", "raw"])) || `Domain service request failed (${status}).`;
 }
 
+function deterministicOteAvailability(domainName: string) {
+  let hash = 2166136261;
+  for (const character of domainName) {
+    hash ^= character.charCodeAt(0);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0) % 4 !== 0;
+}
+
+function simulatedOteSearch(domainName: string): Json {
+  const available = deterministicOteAvailability(domainName);
+  return {
+    success: true,
+    code: "OTE_SEARCH_SIMULATED",
+    operationMessage: "DomainNameAPI OTE search is unavailable; a deterministic test result was generated.",
+    info: {
+      domainName,
+      tld: domainName.split(".").at(-1) || "",
+      isPremium: false,
+      isDocumentRequired: false,
+      currency: "USD",
+      period: 1,
+      price: 0,
+      reason: "ote_provider_search_unavailable",
+      status: available ? "available" : "unavailable",
+      availabilitySource: "ote_simulation",
+      simulatedOte: true,
+    },
+  };
+}
+
+function oteSearchUnavailable(error: unknown, environment: Environment) {
+  if (environment !== "ote" || !(error instanceof HttpError) || error.code !== "provider_error") return false;
+  const details = error.details as Json | undefined;
+  const providerCode = clean(pick(details || {}, ["error.code", "providerBody.error.code", "code"]));
+  return ["Dna.DomainService:Domain:10017", "Dna.DomainService:General:10001"].includes(providerCode);
+}
+
 async function providerRequest(environment: Environment, path: string, method = "GET", body: Json | Json[] | null = null, query: Json = {}) {
   const { data, error } = await db.rpc("domain_registrar_proxy_env", { p_path: path, p_method: method, p_body: body, p_query: query, p_environment: environment });
   if (error) throw new HttpError(502, "provider_proxy_failed", error.message, error);
@@ -255,7 +293,12 @@ async function createOrder(req: Request, operation: Operation) {
     tld = await tldData(domainTld(domainName));
     nameservers = normalizeNameservers(body.nameServers || body.nameservers, cfg.default_nameservers);
     attributes = validateAttributes(tld, body.tldAttributes);
-    providerPayload = await providerRequest(environment, "/api/v1/domains/search", "POST", { domainName });
+    try {
+      providerPayload = await providerRequest(environment, "/api/v1/domains/search", "POST", { domainName });
+    } catch (error) {
+      if (!oteSearchUnavailable(error, environment)) throw error;
+      providerPayload = simulatedOteSearch(domainName);
+    }
     if (!isAvailable(providerPayload)) throw new HttpError(409, "domain_unavailable", "The domain is not available for registration.", providerPayload);
     const price = await exactPeriodPrice(tld.tld, operation, years, environment);
     providerCost = round2(Number(price.provider_cost_usd));
