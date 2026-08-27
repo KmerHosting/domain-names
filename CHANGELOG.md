@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.1](https://github.com/KmerHosting/domain-names/compare/v1.5.0...v1.5.1) (2026-08-27)
+
+
+### Bug Fixes
+
+* isolate domain jobs by registrar environment ([1dbe678](https://github.com/KmerHosting/domain-names/commit/1dbe67819c0c30971a8705ec6d43def2cf724165))
+* reconcile domain cron HTTP outcomes ([ce8cec1](https://github.com/KmerHosting/domain-names/commit/ce8cec1d01546f8a0d7504a62ad785db582537fd))
+
 ## [1.5.0](https://github.com/KmerHosting/domain-names/compare/v1.4.0...v1.5.0) (2026-08-27)
 
 
