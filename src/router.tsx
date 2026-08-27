@@ -48,6 +48,8 @@ import {
 } from "./api";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { SharedHostingCatalog } from "./shared-hosting-catalog";
+import { TldCatalogPage } from "./tld-catalog-page";
+import { featuredTlds } from "./tld-catalog";
 
 type Row = Record<string, any>;
 type ProviderAttribute = {
@@ -327,7 +329,7 @@ function HomePage() {
 
     <section className="section" id="pricing"><div className="container">
       <div className="section-heading"><div><span className="kicker">Provider-backed pricing</span><h2>Popular extensions</h2></div><p>Registration, renewal, transfer and restore prices are synchronized from the registrar.</p></div>
-      {prices.isPending ? <LoadingBlock /> : prices.isError ? <ErrorNotice error={prices.error} title="Pricing unavailable" /> : <Grid fullWidth className="carbon-card-grid">{prices.data?.prices.slice(0, 8).map((price) => <Column sm={4} md={4} lg={4} key={price.tld}><Tile className="carbon-price-card">
+      {prices.isPending ? <LoadingBlock /> : prices.isError ? <ErrorNotice error={prices.error} title="Pricing unavailable" /> : <Grid fullWidth className="carbon-card-grid">{featuredTlds(prices.data?.prices || []).map((price) => <Column sm={4} md={4} lg={4} key={price.tld}><Tile className="carbon-price-card">
         <div className="price-card-top"><strong className="tld">{price.tld}</strong>{price.is_promo ? <Tag type="green">Promo</Tag> : null}</div>
         <strong className="big-price">{formatMoney(price.registration_price_usd)}</strong><span className="price-term">one-year registration</span>
         <div className="price-lines"><span>Renewal <strong>{formatMoney(price.renewal_price_usd)}</strong></span><span>Transfer <strong>{price.transfer_price_usd > 0 ? formatMoney(price.transfer_price_usd) : "Unsupported"}</strong></span>{price.restore_price_usd ? <span>Restore <strong>{formatMoney(price.restore_price_usd)}</strong></span> : null}</div>
@@ -585,6 +587,7 @@ function PaymentReturnPage() {
 
 const rootRoute = createRootRoute({ component: Outlet });
 const indexRoute = createRoute({ getParentRoute: () => rootRoute, path: "/", component: HomePage });
+const tldCatalogRoute = createRoute({ getParentRoute: () => rootRoute, path: "/tlds", component: TldCatalogPage });
 const authRoute = createRoute({
   getParentRoute: () => rootRoute,
   path: "/auth",
@@ -610,6 +613,7 @@ const profileRoute = createRoute({ getParentRoute: () => dashboardRoute, path: "
 
 const routeTree = rootRoute.addChildren([
   indexRoute,
+  tldCatalogRoute,
   authRoute,
   registerRoute,
   transferRoute,

@@ -124,6 +124,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                 <HeaderNavigation aria-label="KmerHosting Domains">
                   <HeaderMenuItem href="/#search">Search</HeaderMenuItem>
                   <HeaderMenuItem href="/#pricing">Pricing</HeaderMenuItem>
+                  <HeaderMenuItem href="/tlds">All TLDs</HeaderMenuItem>
                   <HeaderMenuItem href="/#features">Features</HeaderMenuItem>
                   <HeaderMenuItem href="/#hosting">Shared Hosting</HeaderMenuItem>
                   <HeaderMenuItem href="/transfer-domain">Transfer</HeaderMenuItem>
