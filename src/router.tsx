@@ -30,6 +30,7 @@ import {
   Tile,
   Toggle,
 } from "@carbon/react";
+import { Search } from "@carbon/react/icons";
 import {
   ApiClientError,
   api,
@@ -249,6 +250,7 @@ function MetricGrid({ metrics }: { metrics: Array<[string, ReactNode]> }) {
 
 function HomePage() {
   const [query, setQuery] = useState("");
+  const [bulkMode, setBulkMode] = useState(false);
   const [searched, setSearched] = useState(false);
   const parsedDomains = parseDomainInput(query);
   const prices = useQuery({ queryKey: ["prices"], queryFn: () => domainSearchApi<{ prices: TldPrice[] }>("/prices") });
@@ -262,17 +264,48 @@ function HomePage() {
   };
 
   return <><main>
-    <section className="carbon-hero" id="search">
-      <Grid fullWidth className="carbon-hero__grid">
-        <Column sm={4} md={8} lg={12}>
+    <section className="carbon-hero carbon-domain-overview" id="search">
+      <Grid fullWidth className="carbon-domain-overview__grid">
+        <Column sm={4} md={8} lg={{ span: 12, offset: 2 }} className="carbon-domain-overview__content">
           <span className="kicker">KmerHosting Domains</span>
-          <h1>Search, buy and manage domains.</h1>
-          <p className="carbon-lead">Live availability, provider-backed pricing and complete domain lifecycle management from one service.</p>
-          <form className="carbon-search-form" onSubmit={submit}>
-            <TextArea id="domain-search" labelText="Domain names" helperText="Enter one domain per line. Commas, semicolons and spaces also work. Maximum 20 domains." placeholder={"yourbrand.com\nanothername.cm"} rows={3} value={query} onChange={(event) => setQuery(event.target.value)} />
-            <Button type="submit" size="lg" disabled={search.isPending || !parsedDomains.length}>{search.isPending ? "Checking…" : parsedDomains.length > 1 ? `Search ${parsedDomains.length} domains` : "Search domain"}</Button>
+          <h1>Find the domain that fits your next idea.</h1>
+          <p className="carbon-lead">Check live availability, compare provider-backed prices and manage every stage of your domain from one place.</p>
+          <form className="carbon-domain-search-form" onSubmit={submit}>
+            <div className="carbon-domain-search-form__field">
+              {bulkMode ? (
+                <TextArea
+                  id="domain-search"
+                  labelText="Domains to check"
+                  helperText="Enter up to 20 domains. One per line, or separate them with commas, semicolons or spaces."
+                  placeholder={"yourbrand.com\nmyproduct.io\nteam.dev"}
+                  rows={3}
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              ) : (
+                <TextInput
+                  id="domain-search"
+                  labelText="Search for a domain"
+                  hideLabel
+                  placeholder="Search a domain, for example yourbrand.com"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              )}
+            </div>
+            <div className="carbon-domain-search-form__actions">
+              <Button type="button" kind="ghost" size="sm" onClick={() => setBulkMode((enabled) => !enabled)}>
+                {bulkMode ? "Single domain" : "Bulk search"}
+              </Button>
+              <Button type="submit" size="lg" renderIcon={Search} disabled={search.isPending || !parsedDomains.length}>
+                {search.isPending ? "Checking…" : parsedDomains.length > 1 ? `Search ${parsedDomains.length} domains` : "Search domain"}
+              </Button>
+            </div>
           </form>
-          <p className="search-hint">{parsedDomains.length ? `${parsedDomains.length} unique domain${parsedDomains.length === 1 ? "" : "s"} ready to search.` : "Paste a list or enter a single domain. Prices and balances are in USD."}</p>
+          <div className="carbon-domain-search-form__meta" aria-live="polite">
+            <span>{parsedDomains.length ? `${parsedDomains.length} unique domain${parsedDomains.length === 1 ? "" : "s"} ready to check.` : "Live availability and USD pricing."}</span>
+            <span>{bulkMode ? "Bulk search checks up to 20 domains at once." : "Need more than one? Use bulk search."}</span>
+          </div>
         </Column>
       </Grid>
 
