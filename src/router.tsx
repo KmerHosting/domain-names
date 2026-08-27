@@ -46,6 +46,7 @@ import {
   type User,
 } from "./api";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
+import { SharedHostingCatalog } from "./shared-hosting-catalog";
 
 type Row = Record<string, any>;
 type ProviderAttribute = {
@@ -300,6 +301,8 @@ function HomePage() {
         <Button kind="secondary" href={`/register-domain?domain=${encodeURIComponent(`yourbrand${price.tld}`)}`}>Search {price.tld}</Button>
       </Tile></Column>)}</Grid>}
     </div></section>
+
+    <SharedHostingCatalog />
 
     <section className="section section-soft" id="features"><div className="container">
       <div className="section-heading"><div><span className="kicker">Domain lifecycle</span><h2>Complete registrar management</h2></div><p>Domain operations stay focused on registration, transfer, DNS, contacts and security.</p></div>
