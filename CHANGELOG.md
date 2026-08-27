@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.0](https://github.com/KmerHosting/domain-names/compare/v1.4.0...v1.5.0) (2026-08-27)
+
+
+### Features
+
+* add supported TLD catalog ([8a5eea0](https://github.com/KmerHosting/domain-names/commit/8a5eea08a2e266b9086a04c098cc949428b52f50))
+* refine domain overview search ([8f7da8f](https://github.com/KmerHosting/domain-names/commit/8f7da8fbdd1d15216acb6403f3c228a0715113d5))
+
 ## [1.4.0](https://github.com/KmerHosting/domain-names/compare/v1.3.9...v1.4.0) (2026-08-27)
 
 
