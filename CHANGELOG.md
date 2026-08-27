@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.4.0](https://github.com/KmerHosting/domain-names/compare/v1.3.9...v1.4.0) (2026-08-27)
+
+
+### Features
+
+* sync shared hosting catalog ([c0ac65d](https://github.com/KmerHosting/domain-names/commit/c0ac65d9f3a6ab3d574e8c7a4f52edc6fbea3f0f))
+
 ## [1.3.9](https://github.com/KmerHosting/domain-names/compare/v1.3.8...v1.3.9) (2026-08-24)
 
 
