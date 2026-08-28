@@ -1,5 +1,5 @@
+import { InlineNotification } from "@carbon/react";
 import { createElement, useEffect, useState } from "react";
-import type { CSSProperties } from "react";
 
 const STATUS_API_URL = import.meta.env.VITE_DOMAIN_PLATFORM_STATUS_API_URL || "/api/domain/domain-platform-status";
 
@@ -36,26 +36,21 @@ export function PlatformStatusBanner() {
   const maintenance = Boolean(status.maintenanceMode);
   if (!maintenance && live) return null;
 
-  const style: CSSProperties = {
-    position: "relative", zIndex: 20,
-    background: maintenance ? "#fef2f2" : live ? "#f0fdf4" : "#fff7ed",
-    color: maintenance ? "#991b1b" : live ? "#166534" : "#9a3412",
-    borderBottom: `1px solid ${maintenance ? "#fecaca" : live ? "#bbf7d0" : "#fed7aa"}`,
-    padding: "9px 16px", fontWeight: 900, textAlign: "center", fontSize: "13px", lineHeight: 1.4,
-  };
-  const small: CSSProperties = { display: "block", fontWeight: 700, opacity: 0.86, marginTop: "2px" };
-
   const title = maintenance ? "MAINTENANCE" : live ? "LIVE / PRODUCTION" : "TEST / OTE";
   const detail = maintenance
     ? String(status.message || "Domain ordering is temporarily unavailable. Registrar operations are paused until maintenance mode is disabled.")
     : live
       ? "Orders call DomainNameAPI production and debit the central KmerHosting balance."
       : "Orders call DomainNameAPI OTE, use its test funds and never debit the central KmerHosting balance.";
+  const subtitle = maintenance ? `${detail} Support: ${status.supportEmail || "support@kmerhosting.com"}` : detail;
 
-  return createElement(
-    "div",
-    { id: "khd-platform-status-banner", className: `khd-platform-status-banner ${maintenance ? "is-maintenance" : live ? "is-live" : "is-test"}`, style },
-    `${title} — ${detail}`,
-    maintenance ? createElement("small", { style: small }, `Support: ${status.supportEmail || "support@kmerhosting.com"}`) : null,
-  );
+  return createElement(InlineNotification, {
+    id: "khd-platform-status-banner",
+    className: `khd-platform-status-banner ${maintenance ? "is-maintenance" : live ? "is-live" : "is-test"}`,
+    kind: maintenance ? "error" : "info",
+    lowContrast: true,
+    hideCloseButton: true,
+    title,
+    subtitle,
+  });
 }
