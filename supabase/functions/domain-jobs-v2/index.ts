@@ -201,8 +201,10 @@ function iso(v: unknown) {
 }
 function infoFields(p: Json, existing: Json = {}) {
   const raw = clean(p.status || p.Status || p.statusCode || p.domainStatus || p.data?.status || p.data?.Status || existing.status).toLowerCase();
-  let status = "active";
-  if (/transfer.*pending|pending.*transfer/.test(raw)) status = "transfer_pending";
+  const previous = clean(existing.status).toLowerCase();
+  let status = previous || "pending";
+  if (/^(active|ok|success|successful)$/.test(raw)) status = "active";
+  else if (/transfer.*pending|pending.*transfer/.test(raw)) status = "transfer_pending";
   else if (/redemption/.test(raw)) status = "redemption";
   else if (/pendingdelete/.test(raw)) status = "pending_delete";
   else if (/expire/.test(raw)) status = "expired";
