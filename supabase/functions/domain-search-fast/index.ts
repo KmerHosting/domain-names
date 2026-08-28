@@ -1,7 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
 import { type DnaCatalogPrice } from "./dna-catalog.ts";
-import { directDnaRequest, DnaRequestError } from "./dna-client.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -173,6 +172,18 @@ async function pricesFor(domains: string[]) {
   return map;
 }
 
+async function publicCatalog() {
+  const { data, error } = await db
+    .from("domain_tld_prices")
+    .select("tld,enabled,popular,registration_price_usd,renewal_price_usd,transfer_price_usd,restore_price_usd,min_years,max_years,supports_privacy,is_promo,registration_periods,renewal_periods,transfer_periods,provider_attributes")
+    .eq("enabled", true)
+    .eq("provider_available", true)
+    .order("popular", { ascending: false })
+    .order("registration_price_usd", { ascending: true });
+  if (error) throw new HttpError(500, "catalog_unavailable", "The synchronized TLD catalog is unavailable.", error);
+  return (data || []) as DnaCatalogPrice[];
+}
+
 async function check(req: Request) {
   await enforceSearchRateLimit(req);
   const body = await req.json().catch(() => ({})) as Json;
@@ -253,10 +264,10 @@ Deno.serve(async (req) => {
       const config = await dnaConfiguration();
       const environment = config.environment;
       return json(req, {
-        prices: await liveCatalog(config),
+        prices: await publicCatalog(),
         registrarEnvironment: environment,
         testMode: environment === "ote",
-        priceSource: "DomainNameAPI live catalog",
+        priceSource: "synchronized DomainNameAPI catalog",
         markupPercent: 30,
         generatedAt: now(),
       });
@@ -266,8 +277,8 @@ Deno.serve(async (req) => {
         ok: true,
         service: "KmerHosting Bulk Domain Search",
         dnaVersion: "3.0.1",
-        endpoints: ["domains/bulk-search", "products/tlds"],
-        priceSource: "DomainNameAPI live catalog",
+        endpoints: ["domains/bulk-search"],
+        priceSource: "synchronized DomainNameAPI catalog",
         markupPercent: 30,
         maxDomains: 20,
         timestamp: now(),
