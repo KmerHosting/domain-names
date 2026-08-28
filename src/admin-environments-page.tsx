@@ -78,7 +78,7 @@ export function AdminEnvironmentsPage() {
     } finally {
       setBusy(false);
     }
-  };;
+  };
 
   const addCredit = (user: Credit, environment: Env) => {
     setCreditTarget({ user, environment });
@@ -107,7 +107,7 @@ export function AdminEnvironmentsPage() {
     } finally {
       setBusy(false);
     }
-  };;
+  };
 
   return <main className="admin-main environment-admin-page">
     <div className="page-heading">
