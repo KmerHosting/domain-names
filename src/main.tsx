@@ -14,6 +14,7 @@ import "./platform-sync.css";
 import "./carbon-product-alignment.scss";
 import "./carbon-dns-alignment.scss";
 import "./carbon-native-alignment.scss";
+import "./carbon-customer-tools.scss";
 import "./carbon-alignment.scss";
 import "./carbon-theme-contrast-fixes.scss";
 
