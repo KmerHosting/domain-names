@@ -9,6 +9,8 @@ const db = createClient(SUPABASE_URL, SERVICE_ROLE_KEY, {
 const encoder = new TextEncoder();
 
 type Json = Record<string, any>;
+type Environment = "ote" | "production";
+function envOf(v: unknown): Environment { const value = clean(v).toLowerCase(); if (value !== "ote" && value !== "production") throw new HttpError(409, "registrar_environment_invalid", "The domain registrar environment is invalid."); return value as Environment; }
 class HttpError extends Error {
   constructor(
     public status: number,
@@ -132,36 +134,36 @@ function assertEnv(d: Json, cfg: Json) {
     );
 }
 async function registrar(
+  environment: Environment,
   path: string,
   method = "GET",
   payload?: Json | null,
   query: Json = {},
 ) {
-  const { data, error } = await db.rpc("domain_registrar_proxy", {
+  const { data, error } = await db.rpc("domain_registrar_proxy_env", {
     p_path: path,
     p_method: method,
     p_body: payload ?? null,
     p_query: query,
+    p_environment: environment,
   });
-  if (error)
-    throw new HttpError(504, "registrar_proxy_failed", error.message, error);
+  if (error) throw new HttpError(504, "registrar_proxy_failed", error.message, error);
   const out = data as Json;
-  if (!out || Number(out.status) >= 400)
+  if (!out || Number(out.status) >= 400) {
+    const providerBody = out?.body || {};
     throw new HttpError(
       Number(out?.status || 502),
       "provider_error",
-      clean(
-        out?.body?.message ||
-          out?.body?.error ||
-          `Provider failed (${out?.status || "unknown"}).`,
-      ),
-      out?.body,
+      clean(providerBody?.error?.message || providerBody?.error?.details || providerBody?.message || providerBody?.details || `Provider failed (${out?.status || "unknown"}).`),
+      providerBody,
     );
+  }
   return out.body as Json;
 }
+
 async function confirmProviderDomain(d: Json) {
   try {
-    return await registrar("/api/v1/domains/info", "GET", null, {
+    return await registrar(envOf(d.registrar_environment), "/api/v1/domains/info", "GET", null, {
       DomainName: d.domain_name,
     });
   } catch (error) {
@@ -176,7 +178,7 @@ async function confirmProviderDomain(d: Json) {
   }
 }
 async function applyZone(d: Json) {
-  return await registrar("/api/v1/domains/zones/apply", "POST", null, {
+  return await registrar(envOf(d.registrar_environment), "/api/v1/domains/zones/apply", "POST", null, {
     domainName: d.domain_name,
   });
 }
@@ -243,23 +245,14 @@ function contents(b: Json) {
   return raw.map(clean).filter(Boolean);
 }
 function recordKey(r: Json) {
-  return `${lower(r.name || "@")}::${upper(r.type)}::${Array.isArray(r.contents) ? r.contents.map(lower).join("|") : lower(r.contents)}::${r.priority ?? ""}::${JSON.stringify(r.metadata || {})}`;
+  return `${lower(r.name || "@")}::${upper(r.type)}`;
 }
+
 function normalize(b: Json, existing?: Json) {
   const type = upper(b.type ?? existing?.type);
   const name = lower(b.name ?? existing?.name ?? "@").replace(/\.$/, "") || "@";
-  if (!relNameOk(name))
-    throw new HttpError(
-      400,
-      "invalid_record_name",
-      "DNS record name is invalid.",
-    );
-  if (!["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"].includes(type))
-    throw new HttpError(
-      400,
-      "invalid_dns_type",
-      "Unsupported DNS record type.",
-    );
+  if (!relNameOk(name)) throw new HttpError(400, "invalid_record_name", "DNS record name is invalid.");
+  if (!["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"].includes(type)) throw new HttpError(400, "invalid_dns_type", "Unsupported DNS record type.");
   const out: Json = {
     name,
     type,
@@ -268,123 +261,53 @@ function normalize(b: Json, existing?: Json) {
     contents: contents({ ...existing, ...b }),
     metadata: { ...(existing?.metadata || {}) },
   };
-  if (type === "A" && (!out.contents.length || !out.contents.every(ipv4Ok)))
-    throw new HttpError(
-      400,
-      "invalid_a_record",
-      "A records require valid IPv4 addresses.",
-    );
-  if (type === "AAAA" && (!out.contents.length || !out.contents.every(ipv6Ok)))
-    throw new HttpError(
-      400,
-      "invalid_aaaa_record",
-      "AAAA records require valid IPv6 addresses.",
-    );
+  if (type === "A" && (!out.contents.length || !out.contents.every(ipv4Ok))) throw new HttpError(400, "invalid_a_record", "A records require valid IPv4 addresses.");
+  if (type === "AAAA" && (!out.contents.length || !out.contents.every(ipv6Ok))) throw new HttpError(400, "invalid_aaaa_record", "AAAA records require valid IPv6 addresses.");
   if (type === "CNAME") {
-    if (name === "@")
-      throw new HttpError(
-        400,
-        "apex_cname_blocked",
-        "CNAME at apex is blocked.",
-      );
-    if (out.contents.length !== 1 || !hostOk(out.contents[0]))
-      throw new HttpError(
-        400,
-        "invalid_cname",
-        "CNAME requires one valid hostname target.",
-      );
+    if (name === "@") throw new HttpError(400, "apex_cname_blocked", "CNAME at apex is blocked.");
+    if (out.contents.length !== 1 || !hostOk(out.contents[0])) throw new HttpError(400, "invalid_cname", "CNAME requires one valid hostname target.");
   }
   if (type === "MX") {
-    out.priority = intRange(
-      b.priority ?? existing?.priority,
-      0,
-      65535,
-      "invalid_mx_priority",
-      "MX priority is required.",
-    );
-    if (out.contents.length !== 1 || !hostOk(out.contents[0]))
-      throw new HttpError(
-        400,
-        "invalid_mx_record",
-        "MX requires one hostname target.",
-      );
+    const fallbackPriority = b.priority ?? existing?.priority;
+    out.contents = out.contents.map((value: string) => {
+      const match = value.match(/^(\d{1,5})\s+(.+)$/);
+      const priority = match ? Number(match[1]) : intRange(fallbackPriority, 0, 65535, "invalid_mx_priority", "MX priority is required.");
+      const target = match ? match[2] : value;
+      if (!hostOk(target)) throw new HttpError(400, "invalid_mx_record", "MX requires a valid hostname target.");
+      return `${priority} ${target.replace(/\.$/, "")}`;
+    });
+    out.priority = Number(out.contents[0].split(/\s+/, 1)[0]);
   }
-  if (
-    type === "TXT" &&
-    (!out.contents.length || out.contents.some((x: string) => x.length > 2048))
-  )
-    throw new HttpError(
-      400,
-      "invalid_txt_record",
-      "TXT value is required and must be below 2048 characters.",
-    );
-  if (type === "NS" && (!out.contents.length || !out.contents.every(hostOk)))
-    throw new HttpError(
-      400,
-      "invalid_ns_record",
-      "NS records require valid hostnames.",
-    );
+  if (type === "TXT" && (!out.contents.length || out.contents.some((x: string) => x.length > 2048))) throw new HttpError(400, "invalid_txt_record", "TXT value is required and must be below 2048 characters.");
+  if (type === "NS" && (!out.contents.length || !out.contents.every(hostOk))) throw new HttpError(400, "invalid_ns_record", "NS records require valid hostnames.");
   if (type === "SRV") {
-    out.priority = intRange(
-      b.priority ?? existing?.priority,
-      0,
-      65535,
-      "invalid_srv_priority",
-      "SRV priority is required.",
-    );
-    const weight = intRange(
-      b.weight ?? existing?.metadata?.weight,
-      0,
-      65535,
-      "invalid_srv_weight",
-      "SRV weight is required.",
-    );
-    const port = intRange(
-      b.port ?? existing?.metadata?.port,
-      1,
-      65535,
-      "invalid_srv_port",
-      "SRV port is required.",
-    );
-    const target = clean(b.target ?? out.contents[0]);
-    if (!hostOk(target))
-      throw new HttpError(
-        400,
-        "invalid_srv_target",
-        "SRV target must be a valid hostname.",
-      );
-    out.contents = [target];
+    if (out.contents.length !== 1) throw new HttpError(400, "invalid_srv_record", "SRV requires one canonical value.");
+    const canonical = out.contents[0].match(/^(\d{1,5})\s+(\d{1,5})\s+(\d{1,5})\s+(.+)$/);
+    const priority = canonical ? Number(canonical[1]) : intRange(b.priority ?? existing?.priority, 0, 65535, "invalid_srv_priority", "SRV priority is required.");
+    const weight = canonical ? Number(canonical[2]) : intRange(b.weight ?? existing?.metadata?.weight, 0, 65535, "invalid_srv_weight", "SRV weight is required.");
+    const port = canonical ? Number(canonical[3]) : intRange(b.port ?? existing?.metadata?.port, 1, 65535, "invalid_srv_port", "SRV port is required.");
+    const target = canonical ? canonical[4] : clean(b.target ?? out.contents[0]);
+    if (!hostOk(target)) throw new HttpError(400, "invalid_srv_target", "SRV target must be a valid hostname.");
+    out.contents = [`${priority} ${weight} ${port} ${target.replace(/\.$/, "")}`];
+    out.priority = priority;
     out.metadata = { ...out.metadata, weight, port, target };
   }
   if (type === "CAA") {
-    const flag = intRange(
-      b.flag ?? existing?.metadata?.flag ?? 0,
-      0,
-      255,
-      "invalid_caa_flag",
-      "CAA flag must be between 0 and 255.",
-    );
-    const tag = lower(b.tag ?? existing?.metadata?.tag);
-    const value = clean(b.value ?? b.content ?? out.contents[0]);
-    if (
-      ![
-        "issue",
-        "issuewild",
-        "iodef",
-        "contactemail",
-        "contactphone",
-        "accounturi",
-      ].includes(tag)
-    )
-      throw new HttpError(400, "invalid_caa_tag", "CAA tag is invalid.");
-    if (!value)
-      throw new HttpError(400, "invalid_caa_value", "CAA value is required.");
-    out.contents = [value];
+    if (out.contents.length !== 1) throw new HttpError(400, "invalid_caa_record", "CAA requires one canonical value.");
+    const canonical = out.contents[0].match(/^(\d{1,3})\s+([a-z0-9]+)\s+"?(.*?)"?$/i);
+    const flag = canonical ? Number(canonical[1]) : intRange(b.flag ?? existing?.metadata?.flag ?? 0, 0, 255, "invalid_caa_flag", "CAA flag must be between 0 and 255.");
+    const tag = lower(canonical ? canonical[2] : b.tag ?? existing?.metadata?.tag);
+    const value = clean(canonical ? canonical[3] : b.value ?? b.content ?? out.contents[0]).replace(/^"|"$/g, "");
+    if (!["issue", "issuewild", "iodef", "contactemail", "contactphone", "accounturi"].includes(tag)) throw new HttpError(400, "invalid_caa_tag", "CAA tag is invalid.");
+    if (!value) throw new HttpError(400, "invalid_caa_value", "CAA value is required.");
+    out.contents = [`${flag} ${tag} "${value}"`];
     out.metadata = { ...out.metadata, flag, tag, value };
   }
+  if (!out.contents.length) throw new HttpError(400, "dns_value_required", "At least one DNS value is required.");
   out.record_key = recordKey(out);
   return out;
 }
+
 async function assertCnameConflicts(
   domainId: string,
   r: Json,
@@ -461,9 +384,9 @@ function providerRecord(raw: Json) {
     ? raw.contents
     : Array.isArray(raw.values)
       ? raw.values
-      : [raw.content ?? raw.value ?? raw.target ?? raw.Record].filter(
-          (v) => v !== undefined,
-        );
+      : Array.isArray(raw.records)
+        ? raw.records.map((record: any) => typeof record === "string" ? record : record?.content).filter((v: any) => v !== undefined)
+        : [raw.content ?? raw.value ?? raw.target ?? raw.Record].filter((v) => v !== undefined);
   const priorityValue = raw.priority ?? raw.Priority ?? raw.preference ?? null;
   const metadata: Json = { providerRaw: raw };
   const row = {
@@ -525,9 +448,8 @@ async function listDns(req: Request, u: Json, id: string) {
 async function syncDns(req: Request, u: Json, id: string) {
   const cfg = await config();
   const d = await domain(id, u);
-  assertEnv(d, cfg);
   await confirmProviderDomain(d);
-  const provider = await registrar("/api/v1/domains/zones", "GET", null, {
+  const provider = await registrar(envOf(d.registrar_environment), "/api/v1/domains/zones", "GET", null, {
     domainName: d.domain_name,
   });
   const normalized = providerArray(provider)
@@ -565,24 +487,13 @@ async function syncDns(req: Request, u: Json, id: string) {
       throw new HttpError(500, "dns_sync_failed", error.message, error);
     upserted.push(data as Json);
   }
-  if (seen.length)
-    await db
-      .from("domain_dns_records")
-      .update({
-        status: "stale",
-        last_operation: "sync",
-        last_error:
-          "Record was not returned by provider during the last DNS sync.",
-        synced_at: now(),
-        updated_at: now(),
-      })
-      .eq("domain_id", d.id)
-      .eq("source", "provider")
-      .not(
-        "record_key",
-        "in",
-        `(${seen.map((x) => `"${String(x).replaceAll('"', '""')}"`).join(",")})`,
-      );
+  const { data: existingProviderRows } = await db
+    .from("domain_dns_records")
+    .select("id,record_key")
+    .eq("domain_id", d.id)
+    .eq("source", "provider");
+  const staleIds = (existingProviderRows || []).filter((row: Json) => !seen.includes(row.record_key)).map((row: Json) => row.id);
+  if (staleIds.length) await db.from("domain_dns_records").delete().in("id", staleIds);
   await db
     .from("domain_domains")
     .update({
@@ -599,35 +510,22 @@ async function syncDns(req: Request, u: Json, id: string) {
   });
 }
 function zoneStruct(r: Json) {
-  const z: Json = {
-    name: r.name,
+  return {
+    name: r.name === "@" ? "" : r.name,
     type: r.type,
     contents: r.contents,
     ttl: r.ttl,
   };
-  if (r.priority !== null && r.priority !== undefined) z.priority = r.priority;
-  if (r.type === "SRV")
-    Object.assign(z, {
-      weight: r.metadata?.weight,
-      port: r.metadata?.port,
-      target: r.metadata?.target || r.contents?.[0],
-    });
-  if (r.type === "CAA")
-    Object.assign(z, {
-      flag: r.metadata?.flag,
-      tag: r.metadata?.tag,
-      value: r.metadata?.value || r.contents?.[0],
-    });
-  return z;
 }
+
 async function createRecord(req: Request, u: Json, id: string, b: Json) {
   const cfg = await config();
   const d = await domain(id, u);
-  assertEnv(d, cfg);
   await confirmProviderDomain(d);
   const r = normalize(b);
   await assertCnameConflicts(d.id, r);
   const provider = await registrar(
+    envOf(d.registrar_environment),
     "/api/v1/domains/zones",
     "POST",
     { zoneStruct: zoneStruct(r) },
@@ -667,7 +565,6 @@ async function updateRecord(
 ) {
   const cfg = await config();
   const d = await domain(id, u);
-  assertEnv(d, cfg);
   await confirmProviderDomain(d);
   const { data: existing } = await db
     .from("domain_dns_records")
@@ -680,6 +577,7 @@ async function updateRecord(
   const r = normalize(b, existing as Json);
   await assertCnameConflicts(d.id, r, recordId);
   const provider = await registrar(
+    envOf(d.registrar_environment),
     "/api/v1/domains/zones",
     "PUT",
     { zoneStruct: zoneStruct(r) },
@@ -713,7 +611,6 @@ async function deleteRecord(
 ) {
   const cfg = await config();
   const d = await domain(id, u);
-  assertEnv(d, cfg);
   await confirmProviderDomain(d);
   const { data: r } = await db
     .from("domain_dns_records")
@@ -724,9 +621,9 @@ async function deleteRecord(
   if (!r)
     throw new HttpError(404, "dns_record_not_found", "DNS record not found.");
   try {
-    const provider = await registrar("/api/v1/domains/zones", "DELETE", null, {
+    const provider = await registrar(envOf(d.registrar_environment), "/api/v1/domains/zones", "DELETE", null, {
       domainName: d.domain_name,
-      Name: r.name,
+      Name: r.name === "@" ? "" : r.name,
       Record: r.contents?.[0] || "",
       RecordType: r.type,
     });
@@ -787,10 +684,9 @@ function normalizeNameservers(values: unknown) {
 async function updateNameservers(req: Request, u: Json, id: string, b: Json) {
   const cfg = await config();
   const d = await domain(id, u);
-  assertEnv(d, cfg);
   await confirmProviderDomain(d);
   const ns = normalizeNameservers(b.nameServers || b.nameservers);
-  const provider = await registrar("/api/v1/domains/dns/name-server", "PUT", {
+  const provider = await registrar(envOf(d.registrar_environment), "/api/v1/domains/dns/name-server", "PUT", {
     domainName: d.domain_name,
     nameServers: ns,
   });
