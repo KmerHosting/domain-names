@@ -312,8 +312,34 @@ async function retryOrder(req: Request, auth: Json, orderId: string): Promise<Re
   return json(req, { success: true, status: "queued", orderId: order.id, jobId: job.id, attempts: Number(job.attempts), maxAttempts: Number(job.max_attempts), registrarEnvironment: "ote" }, 202);
 }
 
+async function delegateDnsMutation(req: Request, path: string): Promise<Response> {
+  const anon = Deno.env.get("SUPABASE_ANON_KEY") || "";
+  const raw = await req.text();
+  const response = await fetch(`${Deno.env.get("SUPABASE_URL")}/functions/v1/domain-dns-tools${path}`, {
+    method: req.method,
+    headers: {
+      "Authorization": clean(req.headers.get("authorization")),
+      "apikey": anon,
+      "Content-Type": "application/json",
+      "Accept": "application/json",
+    },
+    body: ["GET", "HEAD"].includes(req.method) ? undefined : raw || undefined,
+  });
+  const text = await response.text();
+  return new Response(text, {
+    status: response.status,
+    headers: {
+      "Content-Type": response.headers.get("content-type") || "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
+    },
+  });
+}
+
 async function protectedRoutes(req: Request, path: string): Promise<Response> {
   const auth = await requireAuth(req);
+  const isDnsMutation = ["POST", "PUT", "DELETE"].includes(req.method) &&
+    (/^\/domains\/[0-9a-f-]+\/dns(?:\/.*)?$/i.test(path) || /^\/domains\/[0-9a-f-]+\/nameservers$/i.test(path));
+  if (isDnsMutation) return await delegateDnsMutation(req, path);
   if (req.method === "GET" && path === "/me") return json(req, { user: publicUser(auth.user) });
   if (req.method === "PATCH" && path === "/me") {
     throw new ApiError(403, "central_profile_only", "Profile changes are managed from your central KmerHosting Account.");
@@ -482,9 +508,9 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
     throw new ApiError(410, "legacy_checkout_removed", "Use the direct DNA order endpoint. Separate checkout has been removed.");
   }
   const checkoutMatch = path.match(/^\/orders\/([0-9a-f-]+)\/checkout$/i);
-  if (checkoutMatch && req.method === "POST") return await checkout(req, auth, checkoutMatch[1]);
+  if (checkoutMatch && req.method === "POST") throw new ApiError(410, "legacy_checkout_removed", "This legacy checkout path is disabled. Use the guarded direct order flow.");
   const retryMatch = path.match(/^\/orders\/([0-9a-f-]+)\/retry$/i);
-  if (retryMatch && req.method === "POST") return await retryOrder(req, auth, retryMatch[1]);
+  if (retryMatch && req.method === "POST") throw new ApiError(410, "legacy_retry_removed", "This legacy retry path is disabled. Use the guarded order status flow.");
   const orderMatch = path.match(/^\/orders\/([0-9a-f-]+)$/i);
   if (orderMatch && req.method === "GET") {
     const result = await db.from("domain_orders").select("*,domain_payments(*),domain_invoices(*)").eq("id", orderMatch[1]).eq("user_id", auth.user.id).single();
@@ -577,7 +603,7 @@ async function automation(req: Request): Promise<Response> {
   const supplied = clean(req.headers.get("x-domain-cron-secret"));
   const expected = await getSecret("domain_internal_cron_secret");
   if (!supplied || await sha256(supplied) !== await sha256(expected)) throw new ApiError(401, "invalid_automation_secret", "Automation authorization failed.");
-  return json(req, { success: true, result: await runAutomation() });
+  return json(req, { success: true, deprecated: true, message: "Domain automation is handled by the isolated v2 workers." });
 }
 
 Deno.serve(async (req: Request) => {
@@ -590,7 +616,7 @@ Deno.serve(async (req: Request) => {
       const supplied = clean(req.headers.get("x-domain-cron-secret"));
       const expected = await getSecret("domain_internal_cron_secret");
       if (!supplied || await sha256(supplied) !== await sha256(expected)) throw new ApiError(401, "invalid_automation_secret", "Authorization failed.");
-      return json(req, { jobs: await runJobs(`manual-${crypto.randomUUID()}`), emails: await runEmails() });
+      return json(req, { jobs: { disabled: true, reason: "isolated_v2_worker_only" }, emails: await runEmails() });
     }
     const authResponse = await handleAuth(req, path);
     if (authResponse) return authResponse;
