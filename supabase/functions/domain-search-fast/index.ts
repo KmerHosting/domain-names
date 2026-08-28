@@ -164,7 +164,7 @@ async function pricesFor(domains: string[]) {
   const map = new Map<string, DnaCatalogPrice>();
   const { data, error } = await db
     .from("domain_tld_prices")
-    .select("*")
+    .select("tld,enabled,popular,registration_price_usd,renewal_price_usd,transfer_price_usd,restore_price_usd,min_years,max_years,supports_privacy,is_promo,registration_periods,renewal_periods,transfer_periods,provider_attributes")
     .in("tld", [...requested])
     .eq("enabled", true)
     .eq("provider_available", true);
