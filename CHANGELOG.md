@@ -1,5 +1,32 @@
 # Changelog
 
+## [1.5.3](https://github.com/KmerHosting/domain-names/compare/v1.5.2...v1.5.3) (2026-08-28)
+
+
+### Bug Fixes
+
+* confirm glue host deletion with Carbon modal ([ccb59ba](https://github.com/KmerHosting/domain-names/commit/ccb59bafb96a8e77a61e8facec4c9c87729ad830))
+* **dns:** send empty HTTP bodies through registrar proxy ([485f8e8](https://github.com/KmerHosting/domain-names/commit/485f8e8f541c0715e0c4a534733c5b3190dd7240))
+* **domains:** restore synchronized public price catalog ([82f7e70](https://github.com/KmerHosting/domain-names/commit/82f7e704b5a0bea61152f6c5c3914b4f0c05eccf))
+* enforce DNS environment and persistence guards ([8677706](https://github.com/KmerHosting/domain-names/commit/867770665b07dbf4165601529bc351389223070e))
+* guard nameserver writes by registrar environment ([fcd71ed](https://github.com/KmerHosting/domain-names/commit/fcd71edeaca1e33609fe73836a807feeb8a4b6f3))
+* import Carbon modal in native domain pages ([8c16183](https://github.com/KmerHosting/domain-names/commit/8c1618398c56248c7d417885f778c18d26b4cc29))
+* keep contact confirmation modal inside page ([5fcad51](https://github.com/KmerHosting/domain-names/commit/5fcad515b024adfc5ae2e0bac37cf2a6072cd4ec))
+* **lifecycle:** never promote ambiguous sync state to active ([edbc5f8](https://github.com/KmerHosting/domain-names/commit/edbc5f89b8f32944e8ab3b222f67da00178b1dbc))
+* **lifecycle:** preserve domain state on ambiguous registrar status ([f754551](https://github.com/KmerHosting/domain-names/commit/f7545515c48f8aa57595954fbec90b06dd598821))
+* **search:** avoid duplicate registrar catalog calls ([78f5368](https://github.com/KmerHosting/domain-names/commit/78f536868870710efdd6f2d9a7f92151dd9c91f5))
+* **search:** hide registrar cost and catalog internals ([5a3aaf9](https://github.com/KmerHosting/domain-names/commit/5a3aaf98678378f05400280ea13de9832aa24abd))
+* **source:** include domain search dependencies ([a773390](https://github.com/KmerHosting/domain-names/commit/a773390f61ff8f4122b5bc1a46c0afdbf8731709))
+* **source:** include domain search dependencies ([9d1d47b](https://github.com/KmerHosting/domain-names/commit/9d1d47b79029924c0c383d2ee6a6476f993e7c83))
+* **source:** include registrar runtime dependency ([a78452c](https://github.com/KmerHosting/domain-names/commit/a78452c6a3be60d0034b26855236f62dcd1af1f0))
+* **source:** include registrar runtime dependency ([accf7cb](https://github.com/KmerHosting/domain-names/commit/accf7cba7419f3c16fced297febbf0931ee78476))
+* **source:** include registrar runtime dependency ([ad9de87](https://github.com/KmerHosting/domain-names/commit/ad9de87140a160d8466554489109eedffe8d1e09))
+* **source:** include registrar runtime dependency ([7a0872e](https://github.com/KmerHosting/domain-names/commit/7a0872e12a326599aec0e4e542810890db30b20c))
+* **source:** resolve registrar catalog import ([b94705b](https://github.com/KmerHosting/domain-names/commit/b94705b08d6dc3900734bdf076ad06499151a7ae))
+* surface invoice download errors with Carbon notification ([295b9c5](https://github.com/KmerHosting/domain-names/commit/295b9c51a62fc4e77a51940f602c8a1854d94604))
+* surface transfer sync persistence failures ([5af39f0](https://github.com/KmerHosting/domain-names/commit/5af39f025144ef3774d3eb0d6e3018c6d79537b8))
+* use Carbon confirmation modal for DNS deletes ([e2c8281](https://github.com/KmerHosting/domain-names/commit/e2c8281a4238d91b3a04980422752057691d1bea))
+
 ## [1.5.2](https://github.com/KmerHosting/domain-names/compare/v1.5.1...v1.5.2) (2026-08-28)
 
 
