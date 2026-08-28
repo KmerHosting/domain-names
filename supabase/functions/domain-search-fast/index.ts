@@ -1,6 +1,6 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
-import { normalizeDnaCatalog, type DnaCatalogPrice } from "./dna-catalog.ts";
+import { type DnaCatalogPrice } from "./dna-catalog.ts";
 import { directDnaRequest, DnaRequestError } from "./dna-client.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
@@ -159,21 +159,17 @@ function infos(payload: any): Json[] {
   return candidates.find(Array.isArray) || [];
 }
 
-async function liveCatalog(config: RegistrarConfig) {
-  const payload = await registrar(config, "/api/v1/products/tlds", "GET", undefined, {
-    Currency: "USD",
-    SkipCount: 0,
-    MaxResultCount: 1000,
-  });
-  const prices = normalizeDnaCatalog(payload, config.environment);
-  if (!prices.length) throw new HttpError(502, "provider_catalog_empty", "DomainNameAPI returned an empty TLD catalog.");
-  return prices;
-}
-
-async function pricesFor(domains: string[], config: RegistrarConfig) {
+async function pricesFor(domains: string[]) {
   const requested = new Set(domains.map(tld));
   const map = new Map<string, DnaCatalogPrice>();
-  for (const price of await liveCatalog(config)) if (requested.has(price.tld)) map.set(price.tld, price);
+  const { data, error } = await db
+    .from("domain_tld_prices")
+    .select("*")
+    .in("tld", [...requested])
+    .eq("enabled", true)
+    .eq("provider_available", true);
+  if (error) throw new HttpError(500, "catalog_unavailable", "The synchronized TLD catalog is unavailable.", error);
+  for (const price of data || []) map.set(clean(price.tld).toLowerCase(), price as DnaCatalogPrice);
   return map;
 }
 
@@ -188,10 +184,7 @@ async function check(req: Request) {
 
   const config = await dnaConfiguration();
   const environment = config.environment;
-  const [prices, rawSearch] = await Promise.all([
-    pricesFor(domains, config),
-    registrar(config, "/api/v1/domains/bulk-search", "POST", domains.map((domainName) => ({ domainName }))),
-  ]);
+  const prices = await pricesFor(domains);
   const supported = domains.filter((domainName) => prices.has(tld(domainName)));
   const unsupported = domains.filter((domainName) => !prices.has(tld(domainName))).map((domainName) => ({
     domainName,
@@ -208,6 +201,12 @@ async function check(req: Request) {
 
   const providerResults: Json[] = [];
   if (supported.length) {
+    const rawSearch = await registrar(
+      config,
+      "/api/v1/domains/bulk-search",
+      "POST",
+      supported.map((domainName) => ({ domainName })),
+    );
     const byDomain = new Map<string, Json>();
     for (const info of infos(rawSearch)) {
       const domainName = clean(info.domainName || info.info?.domainName || info.data?.domainName).toLowerCase();
