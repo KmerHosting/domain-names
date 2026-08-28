@@ -1,6 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
-import { directDnaRequest, DnaRequestError } from "../_shared/dna-client.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -138,32 +137,25 @@ async function dna(
   body: Json | Json[] | null = null,
   query: Json = {},
 ) {
-  const [{ data: config, error: configError }, { data: apiKey, error: secretError }] = await Promise.all([
-    db.from("domain_config").select("registrar_reseller_id").eq("id", true).single(),
-    db.rpc("domain_secret", {
-      p_name: environment === "production" ? "domain_registrar_api_key" : "domain_registrar_ote_api_key",
-    }),
-  ]);
-  const resellerId = clean(config?.registrar_reseller_id);
-  if (configError || secretError || !resellerId || !clean(apiKey)) {
-    throw new HttpError(503, "registrar_not_configured", `DomainNameAPI ${environment.toUpperCase()} credentials are unavailable.`);
+  // Route all provider traffic through the shared database gateway. It serializes
+  // requests per environment and prevents concurrent functions from hitting the
+  // DomainNameAPI account rate limit.
+  const { data, error } = await db.rpc("domain_registrar_proxy_env", {
+    p_path: path,
+    p_method: method,
+    p_body: body,
+    p_query: query,
+    p_environment: environment,
+  });
+  if (error) throw new HttpError(502, "registrar_proxy_failed", "The registrar gateway could not complete the request.", error);
+  const envelope = (data || {}) as Json;
+  const status = Number(envelope.status || 0);
+  const payload = (envelope.body || {}) as Json;
+  if (!status || status < 200 || status >= 300) {
+    const message = clean(payload?.error?.message || payload?.error?.details || payload?.message || payload?.operationMessage || payload?.reason || payload?.title || payload?.raw) || `DomainNameAPI request failed (${status || 502}).`;
+    throw new HttpError(status >= 500 ? 502 : status, "provider_error", message, payload);
   }
-  try {
-    return await directDnaRequest({
-      environment,
-      resellerId,
-      apiKey: clean(apiKey),
-      path,
-      method,
-      body,
-      query,
-    });
-  } catch (error) {
-    if (error instanceof DnaRequestError) {
-      throw new HttpError(error.status >= 500 ? error.status : error.status || 502, "provider_error", error.message, error.payload);
-    }
-    throw error;
-  }
+  return payload;
 }
 function bool(v: unknown) {
   return [
@@ -177,108 +169,66 @@ function bool(v: unknown) {
     "success",
   ].includes(v as any);
 }
-function safeProvider(p: Json) {
-  const out = { ...p };
-  delete out.authCode;
-  delete out.authorizationCode;
-  delete out.eppCode;
-  if (Array.isArray(out.contacts))
-    out.contacts = out.contacts.map((c: Json) => ({
-      handle: c.handle || null,
-      contactType: c.contactType || c.type || null,
-      verified: c.isEmailVerified || c.verified || false,
-    }));
+function safeProvider(value: any): any {
+  if (Array.isArray(value)) return value.map(safeProvider);
+  if (!value || typeof value !== "object") return value;
+  const out: Json = {};
+  for (const [key, raw] of Object.entries(value)) {
+    const normalized = key.toLowerCase().replace(/[^a-z0-9]/g, "");
+    if (["authcode", "authorizationcode", "eppcode", "password", "apikey", "token"].includes(normalized)) continue;
+    if (normalized === "contacts" && Array.isArray(raw)) {
+      out[key] = raw.map((contact: any) => ({
+        handle: contact?.handle || contact?.handleCode || contact?.id || null,
+        contactType: contact?.contactType || contact?.type || null,
+        verified: contact?.isEmailVerified || contact?.verified || false,
+      }));
+      continue;
+    }
+    out[key] = safeProvider(raw);
+  }
   return out;
 }
 function providerSuccess(p: Json) {
   if (p?.success === false || p?.isSuccess === false || p?.error) return false;
-  const s = clean(
-    p?.status || p?.result || p?.operationResult || p?.data?.status,
-  )
-    .toLowerCase()
-    .replace(/[\s_-]+/g, "");
-  return (
-    !s ||
-    [
-      "active",
-      "ok",
-      "success",
-      "successful",
-      "completed",
-      "true",
-      "pending",
-      "transferpending",
-    ].includes(s)
-  );
+  const operation = clean(p?.result || p?.operationResult).toLowerCase().replace(/[\s_-]+/g, "");
+  return !["error", "failed", "failure", "false", "cancelled", "canceled", "rejected"].includes(operation);
 }
+
 function iso(v: unknown) {
   if (!v) return null;
   const d = new Date(String(v));
   return Number.isNaN(d.getTime()) ? null : d.toISOString();
 }
 function infoFields(p: Json, existing: Json = {}) {
-  const raw = clean(
-    p.status ||
-      p.statusCode ||
-      p.domainStatus ||
-      p.data?.status ||
-      existing.status,
-  ).toLowerCase();
+  const raw = clean(p.status || p.Status || p.statusCode || p.domainStatus || p.data?.status || p.data?.Status || existing.status).toLowerCase();
   let status = "active";
-  if (/transfer/.test(raw)) status = "transfer_pending";
+  if (/transfer.*pending|pending.*transfer/.test(raw)) status = "transfer_pending";
   else if (/redemption/.test(raw)) status = "redemption";
   else if (/pendingdelete/.test(raw)) status = "pending_delete";
   else if (/expire/.test(raw)) status = "expired";
-  else if (/suspend|hold/.test(raw)) status = "suspended";
-  else if (/fail|cancel/.test(raw))
-    status = raw.replace(/[^a-z]+/g, "_") || "failed";
-  const ns = pick(p, [
-      "nameservers",
-      "nameServers",
-      "data.nameservers",
-      "data.nameServers",
-    ]),
-    eppRaw = clean(p.statusCode || p.eppStatus || p.data?.statusCode),
-    epp = eppRaw
-      ? eppRaw.split(",").map(clean).filter(Boolean)
-      : Array.isArray(p.eppStatuses)
-        ? p.eppStatuses.map(clean)
-        : [];
+  else if (/suspend|hold/.test(raw) && !/transferprohibited|updateprohibited|deleteprohibited/.test(raw)) status = "suspended";
+  else if (/fail|cancel/.test(raw)) status = raw.replace(/[^a-z]+/g, "_") || "failed";
+  const ns = pick(p, ["nameservers", "nameServers", "NameServers", "data.nameservers", "data.nameServers", "data.NameServers"]);
+  const dates = (p.dates || p.Dates || p.data?.dates || p.data?.Dates || {}) as Json;
+  const eppRaw = clean(p.eppStatus || p.statusCode || p.data?.eppStatus || p.data?.statusCode);
+  let epp = Array.isArray(p.eppStatuses) ? p.eppStatuses.map(clean).filter(Boolean) : eppRaw ? eppRaw.split(",").map(clean).filter(Boolean) : [];
+  if (!epp.length && /(?:client|server)[a-z]+prohibited|pending[a-z]+|hold/i.test(raw)) epp = [clean(p.status || p.Status || p.data?.status || p.data?.Status)];
+  const lockValue = pick(p, ["lockStatus", "LockStatus", "data.lockStatus", "data.LockStatus"]);
+  const privacyValue = pick(p, ["privacyProtectionStatus", "PrivacyProtectionStatus", "data.privacyProtectionStatus", "data.PrivacyProtectionStatus"]);
   return {
     status,
-    expires_at:
-      iso(p.expirationDate || p.expiresAt || p.data?.expirationDate) ||
-      existing.expires_at ||
-      null,
-    registered_at:
-      iso(
-        p.startDate || p.creationDate || p.registeredAt || p.data?.startDate,
-      ) ||
-      existing.registered_at ||
-      null,
-    nameservers:
-      Array.isArray(ns) && ns.length
-        ? ns.map(clean).filter(Boolean)
-        : existing.nameservers || [],
-    registrar_domain_id:
-      clean(p.objectId || p.domainId || p.id || p.data?.objectId) ||
-      existing.registrar_domain_id ||
-      null,
-    locked:
-      p.lockStatus !== undefined
-        ? Boolean(p.lockStatus)
-        : (existing.locked ?? true),
-    privacy_enabled:
-      p.privacyProtectionStatus !== undefined
-        ? Boolean(p.privacyProtectionStatus)
-        : (existing.privacy_enabled ?? false),
+    expires_at: iso(p.expirationDate || p.expiresAt || p.data?.expirationDate || dates.Expiration || dates.expiration) || existing.expires_at || null,
+    registered_at: iso(p.startDate || p.creationDate || p.registeredAt || p.data?.startDate || dates.Start || dates.start) || existing.registered_at || null,
+    nameservers: Array.isArray(ns) && ns.length ? ns.map(clean).filter(Boolean) : existing.nameservers || [],
+    registrar_domain_id: clean(p.objectId || p.domainId || p.id || p.ID || p.data?.objectId || p.data?.domainId || p.data?.id || p.data?.ID) || existing.registrar_domain_id || null,
+    locked: lockValue !== undefined ? Boolean(lockValue) : (existing.locked ?? true),
+    privacy_enabled: privacyValue !== undefined ? Boolean(privacyValue) : (existing.privacy_enabled ?? false),
     epp_statuses: epp.length ? epp : existing.epp_statuses || [],
     last_synced_at: now(),
-    next_sync_at: new Date(
-      Date.now() + (status === "transfer_pending" ? 3600_000 : 21600_000),
-    ).toISOString(),
+    next_sync_at: new Date(Date.now() + (status === "transfer_pending" ? 3600_000 : 21600_000)).toISOString(),
   };
 }
+
 function contactDto(c: Json, contactType: string) {
   return {
     contactType,
@@ -541,17 +491,6 @@ async function syncInfo(domain: Json, job?: Json) {
   let info = await dna(env, "/api/v1/domains/info", "GET", null, {
     DomainName: domain.domain_name,
   });
-  if (domain.status === "transfer_pending") {
-    try {
-      const transfer = await dna(
-        env,
-        "/api/v1/domains/transfers/query",
-        "POST",
-        { domainName: domain.domain_name },
-      );
-      info = { ...info, transferQuery: safeProvider(transfer) };
-    } catch {}
-  }
   const fields = infoFields(info, domain);
   await db
     .from("domain_domains")
@@ -821,7 +760,6 @@ async function processRenew(job: Json) {
     domainName: ctx.order.domain_name,
     period: Number(ctx.order.years),
   };
-  await dna(env, "/api/v1/domains/renew/check", "POST", request);
   await markProcessing(ctx.order, request);
   const response = await dna(env, "/api/v1/domains/renew", "POST", request);
   if (!providerSuccess(response))
@@ -982,7 +920,7 @@ async function processJob(job: Json) {
   );
 }
 async function run(limit = 20) {
-  await assertNotMaintenance();
+  // Checkout maintenance blocks new charges, but paid jobs must always finish or refund.
   const worker = `domain-jobs-v4-${crypto.randomUUID()}`,
     { data: jobs, error } = await db.rpc("domain_claim_jobs", {
       p_worker: worker,
@@ -1014,9 +952,14 @@ async function run(limit = 20) {
         .eq("id", job.id);
       completed++;
     } catch (e) {
-      const msg = e instanceof Error ? e.message : clean(e) || "Unknown error",
-        isDead = Number(job.attempts) >= Number(job.max_attempts),
-        delay = Math.min(360, 2 ** Math.max(0, Number(job.attempts) - 1));
+      const msg = e instanceof Error ? e.message : clean(e) || "Unknown error";
+      const permanent = e instanceof HttpError &&
+        [400, 401, 403, 404, 405, 410, 422].includes(e.status) &&
+        e.code !== "registration_reconciliation_failed";
+      const isDead = permanent || Number(job.attempts) >= Number(job.max_attempts);
+      const delay = e instanceof HttpError && e.status === 429
+        ? 60
+        : Math.min(360, 2 ** Math.max(0, Number(job.attempts) - 1));
       await db
         .from("domain_jobs")
         .update({
