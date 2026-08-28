@@ -4,6 +4,7 @@ import {
   Grid,
   InlineLoading,
   InlineNotification,
+  Modal,
   Select,
   SelectItem,
   Table,
@@ -116,6 +117,7 @@ export function DnsSettingsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState<string | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
 
   const load = async () => {
     const next = await dnsToolsApi<DnsState>(`/domains/${domainId}/records`);
@@ -225,8 +227,25 @@ export function DnsSettingsPage() {
       </Tile></Column>
 
       <Column sm={4} md={8} lg={16}><Tile className="carbon-dns-panel carbon-table-section"><div className="card-heading"><div><h2>DNS records</h2><p>{state.records.length} record(s) stored after provider synchronization.</p></div></div>
-        {state.records.length ? <Table size="lg"><TableHead><TableRow><TableHeader>Name</TableHeader><TableHeader>Type</TableHeader><TableHeader>Value</TableHeader><TableHeader>TTL</TableHeader><TableHeader>Status</TableHeader><TableHeader>Source</TableHeader><TableHeader>Synced</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{state.records.map((item) => <TableRow key={item.id}><TableCell>{item.name}</TableCell><TableCell><Tag type="cool-gray">{item.type}</Tag></TableCell><TableCell>{Array.isArray(item.contents) ? item.contents.join(", ") : "—"}</TableCell><TableCell>{item.ttl}</TableCell><TableCell><Badge value={item.status} /></TableCell><TableCell>{item.source || "local"}</TableCell><TableCell>{formatDate(item.synced_at || item.updated_at)}</TableCell><TableCell>{isSystemRecord(item) ? <Tag type="cool-gray">Read only</Tag> : <div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => { setEditingId(item.id); setRecord(formFromRecord(item)); }}>Edit</Button><Button kind="ghost" size="sm" disabled={Boolean(busy)} onClick={() => void run(`retry-${item.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${item.id}`, { method: "PUT", body: payload(formFromRecord(item)) }), "DNS record retried.")}>Retry</Button><Button kind="danger--ghost" size="sm" disabled={Boolean(busy)} onClick={() => window.confirm(`Delete ${item.type} ${item.name}?`) && void run(`delete-${item.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${item.id}`, { method: "DELETE" }), "DNS record deleted.")}>Delete</Button></div>}</TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No DNS records</h3><p>Add a record or retry provider synchronization.</p></Tile>}
+        {state.records.length ? <Table size="lg"><TableHead><TableRow><TableHeader>Name</TableHeader><TableHeader>Type</TableHeader><TableHeader>Value</TableHeader><TableHeader>TTL</TableHeader><TableHeader>Status</TableHeader><TableHeader>Source</TableHeader><TableHeader>Synced</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{state.records.map((item) => <TableRow key={item.id}><TableCell>{item.name}</TableCell><TableCell><Tag type="cool-gray">{item.type}</Tag></TableCell><TableCell>{Array.isArray(item.contents) ? item.contents.join(", ") : "—"}</TableCell><TableCell>{item.ttl}</TableCell><TableCell><Badge value={item.status} /></TableCell><TableCell>{item.source || "local"}</TableCell><TableCell>{formatDate(item.synced_at || item.updated_at)}</TableCell><TableCell>{isSystemRecord(item) ? <Tag type="cool-gray">Read only</Tag> : <div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => { setEditingId(item.id); setRecord(formFromRecord(item)); }}>Edit</Button><Button kind="ghost" size="sm" disabled={Boolean(busy)} onClick={() => void run(`retry-${item.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${item.id}`, { method: "PUT", body: payload(formFromRecord(item)) }), "DNS record retried.")}>Retry</Button><Button kind="danger--ghost" size="sm" disabled={Boolean(busy)} onClick={() => setDeleteTarget(item)}>Delete</Button></div>}</TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No DNS records</h3><p>Add a record or retry provider synchronization.</p></Tile>}
       </Tile></Column>
     </Grid>}
+
+    <Modal
+      open={Boolean(deleteTarget)}
+      danger
+      modalHeading="Delete DNS record"
+      primaryButtonText={busy?.startsWith("delete-") ? "Deleting…" : "Delete"}
+      secondaryButtonText="Cancel"
+      primaryButtonDisabled={Boolean(busy)}
+      onRequestClose={() => { if (!busy) setDeleteTarget(null); }}
+      onRequestSubmit={() => {
+        if (!deleteTarget || busy) return;
+        void run(`delete-${deleteTarget.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${deleteTarget.id}`, { method: "DELETE" }), "DNS record deleted.")
+          .finally(() => setDeleteTarget(null));
+      }}
+    >
+      <p className="khd-modal-copy">Delete <strong>{deleteTarget?.type} {deleteTarget?.name}</strong> from the provider zone?</p>
+    </Modal>
   </main>;
 }
