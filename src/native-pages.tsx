@@ -5,6 +5,7 @@ import {
   Grid,
   InlineLoading,
   InlineNotification,
+  Modal,
   Select,
   SelectItem,
   Table,
