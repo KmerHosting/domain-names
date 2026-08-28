@@ -11,7 +11,7 @@ import {
   registrarCall, searchDomain, verifyCamerPayWebhook,
 } from "./providers.ts";
 import { markPaymentPaid, runAutomation, runEmails, runJobs } from "./worker.ts";
-import { normalizeDnaCatalog } from "../_shared/dna-catalog.ts";
+import { normalizeDnaCatalog } from "./_shared/dna-catalog.ts";
 
 async function directCatalog() {
   const cfg = await getConfig();
