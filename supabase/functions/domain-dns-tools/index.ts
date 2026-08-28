@@ -358,7 +358,7 @@ function managedStatus(d: Json, cfg: Json, providerConfirmed = true) {
       : "This domain is not using the managed DNS nameservers. Local/provider DNS records may not be active publicly.",
   };
 }
-function providerArray(b: any): any[] {
+function providerRecordList(b: any): any[] | null {
   for (const c of [
     b?.data?.records,
     b?.records,
@@ -370,7 +370,13 @@ function providerArray(b: any): any[] {
     b,
   ])
     if (Array.isArray(c)) return c;
-  return [];
+  return null;
+}
+function providerArray(b: any): any[] {
+  return providerRecordList(b) || [];
+}
+function systemRecordType(type: unknown) {
+  return ["SOA", "RRSIG", "DNSKEY", "NSEC", "NSEC3"].includes(upper(type));
 }
 function providerRecord(raw: Json) {
   const name =
@@ -452,9 +458,18 @@ async function syncDns(req: Request, u: Json, id: string) {
   const provider = await registrar(envOf(d.registrar_environment), "/api/v1/domains/zones", "GET", null, {
     domainName: d.domain_name,
   });
-  const normalized = providerArray(provider)
+  const providerRecords = providerRecordList(provider);
+  if (!providerRecords) {
+    throw new HttpError(
+      502,
+      "dns_provider_invalid_response",
+      "The registrar returned an invalid DNS zone response. Local records were not changed.",
+      { providerKeys: provider && typeof provider === "object" ? Object.keys(provider) : [] },
+    );
+  }
+  const normalized = providerRecords
     .map(providerRecord)
-    .filter((r) => r.type && r.name && r.contents.length);
+    .filter((r) => r.type && r.name && r.contents.length && !systemRecordType(r.type));
   const seen = normalized.map((r) => r.record_key);
   const upserted: Json[] = [];
   for (const r of normalized) {
@@ -574,6 +589,9 @@ async function updateRecord(
     .maybeSingle();
   if (!existing)
     throw new HttpError(404, "dns_record_not_found", "DNS record not found.");
+  if (systemRecordType(existing.type)) {
+    throw new HttpError(400, "system_dns_record", "System DNS records are read-only.");
+  }
   const r = normalize(b, existing as Json);
   await assertCnameConflicts(d.id, r, recordId);
   const provider = await registrar(
@@ -620,6 +638,9 @@ async function deleteRecord(
     .maybeSingle();
   if (!r)
     throw new HttpError(404, "dns_record_not_found", "DNS record not found.");
+  if (systemRecordType(r.type)) {
+    throw new HttpError(400, "system_dns_record", "System DNS records are read-only.");
+  }
   try {
     const provider = await registrar(envOf(d.registrar_environment), "/api/v1/domains/zones", "DELETE", null, {
       domainName: d.domain_name,
