@@ -1,0 +1,201 @@
+@use '@carbon/react/scss/spacing' as spacing;
+@use '@carbon/react/scss/type' as type;
+@use '@carbon/react/scss/breakpoint' as breakpoint;
+
+.khd-customer-domain-tools,
+.khd-contact-verification {
+  margin-block-start: spacing.$spacing-07;
+  padding: spacing.$spacing-06;
+  border-block-start: 1px solid var(--cds-border-subtle-01);
+  background: var(--cds-layer-01);
+}
+
+.khd-card-heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: spacing.$spacing-05;
+  margin-block-end: spacing.$spacing-06;
+}
+
+.khd-card-heading h2,
+.khd-subtool h3 {
+  margin: 0;
+  color: var(--cds-text-primary);
+  @include type.type-style('heading-04');
+}
+
+.khd-card-description,
+.khd-subtool-description,
+.khd-muted {
+  margin: spacing.$spacing-03 0 0;
+  color: var(--cds-text-secondary);
+  @include type.type-style('body-compact-01');
+}
+
+.khd-customer-tools-grid,
+.khd-modal-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: spacing.$spacing-03;
+}
+
+.khd-customer-tools-grid {
+  margin-block-end: spacing.$spacing-06;
+}
+
+.khd-carbon-button {
+  max-inline-size: none;
+}
+
+.khd-subtool {
+  display: grid;
+  gap: spacing.$spacing-04;
+  margin-block-start: spacing.$spacing-06;
+  padding-block-start: spacing.$spacing-06;
+  border-block-start: 1px solid var(--cds-border-subtle-01);
+}
+
+.khd-subtool h3 {
+  @include type.type-style('heading-compact-01');
+}
+
+.khd-subtool-description {
+  margin: 0;
+}
+
+.khd-customer-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: spacing.$spacing-05;
+  align-items: end;
+}
+
+.khd-customer-form .cds--btn {
+  max-inline-size: none;
+}
+
+.khd-carbon-field {
+  min-inline-size: 0;
+}
+
+.khd-contact-verification-list {
+  display: grid;
+  gap: 1px;
+  background: var(--cds-border-subtle-01);
+}
+
+.khd-contact-verification-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: spacing.$spacing-05;
+  min-inline-size: 0;
+  padding: spacing.$spacing-05;
+  background: var(--cds-layer-02);
+}
+
+.khd-contact-verification-copy {
+  display: grid;
+  gap: spacing.$spacing-02;
+  min-inline-size: 0;
+}
+
+.khd-contact-verification-copy span {
+  color: var(--cds-text-secondary);
+  overflow-wrap: anywhere;
+  @include type.type-style('body-compact-01');
+}
+
+.khd-dns-failed-note {
+  display: block;
+  margin-block-start: spacing.$spacing-02;
+  color: var(--cds-text-error);
+  @include type.type-style('label-01');
+}
+
+.khd-customer-tools-message {
+  position: fixed;
+  z-index: 160;
+  inset-block-start: spacing.$spacing-05;
+  inset-inline-end: spacing.$spacing-05;
+  max-inline-size: min(32rem, calc(100vw - #{spacing.$spacing-10}));
+  padding: spacing.$spacing-05;
+  border-inline-start: 4px solid var(--cds-support-success);
+  color: var(--cds-text-primary);
+  background: var(--cds-layer-01);
+  box-shadow: var(--cds-shadow);
+  @include type.type-style('body-compact-01');
+}
+
+.khd-customer-tools-message.error {
+  border-inline-start-color: var(--cds-support-error);
+}
+
+.khd-modal-backdrop {
+  position: fixed;
+  z-index: 150;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: spacing.$spacing-06;
+  background: var(--cds-overlay);
+}
+
+.khd-modal-card {
+  inline-size: min(100%, 32rem);
+  padding: spacing.$spacing-07;
+  border-block-start: 1px solid var(--cds-border-strong-01);
+  color: var(--cds-text-primary);
+  background: var(--cds-layer-01);
+  box-shadow: var(--cds-shadow);
+}
+
+.khd-modal-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: spacing.$spacing-05;
+  margin-block-end: spacing.$spacing-06;
+}
+
+.khd-modal-head h2 {
+  margin: 0;
+  @include type.type-style('heading-04');
+}
+
+.khd-modal-domain {
+  margin-block-start: spacing.$spacing-02;
+  color: var(--cds-text-secondary);
+  @include type.type-style('body-compact-01');
+}
+
+.khd-warning-text {
+  color: var(--cds-text-error);
+  @include type.type-style('body-compact-01');
+}
+
+.khd-secret-code {
+  max-inline-size: 100%;
+  margin-block: spacing.$spacing-05;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+}
+
+.khd-modal-actions {
+  justify-content: flex-end;
+}
+
+@include breakpoint.breakpoint('md') {
+  .khd-customer-form {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+}
+
+@include breakpoint.breakpoint('sm') {
+  .khd-contact-verification-row {
+    align-items: flex-start;
+  }
+}
