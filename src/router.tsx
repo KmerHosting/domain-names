@@ -16,6 +16,7 @@ import {
   Grid,
   InlineLoading,
   InlineNotification,
+  Modal,
   Select,
   SelectItem,
   Table,
@@ -540,6 +541,7 @@ function ContactsPage() {
   const save = useMutation({ mutationFn: ({ id, body }: { id?: string; body: Row }) => api(id ? `/contacts/${id}` : "/contacts", { method: id ? "PUT" : "POST", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["contacts"] }) });
   const remove = useMutation({ mutationFn: (id: string) => api(`/contacts/${id}`, { method: "DELETE" }), onSuccess: () => client.invalidateQueries({ queryKey: ["contacts"] }) });
   const [editing, setEditing] = useState<Contact | null>(null);
+  const [removeTarget, setRemoveTarget] = useState<Contact | null>(null);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const body = Object.fromEntries(new FormData(event.currentTarget));
@@ -561,7 +563,23 @@ function ContactsPage() {
       <Checkbox id="contact-default" name="isDefault" labelText="Default contact" defaultChecked={editing?.is_default ?? true} />
       <div className="heading-actions"><Button type="submit" disabled={save.isPending}>{editing ? "Save contact" : "Create contact"}</Button>{editing ? <Button type="button" kind="secondary" onClick={() => setEditing(null)}>Cancel</Button> : null}</div>
     </form></Tile></Column>
-    <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><h2>Saved contacts</h2>{query.isPending ? <LoadingBlock /> : query.data?.contacts.length ? <div className="carbon-activity-list">{query.data.contacts.map((contact) => <Tile className="carbon-contact-row" key={contact.id}><div><strong>{contactName(contact)}</strong><span>{contact.email} · {contact.country}</span><small>{contact.registrar_verified ? "Provider verified" : "Not yet provider verified"}</small></div><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => setEditing(contact)}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => window.confirm("Delete this unused contact?") && remove.mutate(contact.id)}>Delete</Button></div></Tile>)}</div> : <EmptyState title="No contacts" text="Create a WHOIS contact before ordering a domain." />}</Tile></Column></Grid>
+    <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><h2>Saved contacts</h2>{query.isPending ? <LoadingBlock /> : query.data?.contacts.length ? <div className="carbon-activity-list">{query.data.contacts.map((contact) => <Tile className="carbon-contact-row" key={contact.id}><div><strong>{contactName(contact)}</strong><span>{contact.email} · {contact.country}</span><small>{contact.registrar_verified ? "Provider verified" : "Not yet provider verified"}</small></div><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => setEditing(contact)}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setRemoveTarget(contact)}>Delete</Button></div></Tile>)}</div> : <EmptyState title="No contacts" text="Create a WHOIS contact before ordering a domain." />}</Tile></Column></Grid>
+  </div>
+    <Modal
+      open={Boolean(removeTarget)}
+      danger
+      modalHeading="Delete contact"
+      primaryButtonText={remove.isPending ? "Deleting…" : "Delete"}
+      secondaryButtonText="Cancel"
+      primaryButtonDisabled={remove.isPending}
+      onRequestClose={() => setRemoveTarget(null)}
+      onRequestSubmit={() => {
+        if (!removeTarget) return;
+        remove.mutate(removeTarget.id, { onSettled: () => setRemoveTarget(null) });
+      }}
+    >
+      <p>This contact will be removed from your saved contacts. Only unused contacts can be deleted.</p>
+    </Modal>
   </div>;
 }
 
