@@ -736,6 +736,7 @@ function normalizeNameservers(values: unknown) {
 async function updateNameservers(req: Request, u: Json, id: string, b: Json) {
   const cfg = await config();
   const d = await domain(id, u);
+  assertEnv(d, cfg);
   await confirmProviderDomain(d);
   const ns = normalizeNameservers(b.nameServers || b.nameservers);
   const provider = await registrar(envOf(d.registrar_environment), "/api/v1/domains/dns/name-server", "PUT", {
