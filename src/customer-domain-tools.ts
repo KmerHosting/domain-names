@@ -8,6 +8,8 @@ type Contact = {
   label?: string;
 };
 
+type ButtonKind = "primary" | "secondary" | "tertiary" | "ghost" | "danger--tertiary";
+
 function token() {
   return getSession()?.token || "";
 }
@@ -34,20 +36,80 @@ function append<K extends keyof HTMLElementTagNameMap>(parent: HTMLElement, tag:
 }
 
 function cardHeading(title: string, text: string) {
-  const heading = el("div", "card-heading");
+  const heading = el("div", "card-heading khd-card-heading");
   const wrap = el("div");
   append(wrap, "h2", title);
-  append(wrap, "p", text);
+  append(wrap, "p", text, "khd-card-description");
   heading.appendChild(wrap);
   return heading;
 }
 
-function input(name: string, placeholder: string, required = true) {
-  const node = el("input") as HTMLInputElement;
+function inputField(
+  name: string,
+  labelText: string,
+  placeholder: string,
+  options: {
+    required?: boolean;
+    type?: string;
+    helperText?: string;
+    autocomplete?: string;
+    inputMode?: string;
+    pattern?: string;
+    maxLength?: number;
+  } = {},
+) {
+  const item = el("div", "cds--form-item khd-carbon-field");
+  const id = `khd-field-${name.replace(/[^a-z0-9-]/gi, "-")}`;
+  const label = el("label", "cds--label", labelText);
+  label.htmlFor = id;
+  const wrapper = el("div", "cds--text-input__field-wrapper");
+  const node = el("input", "cds--text-input") as HTMLInputElement;
+  node.id = id;
   node.name = name;
+  node.type = options.type || "text";
   node.placeholder = placeholder;
-  node.required = required;
-  return node;
+  node.required = options.required ?? true;
+  if (options.autocomplete) node.autocomplete = options.autocomplete;
+  if (options.inputMode) node.inputMode = options.inputMode as HTMLInputElement["inputMode"];
+  if (options.pattern) node.pattern = options.pattern;
+  if (options.maxLength !== undefined) node.maxLength = options.maxLength;
+  wrapper.appendChild(node);
+  item.append(label, wrapper);
+  if (options.helperText) append(item, "div", options.helperText, "cds--form__helper-text");
+  return item;
+}
+
+function selectField(
+  name: string,
+  labelText: string,
+  options: Array<[string, string]>,
+) {
+  const item = el("div", "cds--form-item cds--select khd-carbon-field");
+  const id = `khd-select-${name.replace(/[^a-z0-9-]/gi, "-")}`;
+  const label = el("label", "cds--label", labelText);
+  label.htmlFor = id;
+  const wrapper = el("div", "cds--select-input__wrapper");
+  const select = el("select", "cds--select-input") as HTMLSelectElement;
+  select.id = id;
+  select.name = name;
+  options.forEach(([value, text]) => {
+    const option = el("option", undefined, text) as HTMLOptionElement;
+    option.value = value;
+    select.appendChild(option);
+  });
+  wrapper.appendChild(select);
+  item.append(label, wrapper);
+  return item;
+}
+
+function carbonButtonClass(kind: ButtonKind, size?: "sm") {
+  return `cds--btn cds--btn--${kind}${size ? " cds--btn--sm" : ""} khd-carbon-button`;
+}
+
+function submitButton(label: string, kind: ButtonKind = "primary") {
+  const button = el("button", carbonButtonClass(kind), label) as HTMLButtonElement;
+  button.type = "submit";
+  return button;
 }
 
 function notify(message: string, kind: "success" | "error" = "success") {
@@ -58,17 +120,25 @@ function notify(message: string, kind: "success" | "error" = "success") {
     document.body.appendChild(box);
   }
   box.className = `khd-customer-tools-message ${kind}`;
+  box.setAttribute("role", kind === "error" ? "alert" : "status");
+  box.setAttribute("aria-live", kind === "error" ? "assertive" : "polite");
   box.textContent = message;
   window.setTimeout(() => box?.remove(), 6500);
 }
 
-function button(label: string, action: () => Promise<void> | void, cls = "khd-customer-action") {
-  const b = el("button", cls, label);
+function button(
+  label: string,
+  action: () => Promise<void> | void,
+  kind: ButtonKind = "primary",
+  size?: "sm",
+) {
+  const b = el("button", carbonButtonClass(kind, size), label) as HTMLButtonElement;
   b.type = "button";
   b.addEventListener("click", async () => {
     const old = b.textContent || label;
     b.textContent = "Working…";
     b.disabled = true;
+    b.setAttribute("aria-busy", "true");
     try {
       await action();
     } catch (error) {
@@ -76,6 +146,7 @@ function button(label: string, action: () => Promise<void> | void, cls = "khd-cu
     } finally {
       b.textContent = old;
       b.disabled = false;
+      b.removeAttribute("aria-busy");
     }
   });
   return b;
@@ -99,26 +170,36 @@ function showTransferCode(domainName: string, code: string, warning: string) {
   document.getElementById("khd-transfer-code-modal")?.remove();
   const back = el("div", "khd-modal-backdrop");
   back.id = "khd-transfer-code-modal";
-  const modal = el("div", "khd-modal-card");
+  const modal = el("div", "cds--modal-container khd-modal-card");
+  modal.setAttribute("role", "dialog");
+  modal.setAttribute("aria-modal", "true");
   const head = el("div", "khd-modal-head");
   const title = el("div");
   append(title, "h2", "Transfer code");
-  append(title, "p", domainName);
-  const close = el("button", undefined, "×");
-  close.type = "button";
-  close.setAttribute("aria-label", "Close");
-  close.addEventListener("click", () => back.remove());
+  append(title, "p", domainName, "khd-modal-domain");
+  const close = button("×", () => back.remove(), "ghost", "sm");
+  close.setAttribute("aria-label", "Close transfer code");
   head.append(title, close);
   append(modal, "p", warning, "khd-warning-text");
-  append(modal, "pre", code, "khd-secret-code");
+  append(modal, "pre", code, "cds--snippet khd-secret-code");
   const actions = el("div", "khd-modal-actions");
   actions.append(
-    button("Copy code", async () => { await navigator.clipboard.writeText(code); notify("Transfer code copied."); }),
-    button("Close", async () => back.remove(), "khd-customer-action secondary"),
+    button("Copy code", async () => {
+      await navigator.clipboard.writeText(code);
+      notify("Transfer code copied.");
+    }),
+    button("Close", () => back.remove(), "secondary"),
   );
   modal.append(head, actions);
   back.appendChild(modal);
+  back.addEventListener("click", (event) => {
+    if (event.target === back) back.remove();
+  });
+  back.addEventListener("keydown", (event) => {
+    if (event.key === "Escape") back.remove();
+  });
   document.body.appendChild(back);
+  close.focus();
 }
 
 function installDomainCustomerTools() {
@@ -127,7 +208,7 @@ function installDomainCustomerTools() {
   const content = document.querySelector(".dashboard-content");
   if (!content) return;
 
-  const card = el("section", "card khd-customer-domain-tools");
+  const card = el("section", "carbon-dashboard-panel khd-customer-domain-tools");
   card.id = "khd-customer-domain-tools";
   card.appendChild(cardHeading("Domain tools", "Transfer, forwarding, restore and child nameserver tools for this domain."));
 
@@ -143,23 +224,19 @@ function installDomainCustomerTools() {
       await customerToolsApi(`/domains/${domainId}/restore`, { method: "POST", body: { confirm: true } });
       notify("Restore request submitted.");
       window.setTimeout(() => window.location.reload(), 900);
-    }, "khd-customer-action secondary"),
+    }, "secondary"),
   );
   card.appendChild(grid);
 
   const forwarding = el("div", "khd-subtool");
   append(forwarding, "h3", "Web forwarding");
-  append(forwarding, "p", "Redirect this domain to another website.");
-  const forwardingForm = el("form", "khd-customer-form") as HTMLFormElement;
-  forwardingForm.append(input("redirectAddress", "https://example.com"));
-  const select = el("select") as HTMLSelectElement;
-  select.name = "forwardType";
-  for (const [value, label] of [["Permanent", "Permanent redirect"], ["Temporary", "Temporary redirect"]]) {
-    const option = el("option", undefined, label) as HTMLOptionElement;
-    option.value = value;
-    select.appendChild(option);
-  }
-  forwardingForm.append(select, el("button", undefined, "Save forwarding"));
+  append(forwarding, "p", "Redirect this domain to another website.", "khd-subtool-description");
+  const forwardingForm = el("form", "khd-customer-form carbon-form-stack") as HTMLFormElement;
+  forwardingForm.append(
+    inputField("redirectAddress", "Destination URL", "https://example.com", { type: "url", autocomplete: "url" }),
+    selectField("forwardType", "Redirect type", [["Permanent", "Permanent redirect"], ["Temporary", "Temporary redirect"]]),
+    submitButton("Save forwarding"),
+  );
   forwardingForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     try {
@@ -175,15 +252,19 @@ function installDomainCustomerTools() {
       if (!confirm("Remove web forwarding for this domain?")) return;
       await customerToolsApi(`/domains/${domainId}/forwarding`, { method: "DELETE" });
       notify("Forwarding removed.");
-    }, "khd-link-button"),
+    }, "ghost", "sm"),
   );
   card.appendChild(forwarding);
 
   const glue = el("div", "khd-subtool");
   append(glue, "h3", "Child nameserver");
-  append(glue, "p", "Create a host such as ns1 using an IP address. Use this only when you run your own nameserver.");
-  const glueForm = el("form", "khd-customer-form") as HTMLFormElement;
-  glueForm.append(input("hostName", "ns1"), input("ipAddress", "192.0.2.10"), el("button", undefined, "Create child nameserver"));
+  append(glue, "p", "Create a host such as ns1 using an IP address. Use this only when you run your own nameserver.", "khd-subtool-description");
+  const glueForm = el("form", "khd-customer-form carbon-form-stack") as HTMLFormElement;
+  glueForm.append(
+    inputField("hostName", "Host name", "ns1", { helperText: "Use a host under this domain." }),
+    inputField("ipAddress", "IP address", "192.0.2.10", { type: "text", inputMode: "text" }),
+    submitButton("Create child nameserver"),
+  );
   glueForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     const raw = Object.fromEntries(new FormData(glueForm));
@@ -199,38 +280,43 @@ function installDomainCustomerTools() {
   content.appendChild(card);
 }
 
+let contactVerificationLoading = false;
+
 async function installContactVerification() {
-  if (!isContactsRoute() || !token() || document.getElementById("khd-contact-verification")) return;
+  if (!isContactsRoute() || !token() || document.getElementById("khd-contact-verification") || contactVerificationLoading) return;
   const content = document.querySelector(".dashboard-content");
   if (!content) return;
-  let contacts: Contact[] = [];
+  contactVerificationLoading = true;
   try {
-    contacts = (await api<{ contacts: Contact[] }>("/contacts")).contacts || [];
+    const contacts = (await api<{ contacts: Contact[] }>("/contacts")).contacts || [];
+    if (document.getElementById("khd-contact-verification")) return;
+    const card = el("section", "carbon-dashboard-panel khd-contact-verification");
+    card.id = "khd-contact-verification";
+    card.appendChild(cardHeading("Contact verification", "Send or resend verification for saved registrant contacts."));
+    const list = el("div", "khd-contact-verification-list");
+    if (!contacts.length) append(list, "p", "No contact to verify.", "khd-muted");
+    for (const contact of contacts) {
+      const row = el("div", "carbon-contact-row khd-contact-verification-row");
+      const label = el("div", "khd-contact-verification-copy");
+      append(label, "strong", `${contact.first_name} ${contact.last_name}`);
+      append(label, "span", `${contact.email} · ${contact.label || "Contact"}`);
+      row.append(label, button("Send verification", async () => {
+        await customerToolsApi(`/contacts/${contact.id}/verification`, { method: "POST" });
+        notify(`Verification sent to ${contact.email}.`);
+      }, "secondary", "sm"));
+      list.appendChild(row);
+    }
+    card.appendChild(list);
+    content.appendChild(card);
   } catch {
-    return;
+    // The primary contacts page still remains usable when verification is unavailable.
+  } finally {
+    contactVerificationLoading = false;
   }
-  const card = el("section", "card khd-contact-verification");
-  card.id = "khd-contact-verification";
-  card.appendChild(cardHeading("Contact verification", "Send or resend verification for saved registrant contacts."));
-  const list = el("div", "khd-contact-verification-list");
-  if (!contacts.length) append(list, "p", "No contact to verify.", "khd-muted");
-  for (const contact of contacts) {
-    const row = el("div", "khd-contact-verification-row");
-    const label = el("div");
-    append(label, "strong", `${contact.first_name} ${contact.last_name}`);
-    append(label, "span", `${contact.email} · ${contact.label || "Contact"}`);
-    row.append(label, button("Send verification", async () => {
-      await customerToolsApi(`/contacts/${contact.id}/verification`, { method: "POST" });
-      notify(`Verification sent to ${contact.email}.`);
-    }, "khd-customer-action secondary"));
-    list.appendChild(row);
-  }
-  card.appendChild(list);
-  content.appendChild(card);
 }
 
 function improveFailedDnsRows() {
-  if (!currentDomainId()) return;
+  if (!/\/dns$/i.test(window.location.pathname)) return;
   document.querySelectorAll<HTMLTableRowElement>("tr").forEach((row) => {
     if (!/Failed/i.test(row.textContent || "") || row.querySelector(".khd-dns-failed-note")) return;
     const cell = row.querySelector("td:nth-child(5)");
@@ -238,17 +324,8 @@ function improveFailedDnsRows() {
   });
 }
 
-function injectStyles() {
-  if (document.getElementById("khd-customer-tools-styles")) return;
-  const style = document.createElement("style");
-  style.id = "khd-customer-tools-styles";
-  style.textContent = `.khd-customer-domain-tools,.khd-contact-verification{margin-top:18px}.khd-customer-tools-grid{display:flex;gap:10px;flex-wrap:wrap;margin:10px 0 16px}.khd-customer-action{border:0;border-radius:10px;background:#155eef;color:white;font-weight:800;padding:9px 13px;cursor:pointer}.khd-customer-action.secondary{background:#eef4ff;color:#155eef}.khd-customer-action:disabled{opacity:.55;cursor:not-allowed}.khd-subtool{border-top:1px solid #edf1f7;padding-top:14px;margin-top:14px}.khd-subtool h3{margin:0 0 4px}.khd-subtool p,.khd-muted{color:#667085;font-size:13px;margin:0 0 10px}.khd-customer-form{display:grid;grid-template-columns:1fr auto auto;gap:10px;align-items:end}.khd-customer-form input,.khd-customer-form select{border:1px solid #d8e0eb;border-radius:10px;padding:10px 12px;font:inherit;background:#fff;color:#172033}.khd-customer-form button,.khd-link-button{border:0;border-radius:10px;background:#155eef;color:#fff;font-weight:800;padding:10px 12px;cursor:pointer}.khd-link-button{background:transparent;color:#155eef;padding:8px 0}.khd-contact-verification-list{display:grid;gap:10px}.khd-contact-verification-row{display:flex;justify-content:space-between;gap:12px;align-items:center;border:1px solid #edf1f7;border-radius:14px;padding:12px}.khd-contact-verification-row span{display:block;color:#667085;font-size:13px;margin-top:3px}.khd-dns-failed-note{display:block;color:#b42318;margin-top:4px;font-size:11px}.khd-customer-tools-message{position:fixed;right:18px;top:18px;z-index:160;border-radius:12px;padding:12px 14px;background:#ecfdf3;color:#027a48;font-weight:800;box-shadow:0 18px 42px rgba(15,23,42,.18)}.khd-customer-tools-message.error{background:#fff1f0;color:#b42318}.khd-modal-backdrop{position:fixed;inset:0;z-index:150;background:rgba(15,23,42,.42);display:flex;align-items:center;justify-content:center;padding:18px}.khd-modal-card{width:min(520px,100%);background:#fff;border-radius:18px;padding:20px;box-shadow:0 24px 70px rgba(15,23,42,.25)}.khd-modal-head{display:flex;justify-content:space-between;gap:16px}.khd-modal-head h2{margin:0}.khd-modal-head p{margin:4px 0 0;color:#667085}.khd-modal-head button{border:0;border-radius:10px;width:36px;height:36px;background:#eef4ff;color:#155eef;font-size:24px}.khd-warning-text{color:#b42318}.khd-secret-code{background:#0f172a;color:#dbeafe;border-radius:14px;padding:14px;white-space:pre-wrap;word-break:break-all}.khd-modal-actions{display:flex;gap:10px;justify-content:flex-end}@media(max-width:760px){.khd-customer-form{grid-template-columns:1fr}.khd-contact-verification-row{display:grid}.khd-modal-actions{justify-content:flex-start}}`;
-  document.head.appendChild(style);
-}
-
 function run() {
   cleanupRouteBlocks();
-  injectStyles();
   installDomainCustomerTools();
   void installContactVerification();
   improveFailedDnsRows();
