@@ -564,7 +564,6 @@ function ContactsPage() {
       <div className="heading-actions"><Button type="submit" disabled={save.isPending}>{editing ? "Save contact" : "Create contact"}</Button>{editing ? <Button type="button" kind="secondary" onClick={() => setEditing(null)}>Cancel</Button> : null}</div>
     </form></Tile></Column>
     <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><h2>Saved contacts</h2>{query.isPending ? <LoadingBlock /> : query.data?.contacts.length ? <div className="carbon-activity-list">{query.data.contacts.map((contact) => <Tile className="carbon-contact-row" key={contact.id}><div><strong>{contactName(contact)}</strong><span>{contact.email} · {contact.country}</span><small>{contact.registrar_verified ? "Provider verified" : "Not yet provider verified"}</small></div><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => setEditing(contact)}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setRemoveTarget(contact)}>Delete</Button></div></Tile>)}</div> : <EmptyState title="No contacts" text="Create a WHOIS contact before ordering a domain." />}</Tile></Column></Grid>
-  </div>
     <Modal
       open={Boolean(removeTarget)}
       danger
