@@ -6,6 +6,7 @@ import {
   Grid,
   InlineLoading,
   InlineNotification,
+  Modal,
   Table,
   TableBody,
   TableCell,
@@ -110,6 +111,10 @@ function Overview() {
 }
 
 function Users() {
+  const [creditTarget, setCreditTarget] = useState<{ user: Row; environment: EnvName } | null>(null);
+  const [creditAmount, setCreditAmount] = useState("");
+  const [creditReason, setCreditReason] = useState("Manual support credit");
+  const [creditFormError, setCreditFormError] = useState<string | null>(null);
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["admin-users"], queryFn: () => adminApi<{ users: Row[] }>("/users") });
   const meQuery = useQuery({ queryKey: ["admin-me"], queryFn: () => api<{ user: Row }>("/me") });
@@ -121,15 +126,23 @@ function Users() {
   const adminCount = users.filter((user) => user.role === "admin").length;
   const activeAdminCount = users.filter((user) => user.role === "admin" && user.status === "active").length;
   const currentAdminId = meQuery.data?.user?.id;
-  const addCredit = (user: Row, environment: EnvName) => {
-    const label = environment === "ote" ? "TEST / OTE" : "LIVE / PRODUCTION";
-    const amount = prompt(`KmerHosting customer credit for ${user.email}\nEnvironment: ${label}\nUSD amount:`);
-    if (amount === null) return;
-    const value = Number(amount);
-    if (!Number.isFinite(value) || value <= 0) return alert("Enter a positive USD amount.");
-    const reason = prompt(`Reason for this ${label} customer credit`, "Manual support credit") || "Manual support credit";
-    if (!window.confirm(`Credit ${formatMoney(value)} to ${user.email} in ${label}?\n\nThis changes KmerHosting customer credit only. It does NOT change the DomainNameAPI reseller balance.`)) return;
-    credit.mutate({ userId: user.id, environment, amountUsd: value, reason });
+  const openCredit = (user: Row, environment: EnvName) => {
+    setCreditTarget({ user, environment });
+    setCreditAmount("");
+    setCreditReason("Manual support credit");
+    setCreditFormError(null);
+  };
+  const submitCredit = () => {
+    if (!creditTarget) return;
+    const value = Number(creditAmount);
+    if (!Number.isFinite(value) || value <= 0) {
+      setCreditFormError("Enter a positive USD amount.");
+      return;
+    }
+    credit.mutate(
+      { userId: creditTarget.user.id, environment: creditTarget.environment, amountUsd: value, reason: creditReason.trim() || "Manual support credit" },
+      { onSuccess: () => setCreditTarget(null) },
+    );
   };
   const pending = query.isPending || envQuery.isPending || meQuery.isPending;
   const error = query.error || envQuery.error || meQuery.error || update.error || credit.error;
@@ -147,16 +160,49 @@ function Users() {
       const cannotDemote = user.role === "admin" && (self || lastAdmin || lastActiveAdmin);
       const suspendTitle = self ? "You cannot suspend your own administrator account." : lastActiveAdmin ? "The last active administrator cannot be suspended." : undefined;
       const demoteTitle = self ? "You cannot convert your own administrator account to a customer." : lastAdmin ? "The last administrator cannot be converted to a customer." : lastActiveAdmin ? "The last active administrator cannot be converted to a customer." : undefined;
-      return <TableRow key={user.id}><TableCell><strong>{user.full_name}</strong><small className="dns-meta">{user.email}{self ? " · current admin" : ""}</small></TableCell><TableCell><Badge value={user.role} /></TableCell><TableCell><Badge value={user.status} /></TableCell><TableCell>{formatMoney(Number(row?.ote_balance_usd || 0))}</TableCell><TableCell>{formatMoney(Number(row?.production_balance_usd || 0))}</TableCell><TableCell>{formatDate(user.last_login_at)}</TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => addCredit(user, "ote")}>Credit TEST</Button><Button kind="ghost" size="sm" onClick={() => addCredit(user, "production")}>Credit LIVE</Button><Button kind="ghost" size="sm" disabled={cannotSuspend || update.isPending} title={suspendTitle} onClick={() => update.mutate({ id: user.id, body: { status: user.status === "active" ? "suspended" : "active" } })}>{user.status === "active" ? "Suspend" : "Activate"}</Button><Button kind="ghost" size="sm" disabled={cannotDemote || update.isPending} title={demoteTitle} onClick={() => update.mutate({ id: user.id, body: { role: user.role === "admin" ? "customer" : "admin" } })}>{user.role === "admin" ? "Make customer" : "Make admin"}</Button></div></TableCell></TableRow>;
+      return <TableRow key={user.id}><TableCell><strong>{user.full_name}</strong><small className="dns-meta">{user.email}{self ? " · current admin" : ""}</small></TableCell><TableCell><Badge value={user.role} /></TableCell><TableCell><Badge value={user.status} /></TableCell><TableCell>{formatMoney(Number(row?.ote_balance_usd || 0))}</TableCell><TableCell>{formatMoney(Number(row?.production_balance_usd || 0))}</TableCell><TableCell>{formatDate(user.last_login_at)}</TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => openCredit(user, "ote")}>Credit TEST</Button><Button kind="ghost" size="sm" onClick={() => openCredit(user, "production")}>Credit LIVE</Button><Button kind="ghost" size="sm" disabled={cannotSuspend || update.isPending} title={suspendTitle} onClick={() => update.mutate({ id: user.id, body: { status: user.status === "active" ? "suspended" : "active" } })}>{user.status === "active" ? "Suspend" : "Activate"}</Button><Button kind="ghost" size="sm" disabled={cannotDemote || update.isPending} title={demoteTitle} onClick={() => update.mutate({ id: user.id, body: { role: user.role === "admin" ? "customer" : "admin" } })}>{user.role === "admin" ? "Make customer" : "Make admin"}</Button></div></TableCell></TableRow>;
     })}</TableBody></Table>}
+    <Modal
+      open={Boolean(creditTarget)}
+      modalHeading="Add customer credit"
+      primaryButtonText={credit.isPending ? "Adding…" : "Add credit"}
+      secondaryButtonText="Cancel"
+      primaryButtonDisabled={credit.isPending || !creditAmount}
+      onRequestClose={() => { if (!credit.isPending) setCreditTarget(null); }}
+      onRequestSubmit={submitCredit}
+    >
+      <p className="khd-modal-copy">Add customer billing credit for <strong>{creditTarget?.user.email}</strong> in {creditTarget?.environment === "ote" ? "TEST / OTE" : "LIVE / PRODUCTION"}.</p>
+      <TextInput id="admin-credit-amount" type="number" labelText="Amount (USD)" min={0.01} step="0.01" value={creditAmount} onChange={(event) => { setCreditAmount(event.target.value); setCreditFormError(null); }} />
+      <TextArea id="admin-credit-reason" labelText="Reason" value={creditReason} onChange={(event) => setCreditReason(event.target.value)} />
+      {creditFormError ? <InlineNotification kind="error" lowContrast hideCloseButton title="Invalid credit" subtitle={creditFormError} /> : null}
+      <p className="khd-modal-copy">This changes KmerHosting customer credit only; it does not change the DomainNameAPI reseller balance.</p>
+    </Modal>
   </AdminSection>;
 }
 
 function Orders() {
+  const [confirmTarget, setConfirmTarget] = useState<{ id: string; action: "cancel" | "refund"; domain: string } | null>(null);
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["admin-orders"], queryFn: () => adminApi<{ orders: Row[] }>("/orders"), refetchInterval: 20000 });
   const action = useMutation({ mutationFn: ({ id, action, body }: { id: string; action: string; body?: Row }) => adminApi(`/orders/${id}/${action}`, { method: "POST", body: body || {} }), onSuccess: () => client.invalidateQueries({ queryKey: ["admin-orders"] }) });
-  return <AdminSection title="Domain orders" description="Orders use KmerHosting customer credit for billing, while provider capacity is checked directly against DNA usdBalance for the order environment." table>{query.isError || action.isError ? <ErrorNotice error={query.error || action.error} /> : null}{query.isPending ? <Loading /> : <Table size="lg"><TableHead><TableRow><TableHeader>Order</TableHeader><TableHeader>Customer</TableHeader><TableHeader>Domain</TableHeader><TableHeader>Type</TableHeader><TableHeader>Environment</TableHeader><TableHeader>Price</TableHeader><TableHeader>Status</TableHeader><TableHeader>Provider quote</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{(query.data?.orders || []).map((order) => <TableRow key={order.id}><TableCell>{order.order_number}<small className="dns-meta">{formatDate(order.created_at)}</small></TableCell><TableCell>{order.domain_users?.email || "—"}</TableCell><TableCell><strong>{order.domain_name}</strong></TableCell><TableCell>{order.type}</TableCell><TableCell><Badge value={order.registrar_environment} /></TableCell><TableCell>{formatMoney(order.price_usd)}</TableCell><TableCell><Badge value={order.status} />{order.failure_message ? <small className="dns-meta">{order.failure_message}</small> : null}</TableCell><TableCell>{order.provider_quote_id ? "yes" : "no"}</TableCell><TableCell><div className="heading-actions">{["failed", "processing", "paid"].includes(order.status) && order.provider_quote_id ? <Button kind="ghost" size="sm" onClick={() => action.mutate({ id: order.id, action: "retry" })}>Retry</Button> : null}{["pending_payment", "payment_pending"].includes(order.status) ? <Button kind="danger--ghost" size="sm" onClick={() => window.confirm("Cancel this unpaid order?") && action.mutate({ id: order.id, action: "cancel", body: { reason: "Cancelled by administrator" } })}>Cancel</Button> : null}{["paid", "processing", "failed"].includes(order.status) ? <Button kind="danger--ghost" size="sm" onClick={() => window.confirm("Refund this paid order to the customer credit in the same environment?") && action.mutate({ id: order.id, action: "refund", body: { reason: "Refunded by administrator" } })}>Refund</Button> : null}</div></TableCell></TableRow>)}</TableBody></Table>}</AdminSection>;
+  return <AdminSection title="Domain orders" description="Orders use KmerHosting customer credit for billing, while provider capacity is checked directly against DNA usdBalance for the order environment." table>{query.isError || action.isError ? <ErrorNotice error={query.error || action.error} /> : null}{query.isPending ? <Loading /> : <Table size="lg"><TableHead><TableRow><TableHeader>Order</TableHeader><TableHeader>Customer</TableHeader><TableHeader>Domain</TableHeader><TableHeader>Type</TableHeader><TableHeader>Environment</TableHeader><TableHeader>Price</TableHeader><TableHeader>Status</TableHeader><TableHeader>Provider quote</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{(query.data?.orders || []).map((order) => <TableRow key={order.id}><TableCell>{order.order_number}<small className="dns-meta">{formatDate(order.created_at)}</small></TableCell><TableCell>{order.domain_users?.email || "—"}</TableCell><TableCell><strong>{order.domain_name}</strong></TableCell><TableCell>{order.type}</TableCell><TableCell><Badge value={order.registrar_environment} /></TableCell><TableCell>{formatMoney(order.price_usd)}</TableCell><TableCell><Badge value={order.status} />{order.failure_message ? <small className="dns-meta">{order.failure_message}</small> : null}</TableCell><TableCell>{order.provider_quote_id ? "yes" : "no"}</TableCell><TableCell><div className="heading-actions">{["failed", "processing", "paid"].includes(order.status) && order.provider_quote_id ? <Button kind="ghost" size="sm" onClick={() => action.mutate({ id: order.id, action: "retry" })}>Retry</Button> : null}{["pending_payment", "payment_pending"].includes(order.status) ? <Button kind="danger--ghost" size="sm" onClick={() => setConfirmTarget({ id: order.id, action: "cancel", domain: order.domain_name })}>Cancel</Button> : null}{["paid", "processing", "failed"].includes(order.status) ? <Button kind="danger--ghost" size="sm" onClick={() => setConfirmTarget({ id: order.id, action: "refund", domain: order.domain_name })}>Refund</Button> : null}</div></TableCell></TableRow>)}</TableBody></Table>}
+    <Modal
+      open={Boolean(confirmTarget)}
+      danger={confirmTarget?.action === "refund"}
+      modalHeading={confirmTarget?.action === "refund" ? "Refund order" : "Cancel unpaid order"}
+      primaryButtonText={action.isPending ? "Saving…" : confirmTarget?.action === "refund" ? "Refund" : "Cancel order"}
+      secondaryButtonText="Keep order"
+      primaryButtonDisabled={action.isPending}
+      onRequestClose={() => { if (!action.isPending) setConfirmTarget(null); }}
+      onRequestSubmit={() => {
+        if (!confirmTarget || action.isPending) return;
+        const target = confirmTarget;
+        action.mutate({ id: target.id, action: target.action, body: { reason: target.action === "refund" ? "Refunded by administrator" : "Cancelled by administrator" } }, { onSuccess: () => setConfirmTarget(null) });
+      }}
+    >
+      <p className="khd-modal-copy">{confirmTarget?.action === "refund" ? "Refund" : "Cancel"} the order for <strong>{confirmTarget?.domain}</strong>?</p>
+    </Modal>
+  </AdminSection>;
 }
 
 function Domains() {
@@ -180,6 +226,7 @@ function Jobs() {
 }
 
 function Settings() {
+  const [switchTarget, setSwitchTarget] = useState<{ environment: EnvName; message: string } | null>(null);
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["admin-settings"], queryFn: () => adminApi<{ settings: Row }>("/settings") });
   const envQuery = useQuery({ queryKey: ["admin-settings-environment"], queryFn: environmentStatus, refetchInterval: 30000 });
@@ -211,7 +258,7 @@ function Settings() {
     const message = environment === "ote"
       ? "Switch the full NEW-ORDER platform to TEST / OTE?\n\nAvailability search, bulk search, quotes, new registrations, transfers, renewals/restores and provider balance checks for NEW operations will use DomainNameAPI OTE. Existing LIVE domains, orders, DNS records and jobs remain LIVE. Maintenance mode is not changed."
       : "Switch the full NEW-ORDER platform to LIVE / PRODUCTION?\n\nAvailability search, bulk search, quotes and NEW paid registrar operations will use DomainNameAPI production and can spend REAL provider funds. Existing TEST records remain TEST. Maintenance mode is not changed.";
-    if (window.confirm(message)) switchEnvironment.mutate(environment);
+    setSwitchTarget({ environment, message });
   };
 
   return <AdminSection title="Platform settings" description="New operations use one explicit platform environment. Existing domains, orders, DNS records and jobs keep their immutable original environment." actions={<Button kind="secondary" size="sm" href="/admin/environments">Environment details & balances</Button>}>
@@ -229,6 +276,20 @@ function Settings() {
       {save.isSuccess ? <InlineNotification kind="success" lowContrast hideCloseButton title="Settings saved" subtitle="The domain platform settings were updated." /> : null}
       {save.isError ? <ErrorNotice error={save.error} /> : null}
     </form>
+    <Modal
+      open={Boolean(switchTarget)}
+      modalHeading={switchTarget?.environment === "ote" ? "Switch to TEST / OTE" : "Switch to LIVE / PRODUCTION"}
+      primaryButtonText={switchEnvironment.isPending ? "Switching…" : "Confirm switch"}
+      secondaryButtonText="Keep current environment"
+      primaryButtonDisabled={switchEnvironment.isPending}
+      onRequestClose={() => { if (!switchEnvironment.isPending) setSwitchTarget(null); }}
+      onRequestSubmit={() => {
+        if (!switchTarget || switchEnvironment.isPending) return;
+        switchEnvironment.mutate(switchTarget.environment, { onSuccess: () => setSwitchTarget(null) });
+      }}
+    >
+      <p className="khd-modal-copy">{switchTarget?.message}</p>
+    </Modal>
   </AdminSection>;
 }
 
