@@ -413,12 +413,14 @@ function providerRecord(raw: Json) {
 async function listDns(req: Request, u: Json, id: string) {
   const cfg = await config();
   const d = await domain(id, u);
-  const { data } = await db
+  const { data, error: recordsError } = await db
     .from("domain_dns_records")
     .select("*")
     .eq("domain_id", d.id)
     .order("name")
     .order("type");
+  if (recordsError)
+    throw new HttpError(500, "dns_records_load_failed", "DNS records could not be loaded.", recordsError);
   let providerError: string | null = null;
   let providerConfirmed = false;
   try {
@@ -431,7 +433,7 @@ async function listDns(req: Request, u: Json, id: string) {
       info.data?.nameServers;
     if (Array.isArray(providerNameservers)) {
       d.nameservers = providerNameservers.map(clean).filter(Boolean);
-      await db
+      const { error: nameserverSyncError } = await db
         .from("domain_domains")
         .update({
           nameservers: d.nameservers,
@@ -439,6 +441,8 @@ async function listDns(req: Request, u: Json, id: string) {
           updated_at: now(),
         })
         .eq("id", d.id);
+      if (nameserverSyncError)
+        throw new HttpError(500, "nameserver_sync_failed", "Provider nameservers were read, but the local domain state could not be saved.", nameserverSyncError);
     }
   } catch (error) {
     providerError = error instanceof Error ? error.message : String(error);
@@ -531,6 +535,13 @@ function zoneStruct(r: Json) {
     contents: r.contents,
     ttl: r.ttl,
   };
+}
+function qualifiedRecordName(name: unknown, domainName: string) {
+  const domain = domainName.trim().toLowerCase().replace(/\.$/, "");
+  const value = clean(name).toLowerCase().replace(/\.$/, "");
+  if (!value || value === "@") return domain + ".";
+  if (value === domain || value.endsWith("." + domain)) return value + ".";
+  return value + "." + domain + ".";
 }
 
 async function createRecord(req: Request, u: Json, id: string, b: Json) {
@@ -644,7 +655,7 @@ async function deleteRecord(
   try {
     const provider = await registrar(envOf(d.registrar_environment), "/api/v1/domains/zones", "DELETE", null, {
       domainName: d.domain_name,
-      Name: r.name === "@" ? "" : r.name,
+      Name: qualifiedRecordName(r.name, d.domain_name),
       Record: r.contents?.[0] || "",
       RecordType: r.type,
     });
