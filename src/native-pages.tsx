@@ -183,6 +183,7 @@ function DomainManagePage({ domainId }: { domainId: string }) {
   const domain = domainQuery.data?.domain;
   const [transferCode, setTransferCode] = useState("");
   const [revealTransfer, setRevealTransfer] = useState(false);
+  const [transferConfirm, setTransferConfirm] = useState<string | null>(null);
   const [quote, setQuote] = useState<Row | null>(null);
   const [orderMessage, setOrderMessage] = useState("");
   const sync = useMutation({ mutationFn: () => customerToolsApi(`/domains/${domainId}/sync`, { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["domain-manage", domainId] }) });
@@ -218,7 +219,23 @@ function DomainManagePage({ domainId }: { domainId: string }) {
 
     <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Renew or restore</h2><p>Pricing is read from DNA now and includes the 30% resale markup.</p></div></div><Grid fullWidth className="carbon-action-grid"><Column sm={4} md={4} lg={8}><ProviderAction title="Check renewal quote" description="One-year renewal eligibility and live DNA price." busy={getQuote.isPending} action={() => getQuote.mutate("renewal")} /></Column><Column sm={4} md={4} lg={8}><ProviderAction title="Check restore quote" description="Restore eligibility and live DNA price." busy={getQuote.isPending} action={() => getQuote.mutate("restore")} /></Column></Grid>{quote ? <Tile className="carbon-quote"><strong>{String(quote.operation).toUpperCase()}</strong><span>{formatMoney(quote.customerPriceUsd, quote.currency || "USD")}</span><small>DNA cost {formatMoney(quote.providerCostUsd, quote.currency || "USD")} + 30% · {quote.periodYears} year(s)</small><Button disabled={createOrder.isPending} onClick={() => createOrder.mutate(quote.operation)}>{test ? "Queue OTE test order" : "Charge central balance and confirm"}</Button></Tile> : null}{orderMessage ? <InlineNotification kind="success" lowContrast hideCloseButton title="Order queued" subtitle={orderMessage} actions={<Button kind="ghost" size="sm" href="/dashboard/orders">Open orders</Button>} /> : null}{getQuote.isError || createOrder.isError ? <ErrorNotice error={getQuote.error || createOrder.error} /> : null}</Tile>
 
-    {domain.status === "transfer_pending" ? <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Transfer status</h2><p>Query or act on a pending incoming/outgoing transfer.</p></div></div><div className="heading-actions">{["query", "approve", "reject", "cancel"].map((action) => <Button key={action} kind={action === "reject" || action === "cancel" ? "danger--ghost" : "secondary"} disabled={transferAction.isPending} onClick={() => window.confirm(`${action} transfer for ${domain.domain_name}?`) && transferAction.mutate(action)}>{action}</Button>)}</div>{transferAction.isError ? <ErrorNotice error={transferAction.error} /> : null}</Tile> : null}
+    {domain.status === "transfer_pending" ? <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Transfer status</h2><p>Query or act on a pending incoming/outgoing transfer.</p></div></div><div className="heading-actions">{["query", "approve", "reject", "cancel"].map((action) => <Button key={action} kind={action === "reject" || action === "cancel" ? "danger--ghost" : "secondary"} disabled={transferAction.isPending} onClick={() => setTransferConfirm(action)}>{action}</Button>)}</div>{transferAction.isError ? <ErrorNotice error={transferAction.error} /> : null}
+      <Modal
+        open={Boolean(transferConfirm)}
+        danger={transferConfirm === "reject" || transferConfirm === "cancel"}
+        modalHeading={transferConfirm ? `${transferConfirm} transfer` : "Transfer action"}
+        primaryButtonText={transferAction.isPending ? "Working…" : "Continue"}
+        secondaryButtonText="Cancel"
+        primaryButtonDisabled={transferAction.isPending}
+        onRequestClose={() => setTransferConfirm(null)}
+        onRequestSubmit={() => {
+          if (!transferConfirm) return;
+          transferAction.mutate(transferConfirm, { onSettled: () => setTransferConfirm(null) });
+        }}
+      >
+        <p>Confirm <strong>{transferConfirm}</strong> for <strong>{domain.domain_name}</strong>.</p>
+      </Modal>
+    </Tile> : null}
 
     <DomainContacts domainId={domainId} />
     <Forwarding domainId={domainId} />
