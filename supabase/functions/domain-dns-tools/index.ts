@@ -313,11 +313,13 @@ async function assertCnameConflicts(
   r: Json,
   selfId?: string,
 ) {
-  const { data } = await db
+  const { data, error } = await db
     .from("domain_dns_records")
     .select("id,type,name,status")
     .eq("domain_id", domainId)
     .eq("name", r.name);
+  if (error)
+    throw new HttpError(500, "dns_conflict_check_failed", "DNS conflicts could not be checked.", error);
   const rows = (data || []).filter(
     (x: Json) => x.id !== selfId && x.status !== "deleting",
   );
@@ -458,6 +460,7 @@ async function listDns(req: Request, u: Json, id: string) {
 async function syncDns(req: Request, u: Json, id: string) {
   const cfg = await config();
   const d = await domain(id, u);
+  assertEnv(d, cfg);
   await confirmProviderDomain(d);
   const provider = await registrar(envOf(d.registrar_environment), "/api/v1/domains/zones", "GET", null, {
     domainName: d.domain_name,
@@ -506,14 +509,20 @@ async function syncDns(req: Request, u: Json, id: string) {
       throw new HttpError(500, "dns_sync_failed", error.message, error);
     upserted.push(data as Json);
   }
-  const { data: existingProviderRows } = await db
+  const { data: existingProviderRows, error: existingProviderError } = await db
     .from("domain_dns_records")
     .select("id,record_key")
     .eq("domain_id", d.id)
     .eq("source", "provider");
+  if (existingProviderError)
+    throw new HttpError(500, "dns_sync_cleanup_failed", "DNS sync cleanup could not be checked.", existingProviderError);
   const staleIds = (existingProviderRows || []).filter((row: Json) => !seen.includes(row.record_key)).map((row: Json) => row.id);
-  if (staleIds.length) await db.from("domain_dns_records").delete().in("id", staleIds);
-  await db
+  if (staleIds.length) {
+    const { error: staleDeleteError } = await db.from("domain_dns_records").delete().in("id", staleIds);
+    if (staleDeleteError)
+      throw new HttpError(500, "dns_sync_cleanup_failed", "Stale DNS records could not be removed.", staleDeleteError);
+  }
+  const { error: domainSyncError } = await db
     .from("domain_domains")
     .update({
       metadata: { ...(d.metadata || {}), lastDnsSyncAt: now() },
@@ -521,6 +530,8 @@ async function syncDns(req: Request, u: Json, id: string) {
       updated_at: now(),
     })
     .eq("id", d.id);
+  if (domainSyncError)
+    throw new HttpError(500, "dns_sync_state_failed", "DNS synced, but the local domain state could not be saved.", domainSyncError);
   return json(req, {
     success: true,
     imported: upserted.length,
@@ -547,6 +558,7 @@ function qualifiedRecordName(name: unknown, domainName: string) {
 async function createRecord(req: Request, u: Json, id: string, b: Json) {
   const cfg = await config();
   const d = await domain(id, u);
+  assertEnv(d, cfg);
   await confirmProviderDomain(d);
   const r = normalize(b);
   await assertCnameConflicts(d.id, r);
@@ -591,13 +603,16 @@ async function updateRecord(
 ) {
   const cfg = await config();
   const d = await domain(id, u);
+  assertEnv(d, cfg);
   await confirmProviderDomain(d);
-  const { data: existing } = await db
+  const { data: existing, error: existingError } = await db
     .from("domain_dns_records")
     .select("*")
     .eq("id", recordId)
     .eq("domain_id", d.id)
     .maybeSingle();
+  if (existingError)
+    throw new HttpError(500, "dns_record_load_failed", "DNS record could not be loaded.", existingError);
   if (!existing)
     throw new HttpError(404, "dns_record_not_found", "DNS record not found.");
   if (systemRecordType(existing.type)) {
@@ -640,13 +655,16 @@ async function deleteRecord(
 ) {
   const cfg = await config();
   const d = await domain(id, u);
+  assertEnv(d, cfg);
   await confirmProviderDomain(d);
-  const { data: r } = await db
+  const { data: r, error: recordError } = await db
     .from("domain_dns_records")
     .select("*")
     .eq("id", recordId)
     .eq("domain_id", d.id)
     .maybeSingle();
+  if (recordError)
+    throw new HttpError(500, "dns_record_load_failed", "DNS record could not be loaded.", recordError);
   if (!r)
     throw new HttpError(404, "dns_record_not_found", "DNS record not found.");
   if (systemRecordType(r.type)) {
@@ -660,7 +678,9 @@ async function deleteRecord(
       RecordType: r.type,
     });
     await applyZone(d);
-    await db.from("domain_dns_records").delete().eq("id", recordId);
+    const { error: localDeleteError } = await db.from("domain_dns_records").delete().eq("id", recordId);
+    if (localDeleteError)
+      throw new HttpError(500, "dns_record_delete_persist_failed", "The provider applied the deletion, but the local record could not be removed.", localDeleteError);
     return json(req, { success: true, provider });
   } catch (e) {
     await db
