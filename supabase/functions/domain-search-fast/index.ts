@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
-import { normalizeDnaCatalog, type DnaCatalogPrice } from "../_shared/dna-catalog.ts";
-import { directDnaRequest, DnaRequestError } from "../_shared/dna-client.ts";
+import { normalizeDnaCatalog, type DnaCatalogPrice } from "./dna-catalog.ts";
+import { directDnaRequest, DnaRequestError } from "./dna-client.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -66,22 +66,17 @@ function pick(object: any, paths: string[]) {
   return undefined;
 }
 
-async function dnaConfiguration(): Promise<{ environment: Environment; resellerId: string; apiKey: string }> {
+type RegistrarConfig = { environment: Environment };
+
+async function dnaConfiguration(): Promise<RegistrarConfig> {
   const { data, error } = await db.from("domain_config")
-    .select("registrar_environment,registrar_reseller_id")
+    .select("registrar_environment")
     .eq("id", true)
     .single();
   if (error) throw new HttpError(500, "configuration_missing", "Domain platform configuration is unavailable.", error);
   const value = clean(data?.registrar_environment).toLowerCase();
-  const environment: Environment = value === "ote" ? "ote" : "production";
-  const resellerId = clean(data?.registrar_reseller_id);
-  const secretName = environment === "production" ? "domain_registrar_api_key" : "domain_registrar_ote_api_key";
-  const { data: secretValue, error: secretError } = await db.rpc("domain_secret", { p_name: secretName });
-  const apiKey = clean(secretValue);
-  if (!resellerId || secretError || !apiKey) {
-    throw new HttpError(503, "registrar_not_configured", `DomainNameAPI ${environment.toUpperCase()} credentials are unavailable.`);
-  }
-  return { environment, resellerId, apiKey };
+  if (value !== "ote" && value !== "production") throw new HttpError(503, "registrar_environment_invalid", "The registrar environment is invalid.");
+  return { environment: value as Environment };
 }
 
 async function enforceSearchRateLimit(req: Request) {
@@ -107,18 +102,27 @@ async function enforceSearchRateLimit(req: Request) {
   await db.from("domain_rate_limits").update({ hits, updated_at: now() }).eq("key", key);
 }
 
-async function registrar(config: { environment: Environment; resellerId: string; apiKey: string }, path: string, method = "GET", body?: unknown, query: Json = {}) {
-  try {
-    return await directDnaRequest({ ...config, path, method, body, query });
-  } catch (error) {
-    if (error instanceof DnaRequestError) {
-      throw new HttpError(error.status >= 500 ? error.status : error.status || 502, "registrar_error", error.message, {
-        providerHttpStatus: error.status || null,
-        providerBody: error.payload,
-      });
-    }
-    throw error;
+async function registrar(config: RegistrarConfig, path: string, method = "GET", body?: unknown, query: Json = {}) {
+  const { data, error } = await db.rpc("domain_registrar_proxy_env", {
+    p_path: path,
+    p_method: method,
+    p_body: body ?? null,
+    p_query: query,
+    p_environment: config.environment,
+  });
+  if (error) throw new HttpError(502, "registrar_gateway_failed", "The shared registrar gateway could not complete the request.", error);
+  const envelope = (data || {}) as Json;
+  const status = Number(envelope.status || 0);
+  const payload = (envelope.body || {}) as Json;
+  if (!status || status < 200 || status >= 300) {
+    const message = clean(payload?.error?.message || payload?.error?.details || payload?.message || payload?.details || payload?.title || payload?.raw) || `DomainNameAPI request failed (${status || 502}).`;
+    throw new HttpError(status >= 500 ? 502 : status || 502, "registrar_error", message, {
+      providerHttpStatus: status || null,
+      providerBody: payload,
+      registrarEnvironment: config.environment,
+    });
   }
+  return payload;
 }
 
 function normalizeStatus(raw: any): { available: boolean; known: boolean; status: string } {
@@ -155,7 +159,7 @@ function infos(payload: any): Json[] {
   return candidates.find(Array.isArray) || [];
 }
 
-async function liveCatalog(config: { environment: Environment; resellerId: string; apiKey: string }) {
+async function liveCatalog(config: RegistrarConfig) {
   const payload = await registrar(config, "/api/v1/products/tlds", "GET", undefined, {
     Currency: "USD",
     SkipCount: 0,
@@ -166,7 +170,7 @@ async function liveCatalog(config: { environment: Environment; resellerId: strin
   return prices;
 }
 
-async function pricesFor(domains: string[], config: { environment: Environment; resellerId: string; apiKey: string }) {
+async function pricesFor(domains: string[], config: RegistrarConfig) {
   const requested = new Set(domains.map(tld));
   const map = new Map<string, DnaCatalogPrice>();
   for (const price of await liveCatalog(config)) if (requested.has(price.tld)) map.set(price.tld, price);
