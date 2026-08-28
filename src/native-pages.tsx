@@ -3,11 +3,11 @@ import {
   Button,
   Column,
   Grid,
-  InlineLoading,
   InlineNotification,
   Modal,
   Select,
   SelectItem,
+  SkeletonText,
   Table,
   TableBody,
   TableCell,
@@ -67,7 +67,7 @@ function Badge({ value }: { value?: string | null }) {
 }
 
 function Loading({ description = "Loading…" }: { description?: string }) {
-  return <InlineLoading description={description} />;
+  return <Tile className="carbon-loading-block" aria-label={description} aria-busy="true"><SkeletonText heading width="42%" /><SkeletonText paragraph lineCount={3} width="82%" /></Tile>;
 }
 
 function ErrorNotice({ error, title = "Request failed" }: { error: unknown; title?: string }) {
@@ -83,7 +83,7 @@ function AdminShell({ title, subtitle, children }: { title: string; subtitle: st
 }
 
 function MetricGrid({ metrics }: { metrics: Array<[string, ReactNode]> }) {
-  return <Grid fullWidth className="carbon-metric-grid">{metrics.map(([label, value]) => <Column sm={2} md={4} lg={4} key={label}><Tile className="carbon-metric"><span>{label}</span><strong>{value}</strong></Tile></Column>)}</Grid>;
+  return <Grid fullWidth className="carbon-metric-grid">{metrics.map(([label, value]) => <Column sm={4} md={4} lg={4} key={label}><Tile className="carbon-metric"><span>{label}</span><strong>{value}</strong></Tile></Column>)}</Grid>;
 }
 
 function NotificationsPage() {
@@ -95,7 +95,7 @@ function NotificationsPage() {
 }
 
 function ProviderAction({ title, description, action, busy, danger = false }: { title: string; description: string; action: () => void; busy: boolean; danger?: boolean }) {
-  return <Tile className="carbon-action-tile"><strong>{title}</strong><p>{description}</p><Button kind={danger ? "danger--tertiary" : "secondary"} size="sm" onClick={action} disabled={busy}>{busy ? "Working…" : title}</Button></Tile>;
+  return <Tile className="carbon-action-tile"><strong>{title}</strong><p>{description}</p><Button kind={danger ? "danger--tertiary" : "tertiary"} size="sm" onClick={action} disabled={busy}>{busy ? "Working…" : title}</Button></Tile>;
 }
 
 function Forwarding({ domainId }: { domainId: string }) {
@@ -109,7 +109,7 @@ function Forwarding({ domainId }: { domainId: string }) {
     save.mutate({ redirectAddress: values.redirectAddress, forwardType: values.forwardType });
   };
   const current = query.data?.forwarding;
-  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Web forwarding</h2><p>Create or remove the registrar forwarding rule.</p></div>{current ? <Badge value={current.status} /> : null}</div>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <><p>{current ? <>Active: <strong>{current.redirect_address || current.redirect_url}</strong></> : "No active forwarding rule."}</p><form className="carbon-form-stack" onSubmit={submit}><TextInput id="forward-url" name="redirectAddress" type="url" labelText="Redirect URL" required defaultValue={current?.redirect_address || current?.redirect_url || ""} /><Select id="forward-type" name="forwardType" labelText="Forward type" defaultValue={current?.forward_type || "Permanent"}><SelectItem value="Permanent" text="Permanent" /><SelectItem value="Temporary" text="Temporary" /></Select><div className="heading-actions"><Button type="submit" disabled={save.isPending}>Save forwarding</Button>{current ? <Button type="button" kind="danger--ghost" disabled={remove.isPending} onClick={() => remove.mutate()}>Remove</Button> : null}</div></form>{save.isError || remove.isError ? <ErrorNotice error={save.error || remove.error} /> : null}</>}</Tile>;
+  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Web forwarding</h2><p>Create or remove the registrar forwarding rule.</p></div>{current ? <Badge value={current.status} /> : null}</div>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <><p>{current ? <>Active: <strong>{current.redirect_address || current.redirect_url}</strong></> : "No active forwarding rule."}</p><form className="carbon-form-stack" onSubmit={submit}><TextInput id="forward-url" name="redirectAddress" type="url" labelText="Redirect URL" helperText="Use a complete http:// or https:// address." required defaultValue={current?.redirect_address || current?.redirect_url || ""} /><Select id="forward-type" name="forwardType" labelText="Forward type" helperText="Standard redirects visitors; Frame keeps the domain in the browser address bar." defaultValue={current?.forward_type || "Standard"}><SelectItem value="Standard" text="Standard redirect" /><SelectItem value="Frame" text="Frame redirect" /></Select><div className="heading-actions"><Button type="submit" disabled={save.isPending}>Save forwarding</Button>{current ? <Button type="button" kind="danger--ghost" disabled={remove.isPending} onClick={() => remove.mutate()}>Remove</Button> : null}</div></form>{save.isError || remove.isError ? <ErrorNotice error={save.error || remove.error} /> : null}</>}</Tile>;
 }
 
 function GlueHosts({ domainId, domainName }: { domainId: string; domainName: string }) {
@@ -175,7 +175,7 @@ function DomainContacts({ domainId }: { domainId: string }) {
   const save = useMutation({ mutationFn: (body: Row) => customerToolsApi(`/domains/${domainId}/contacts`, { method: "PUT", body }) });
   const [selected, setSelected] = useState("");
   const rows = contacts.data?.contacts || [];
-  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>WHOIS contacts</h2><p>Assign one contact to all four registry roles, or manage contacts from the Contacts page.</p></div><Button kind="secondary" size="sm" href="/dashboard/contacts">Manage contacts</Button></div>{contacts.isPending ? <Loading /> : contacts.isError ? <ErrorNotice error={contacts.error} /> : <div className="carbon-contact-assignment"><Select id="domain-contact" labelText="Contact" value={selected} onChange={(event) => setSelected(event.target.value)}><SelectItem value="" text="Select a contact" />{rows.map((contact) => <SelectItem key={contact.id} value={contact.id} text={`${contact.label || `${contact.first_name} ${contact.last_name}`} · ${contact.email}`} />)}</Select><Button disabled={!selected || save.isPending} onClick={() => save.mutate({ contactId: selected })}>Apply to all roles</Button></div>}{save.isSuccess ? <InlineNotification kind="success" lowContrast hideCloseButton title="Registry contacts updated" subtitle="The selected contact has been applied to all registry roles." /> : null}{save.isError ? <ErrorNotice error={save.error} /> : null}</Tile>;
+  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>WHOIS contacts</h2><p>Assign one contact to all four registry roles, or manage contacts from the Contacts page.</p></div><Button kind="tertiary" size="sm" href="/dashboard/contacts">Manage contacts</Button></div>{contacts.isPending ? <Loading /> : contacts.isError ? <ErrorNotice error={contacts.error} /> : <div className="carbon-contact-assignment"><Select id="domain-contact" labelText="Contact" value={selected} onChange={(event) => setSelected(event.target.value)}><SelectItem value="" text="Select a contact" />{rows.map((contact) => <SelectItem key={contact.id} value={contact.id} text={`${contact.label || `${contact.first_name} ${contact.last_name}`} · ${contact.email}`} />)}</Select><Button disabled={!selected || save.isPending} onClick={() => save.mutate({ contactId: selected })}>Apply to all roles</Button></div>}{save.isSuccess ? <InlineNotification kind="success" lowContrast hideCloseButton title="Registry contacts updated" subtitle="The selected contact has been applied to all registry roles." /> : null}{save.isError ? <ErrorNotice error={save.error} /> : null}</Tile>;
 }
 
 function DomainManagePage({ domainId }: { domainId: string }) {
@@ -186,14 +186,15 @@ function DomainManagePage({ domainId }: { domainId: string }) {
   const [revealTransfer, setRevealTransfer] = useState(false);
   const [transferConfirm, setTransferConfirm] = useState<string | null>(null);
   const [quote, setQuote] = useState<Row | null>(null);
+  const [renewalOrderKey, setRenewalOrderKey] = useState(() => newIdempotencyKey("renewal"));
   const [orderMessage, setOrderMessage] = useState("");
   const sync = useMutation({ mutationFn: () => customerToolsApi(`/domains/${domainId}/sync`, { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["domain-manage", domainId] }) });
   const lock = useMutation({ mutationFn: (enabled: boolean) => customerToolsApi(`/domains/${domainId}/lock`, { method: "PUT", body: { enabled } }), onSuccess: () => client.invalidateQueries({ queryKey: ["domain-manage", domainId] }) });
   const privacy = useMutation({ mutationFn: (enabled: boolean) => customerToolsApi(`/domains/${domainId}/privacy`, { method: "PUT", body: { enabled } }), onSuccess: () => client.invalidateQueries({ queryKey: ["domain-manage", domainId] }) });
   const epp = useMutation({ mutationFn: () => customerToolsApi<{ transferCode: string }>(`/domains/${domainId}/transfer-code`, { method: "POST", body: { confirm: true } }), onSuccess: (data) => setTransferCode(data.transferCode) });
   const transferAction = useMutation({ mutationFn: (action: string) => customerToolsApi(`/domains/${domainId}/transfer/${action}`, { method: "POST", body: { confirm: true } }), onSuccess: () => sync.mutate() });
-  const getQuote = useMutation({ mutationFn: (operation: "renewal" | "restore") => customerToolsApi<{ quote: Row }>(`/domains/${domainId}/quote?operation=${operation}&years=1`), onSuccess: (data) => setQuote(data.quote) });
-  const createOrder = useMutation({ mutationFn: (operation: "renewal" | "restore") => customerToolsApi<{ order: Row }>(`/domains/${domainId}/orders/${operation}`, { method: "POST", body: { years: 1 }, idempotencyKey: newIdempotencyKey(operation) }), onSuccess: (data) => { setOrderMessage(`Order ${data.order?.order_number || "created"} was authorized and queued with DomainNameAPI.`); setQuote(null); } });
+  const getQuote = useMutation({ mutationFn: () => customerToolsApi<{ quote: Row }>(`/domains/${domainId}/quote?operation=renewal&years=1`), onSuccess: (data) => setQuote(data.quote) });
+  const createOrder = useMutation({ mutationFn: () => customerToolsApi<{ order: Row }>(`/domains/${domainId}/orders/renewal`, { method: "POST", body: { years: 1, expectedPriceUsd: quote?.customerPriceUsd }, idempotencyKey: renewalOrderKey }), onSuccess: (data) => { setOrderMessage(`Order ${data.order?.order_number || "created"} was authorized and queued with DomainNameAPI.`); setQuote(null); setRenewalOrderKey(newIdempotencyKey("renewal")); } });
 
   if (domainQuery.isPending) return <Shell title="Domain management" subtitle="Loading domain data." back="/dashboard/domains"><Loading /></Shell>;
   if (domainQuery.isError || !domain) return <Shell title="Domain management" subtitle="Unable to load this domain." back="/dashboard/domains"><ErrorNotice error={domainQuery.error} /></Shell>;
@@ -202,7 +203,7 @@ function DomainManagePage({ domainId }: { domainId: string }) {
 
   return <Shell title={domain.domain_name} subtitle="Registrar-backed domain controls, lifecycle operations and DNS." back={`/dashboard/domains/${domainId}`}>
     {test ? <InlineNotification kind="warning" lowContrast hideCloseButton title="TEST / OTE domain" subtitle="Domain actions use DNA OTE test funds and never charge the central KmerHosting balance." /> : null}
-    <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Registrar state</h2><p>Last synchronized {formatDate(domain.last_synced_at)}.</p></div><div className="heading-actions"><Badge value={domain.status} />{test ? <Tag type="blue">TEST / OTE</Tag> : null}</div></div><MetricGrid metrics={[["Expires", formatDate(domain.expires_at)], ["Lock", domain.locked ? "Enabled" : "Disabled"], ["Privacy", domain.privacy_enabled ? "Enabled" : "Disabled"], ["Auto-renew", domain.auto_renew ? "Enabled" : "Disabled"]]} /><div className="heading-actions"><Button kind="secondary" disabled={busy} onClick={() => sync.mutate()}>Sync provider state</Button><Button kind="ghost" href={`/dashboard/domains/${domainId}/dns`}>DNS and nameservers</Button></div>{sync.isError ? <ErrorNotice error={sync.error} /> : null}</Tile>
+    <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Registrar state</h2><p>Last synchronized {formatDate(domain.last_synced_at)}.</p></div><div className="heading-actions"><Badge value={domain.status} />{test ? <Tag type="blue">TEST / OTE</Tag> : null}</div></div><MetricGrid metrics={[["Expires", formatDate(domain.expires_at)], ["Lock", domain.locked ? "Enabled" : "Disabled"], ["Privacy", domain.privacy_enabled ? "Enabled" : "Disabled"], ["Auto-renew", domain.auto_renew ? "Enabled" : "Disabled"]]} /><div className="heading-actions"><Button kind="tertiary" disabled={busy} onClick={() => sync.mutate()}>Sync provider state</Button><Button kind="ghost" href={`/dashboard/domains/${domainId}/dns`}>DNS and nameservers</Button></div>{sync.isError ? <ErrorNotice error={sync.error} /> : null}</Tile>
 
     <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Security and transfer code</h2><p>These actions are sent to the registrar and then synchronized locally.</p></div></div><Grid fullWidth className="carbon-action-grid"><Column sm={4} md={4} lg={5}><Tile className="carbon-action-tile"><Toggle id="domain-lock" labelText="Registrar lock" labelA="Unlocked" labelB="Locked" toggled={Boolean(domain.locked)} disabled={lock.isPending} onToggle={(enabled) => lock.mutate(enabled)} /><p>Change the EPP/theft-protection lock.</p></Tile></Column><Column sm={4} md={4} lg={5}><Tile className="carbon-action-tile"><Toggle id="domain-privacy" labelText="WHOIS privacy" labelA="Disabled" labelB="Enabled" toggled={Boolean(domain.privacy_enabled)} disabled={privacy.isPending} onToggle={(enabled) => privacy.mutate(enabled)} /><p>Change WHOIS privacy where the TLD supports it.</p></Tile></Column><Column sm={4} md={8} lg={6}><ProviderAction title="Reveal transfer code" description="Displays the EPP/auth code. Keep it private." busy={epp.isPending} action={() => setRevealTransfer(true)} /></Column></Grid>{transferCode ? <InlineNotification kind="warning" lowContrast hideCloseButton title="Transfer code" subtitle={transferCode} /> : null}{lock.isError || privacy.isError || epp.isError ? <ErrorNotice error={lock.error || privacy.error || epp.error} /> : null}
       <Modal
@@ -218,7 +219,7 @@ function DomainManagePage({ domainId }: { domainId: string }) {
       </Modal>
     </Tile>
 
-    <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Renew or restore</h2><p>Pricing is read from DNA now and includes the 30% resale markup.</p></div></div><Grid fullWidth className="carbon-action-grid"><Column sm={4} md={4} lg={8}><ProviderAction title="Check renewal quote" description="One-year renewal eligibility and live DNA price." busy={getQuote.isPending} action={() => getQuote.mutate("renewal")} /></Column><Column sm={4} md={4} lg={8}><ProviderAction title="Check restore quote" description="Restore eligibility and live DNA price." busy={getQuote.isPending} action={() => getQuote.mutate("restore")} /></Column></Grid>{quote ? <Tile className="carbon-quote"><strong>{String(quote.operation).toUpperCase()}</strong><span>{formatMoney(quote.customerPriceUsd, quote.currency || "USD")}</span><small>DNA cost {formatMoney(quote.providerCostUsd, quote.currency || "USD")} + 30% · {quote.periodYears} year(s)</small><Button disabled={createOrder.isPending} onClick={() => createOrder.mutate(quote.operation)}>{test ? "Queue OTE test order" : "Charge central balance and confirm"}</Button></Tile> : null}{orderMessage ? <InlineNotification kind="success" lowContrast hideCloseButton title="Order queued" subtitle={orderMessage} actions={<Button kind="ghost" size="sm" href="/dashboard/orders">Open orders</Button>} /> : null}{getQuote.isError || createOrder.isError ? <ErrorNotice error={getQuote.error || createOrder.error} /> : null}</Tile>
+    <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Renewal and restoration</h2><p>Supported pricing is read from DNA now and includes the 30% resale markup.</p></div></div><Grid fullWidth className="carbon-action-grid"><Column sm={4} md={4} lg={8}><ProviderAction title="Check renewal quote" description="One-year renewal eligibility and live DNA price." busy={getQuote.isPending} action={() => getQuote.mutate()} /></Column><Column sm={4} md={4} lg={8}><Tile className="carbon-action-tile"><strong>Domain restoration</strong><p>The current official DomainNameAPI REST client does not expose a supported restore operation. This action is disabled so it can never create a charge without a registrar submission.</p><Tag type="cool-gray">Unavailable from provider API</Tag></Tile></Column></Grid>{quote ? <Tile className="carbon-quote"><strong>{String(quote.operation).toUpperCase()}</strong><span>{formatMoney(quote.customerPriceUsd, quote.currency || "USD")}</span><small>DNA cost {formatMoney(quote.providerCostUsd, quote.currency || "USD")} + 30% · {quote.periodYears} year(s)</small><Button disabled={createOrder.isPending} onClick={() => createOrder.mutate()}>{test ? "Queue OTE test order" : "Charge central balance and confirm"}</Button></Tile> : null}{orderMessage ? <InlineNotification kind="success" lowContrast hideCloseButton title="Order queued" subtitle={orderMessage} actions={<Button kind="ghost" size="sm" href="/dashboard/orders">Open orders</Button>} /> : null}{getQuote.isError || createOrder.isError ? <ErrorNotice error={getQuote.error || createOrder.error} /> : null}</Tile>
 
     {domain.status === "transfer_pending" ? <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Transfer status</h2><p>Query or act on a pending incoming/outgoing transfer.</p></div></div><div className="heading-actions">{["query", "approve", "reject", "cancel"].map((action) => <Button key={action} kind={action === "reject" || action === "cancel" ? "danger--ghost" : "secondary"} disabled={transferAction.isPending} onClick={() => setTransferConfirm(action)}>{action}</Button>)}</div>{transferAction.isError ? <ErrorNotice error={transferAction.error} /> : null}
       <Modal

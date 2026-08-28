@@ -1,5 +1,9 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
+import {
+  normalizeProviderRecord,
+  providerRecordList,
+} from "./dns-zone-normalization.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -360,111 +364,92 @@ function managedStatus(d: Json, cfg: Json, providerConfirmed = true) {
       : "This domain is not using the managed DNS nameservers. Local/provider DNS records may not be active publicly.",
   };
 }
-function providerRecordList(b: any): any[] | null {
-  for (const c of [
-    b?.data?.records,
-    b?.records,
-    b?.data?.zones,
-    b?.zones,
-    b?.result?.records,
-    b?.result,
-    b?.data,
-    b,
-  ])
-    if (Array.isArray(c)) return c;
-  return null;
-}
-function providerArray(b: any): any[] {
-  return providerRecordList(b) || [];
-}
 function systemRecordType(type: unknown) {
   return ["SOA", "RRSIG", "DNSKEY", "NSEC", "NSEC3"].includes(upper(type));
 }
-function providerRecord(raw: Json) {
-  const name =
-    lower(raw.name ?? raw.Name ?? raw.host ?? raw.recordName ?? "@").replace(
-      /\.$/,
-      "",
-    ) || "@";
-  const type = upper(raw.type ?? raw.Type ?? raw.recordType ?? raw.RecordType);
-  const ttlValue = Number(raw.ttl ?? raw.TTL ?? 3600);
-  const rawContents = Array.isArray(raw.contents)
-    ? raw.contents
-    : Array.isArray(raw.values)
-      ? raw.values
-      : Array.isArray(raw.records)
-        ? raw.records.map((record: any) => typeof record === "string" ? record : record?.content).filter((v: any) => v !== undefined)
-        : [raw.content ?? raw.value ?? raw.target ?? raw.Record].filter((v) => v !== undefined);
-  const priorityValue = raw.priority ?? raw.Priority ?? raw.preference ?? null;
-  const metadata: Json = { providerRaw: raw };
-  const row = {
-    name,
-    type,
-    ttl: Number.isFinite(ttlValue) ? ttlValue : 3600,
-    contents: rawContents.map(clean).filter(Boolean),
-    priority:
-      priorityValue === null || priorityValue === undefined
-        ? null
-        : Number(priorityValue),
-    metadata,
-    source: "provider",
-    provider_record_id: clean(raw.id ?? raw.recordId ?? raw.zoneId) || null,
-  };
-  return { ...row, record_key: recordKey(row) };
-}
-async function listDns(req: Request, u: Json, id: string) {
-  const cfg = await config();
-  const d = await domain(id, u);
-  const { data, error: recordsError } = await db
+async function loadLocalRecords(domainId: string) {
+  const { data, error } = await db
     .from("domain_dns_records")
     .select("*")
-    .eq("domain_id", d.id)
+    .eq("domain_id", domainId)
     .order("name")
     .order("type");
-  if (recordsError)
-    throw new HttpError(500, "dns_records_load_failed", "DNS records could not be loaded.", recordsError);
-  let providerError: string | null = null;
-  let providerConfirmed = false;
-  try {
-    const info = await confirmProviderDomain(d);
-    providerConfirmed = true;
-    const providerNameservers =
-      info.nameservers ||
-      info.nameServers ||
-      info.data?.nameservers ||
-      info.data?.nameServers;
-    if (Array.isArray(providerNameservers)) {
-      d.nameservers = providerNameservers.map(clean).filter(Boolean);
-      const { error: nameserverSyncError } = await db
-        .from("domain_domains")
-        .update({
-          nameservers: d.nameservers,
-          last_synced_at: now(),
-          updated_at: now(),
-        })
-        .eq("id", d.id);
-      if (nameserverSyncError)
-        throw new HttpError(500, "nameserver_sync_failed", "Provider nameservers were read, but the local domain state could not be saved.", nameserverSyncError);
-    }
-  } catch (error) {
-    providerError = error instanceof Error ? error.message : String(error);
-  }
-  return json(req, {
-    domain: d,
-    records: data || [],
-    dns: managedStatus(d, cfg, providerConfirmed),
-    providerError,
-    currentEnvironment: cfg.registrar_environment,
-  });
+  if (error)
+    throw new HttpError(500, "dns_records_load_failed", "DNS records could not be loaded.", error);
+  return (data || []) as Json[];
 }
-async function syncDns(req: Request, u: Json, id: string) {
-  const cfg = await config();
-  const d = await domain(id, u);
-  assertEnv(d, cfg);
-  await confirmProviderDomain(d);
-  const provider = await registrar(envOf(d.registrar_environment), "/api/v1/domains/zones", "GET", null, {
-    domainName: d.domain_name,
-  });
+async function saveProviderRecord(d: Json, r: Json, operation = "sync") {
+  const persistedOperation = operation === "sync"
+    ? clean(r.provider_operation || "sync")
+    : operation;
+  const values = {
+    name: r.name,
+    type: r.type,
+    contents: r.contents,
+    ttl: r.ttl,
+    priority: r.priority ?? null,
+    status: r.status || "active",
+    registrar_response: r.metadata?.providerRaw || r.registrar_response || {},
+    source: "provider",
+    provider_record_id: r.provider_record_id || null,
+    record_key: r.record_key || recordKey(r),
+    metadata: r.metadata || {},
+    registrar_environment: d.registrar_environment,
+    last_operation: persistedOperation,
+    last_error: r.last_error ?? null,
+    synced_at: now(),
+    updated_at: now(),
+  };
+  const { data: existing, error: existingError } = await db
+    .from("domain_dns_records")
+    .select("id")
+    .eq("domain_id", d.id)
+    .eq("record_key", values.record_key)
+    .neq("status", "deleting")
+    .order("updated_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (existingError)
+    throw new HttpError(500, "dns_record_lookup_failed", "The local DNS record could not be reconciled.", existingError);
+  if (existing?.id) {
+    const { data, error } = await db
+      .from("domain_dns_records")
+      .update(values)
+      .eq("id", existing.id)
+      .select("*")
+      .single();
+    if (error) throw new HttpError(500, "dns_record_save_failed", error.message, error);
+    return data as Json;
+  }
+  const { data, error } = await db
+    .from("domain_dns_records")
+    .insert({ domain_id: d.id, user_id: d.user_id, ...values })
+    .select("*")
+    .single();
+  if (!error) return data as Json;
+
+  // A concurrent page load may have inserted the same provider record after
+  // our lookup. Resolve that race without relying on ON CONFLICT against the
+  // table's intentionally partial unique index.
+  const { data: raced } = await db
+    .from("domain_dns_records")
+    .select("id")
+    .eq("domain_id", d.id)
+    .eq("record_key", values.record_key)
+    .neq("status", "deleting")
+    .maybeSingle();
+  if (raced?.id) {
+    const { data: updated, error: updateError } = await db
+      .from("domain_dns_records")
+      .update(values)
+      .eq("id", raced.id)
+      .select("*")
+      .single();
+    if (!updateError) return updated as Json;
+  }
+  throw new HttpError(500, "dns_record_save_failed", error.message, error);
+}
+async function reconcileProviderZone(d: Json, provider: Json) {
   const providerRecords = providerRecordList(provider);
   if (!providerRecords) {
     throw new HttpError(
@@ -475,68 +460,108 @@ async function syncDns(req: Request, u: Json, id: string) {
     );
   }
   const normalized = providerRecords
-    .map(providerRecord)
+    .map((raw) => normalizeProviderRecord(raw, d.domain_name))
     .filter((r) => r.type && r.name && r.contents.length && !systemRecordType(r.type));
   const seen = normalized.map((r) => r.record_key);
-  const upserted: Json[] = [];
+  const persisted: Json[] = [];
   for (const r of normalized) {
-    const payload = {
-      domain_id: d.id,
-      user_id: d.user_id,
-      name: r.name,
-      type: r.type,
-      contents: r.contents,
-      ttl: r.ttl,
-      priority: r.priority,
-      status: "active",
-      registrar_response: r.metadata.providerRaw || {},
-      source: "provider",
-      provider_record_id: r.provider_record_id,
-      record_key: r.record_key,
-      metadata: r.metadata,
-      registrar_environment: d.registrar_environment,
-      last_operation: "sync",
-      last_error: null,
-      synced_at: now(),
-      updated_at: now(),
-    };
-    const { data, error } = await db
-      .from("domain_dns_records")
-      .upsert(payload, { onConflict: "domain_id,record_key" })
-      .select("*")
-      .single();
-    if (error)
-      throw new HttpError(500, "dns_sync_failed", error.message, error);
-    upserted.push(data as Json);
+    persisted.push(await saveProviderRecord(d, r, "sync"));
   }
   const { data: existingProviderRows, error: existingProviderError } = await db
     .from("domain_dns_records")
-    .select("id,record_key")
+    .select("id,record_key,status,last_operation")
     .eq("domain_id", d.id)
     .eq("source", "provider");
   if (existingProviderError)
     throw new HttpError(500, "dns_sync_cleanup_failed", "DNS sync cleanup could not be checked.", existingProviderError);
-  const staleIds = (existingProviderRows || []).filter((row: Json) => !seen.includes(row.record_key)).map((row: Json) => row.id);
+  const staleIds = (existingProviderRows || [])
+    .filter((row: Json) => !seen.includes(row.record_key))
+    // Preserve failed create/update attempts for an operator-visible retry.
+    // A successful delete retry is intentionally removed once the provider no
+    // longer returns the record.
+    .filter((row: Json) => row.status !== "failed" || row.last_operation === "delete")
+    .map((row: Json) => row.id);
   if (staleIds.length) {
     const { error: staleDeleteError } = await db.from("domain_dns_records").delete().in("id", staleIds);
     if (staleDeleteError)
       throw new HttpError(500, "dns_sync_cleanup_failed", "Stale DNS records could not be removed.", staleDeleteError);
   }
+  const syncAt = now();
+  const metadata = { ...(d.metadata || {}), lastDnsSyncAt: syncAt };
   const { error: domainSyncError } = await db
     .from("domain_domains")
     .update({
-      metadata: { ...(d.metadata || {}), lastDnsSyncAt: now() },
-      last_synced_at: now(),
-      updated_at: now(),
+      metadata,
+      last_synced_at: syncAt,
+      updated_at: syncAt,
     })
     .eq("id", d.id);
   if (domainSyncError)
     throw new HttpError(500, "dns_sync_state_failed", "DNS synced, but the local domain state could not be saved.", domainSyncError);
+  d.metadata = metadata;
+  d.last_synced_at = syncAt;
+  return { provider, records: persisted, syncAt };
+}
+async function fetchAndReconcileProviderZone(d: Json) {
+  const provider = await registrar(envOf(d.registrar_environment), "/api/v1/domains/zones", "GET", null, {
+    domainName: d.domain_name,
+  });
+  return await reconcileProviderZone(d, provider);
+}
+async function listDns(req: Request, u: Json, id: string) {
+  const cfg = await config();
+  const d = await domain(id, u);
+  let records = await loadLocalRecords(d.id);
+  let providerError: string | null = null;
+  let providerConfirmed = false;
+  let synced = false;
+  try {
+    const info = await confirmProviderDomain(d);
+    providerConfirmed = true;
+    const providerNameservers = info.nameservers || info.nameServers || info.data?.nameservers || info.data?.nameServers;
+    if (Array.isArray(providerNameservers)) {
+      d.nameservers = providerNameservers.map(clean).filter(Boolean);
+      const syncAt = now();
+      const { error: nameserverSyncError } = await db
+        .from("domain_domains")
+        .update({ nameservers: d.nameservers, last_synced_at: syncAt, updated_at: syncAt })
+        .eq("id", d.id);
+      if (nameserverSyncError)
+        throw new HttpError(500, "nameserver_sync_failed", "Provider nameservers were read, but the local domain state could not be saved.", nameserverSyncError);
+    }
+    const requestedRefresh = new URL(req.url).searchParams.get("refresh") === "1";
+    const lastDnsSync = Date.parse(clean(d.metadata?.lastDnsSyncAt));
+    const stale = !Number.isFinite(lastDnsSync) || Date.now() - lastDnsSync > 60_000;
+    if (requestedRefresh || stale || records.length === 0) {
+      await fetchAndReconcileProviderZone(d);
+      records = await loadLocalRecords(d.id);
+    }
+    synced = true;
+  } catch (error) {
+    providerError = error instanceof Error ? error.message : String(error);
+  }
+  return json(req, {
+    domain: d,
+    records,
+    dns: managedStatus(d, cfg, providerConfirmed),
+    synced,
+    providerSyncAt: d.metadata?.lastDnsSyncAt || null,
+    providerError,
+    currentEnvironment: cfg.registrar_environment,
+  });
+}
+async function syncDns(req: Request, u: Json, id: string) {
+  const cfg = await config();
+  const d = await domain(id, u);
+  assertEnv(d, cfg);
+  await confirmProviderDomain(d);
+  const result = await fetchAndReconcileProviderZone(d);
   return json(req, {
     success: true,
-    imported: upserted.length,
-    records: upserted,
-    provider,
+    imported: result.records.length,
+    records: result.records,
+    provider: result.provider,
+    providerSyncAt: result.syncAt,
   });
 }
 function zoneStruct(r: Json) {
@@ -560,6 +585,7 @@ async function createRecord(req: Request, u: Json, id: string, b: Json) {
   const d = await domain(id, u);
   assertEnv(d, cfg);
   await confirmProviderDomain(d);
+  await fetchAndReconcileProviderZone(d);
   const r = normalize(b);
   await assertCnameConflicts(d.id, r);
   const provider = await registrar(
@@ -569,30 +595,23 @@ async function createRecord(req: Request, u: Json, id: string, b: Json) {
     { zoneStruct: zoneStruct(r) },
     { domainName: d.domain_name },
   );
-  await applyZone(d);
-  const { data, error } = await db
-    .from("domain_dns_records")
-    .upsert(
-      {
-        domain_id: d.id,
-        user_id: d.user_id,
-        ...r,
-        status: "active",
-        registrar_response: provider,
-        source: "provider",
-        registrar_environment: d.registrar_environment,
-        last_operation: "create",
-        last_error: null,
-        synced_at: now(),
-        updated_at: now(),
-      },
-      { onConflict: "domain_id,record_key" },
-    )
-    .select("*")
-    .single();
-  if (error)
-    throw new HttpError(500, "dns_record_save_failed", error.message, error);
-  return json(req, { success: true, record: data, provider }, 201);
+  const providerDraft = {
+    ...r,
+    metadata: { ...(r.metadata || {}), providerRaw: provider },
+    registrar_response: provider,
+  };
+  try {
+    await applyZone(d);
+  } catch (error) {
+    await saveProviderRecord(d, {
+      ...providerDraft,
+      status: "failed",
+      last_error: error instanceof Error ? error.message : String(error),
+    }, "create");
+    throw error;
+  }
+  const saved = await saveProviderRecord(d, { ...providerDraft, status: "active", last_error: null }, "create");
+  return json(req, { success: true, record: saved, provider }, 201);
 }
 async function updateRecord(
   req: Request,
@@ -605,6 +624,7 @@ async function updateRecord(
   const d = await domain(id, u);
   assertEnv(d, cfg);
   await confirmProviderDomain(d);
+  await fetchAndReconcileProviderZone(d);
   const { data: existing, error: existingError } = await db
     .from("domain_dns_records")
     .select("*")
@@ -627,7 +647,20 @@ async function updateRecord(
     { zoneStruct: zoneStruct(r) },
     { domainName: d.domain_name, recordName: existing.name },
   );
-  await applyZone(d);
+  try {
+    await applyZone(d);
+  } catch (error) {
+    await db.from("domain_dns_records").update({
+      ...r,
+      status: "failed",
+      registrar_response: provider,
+      source: "provider",
+      last_operation: "update",
+      last_error: error instanceof Error ? error.message : String(error),
+      updated_at: now(),
+    }).eq("id", recordId);
+    throw error;
+  }
   const { data, error } = await db
     .from("domain_dns_records")
     .update({
@@ -657,6 +690,7 @@ async function deleteRecord(
   const d = await domain(id, u);
   assertEnv(d, cfg);
   await confirmProviderDomain(d);
+  await fetchAndReconcileProviderZone(d);
   const { data: r, error: recordError } = await db
     .from("domain_dns_records")
     .select("*")
@@ -701,6 +735,10 @@ async function retryRecord(
   id: string,
   recordId: string,
 ) {
+  const cfg = await config();
+  const d = await domain(id, u);
+  assertEnv(d, cfg);
+  await confirmProviderDomain(d);
   const { data: r } = await db
     .from("domain_dns_records")
     .select("*")
@@ -709,9 +747,29 @@ async function retryRecord(
     .maybeSingle();
   if (!r)
     throw new HttpError(404, "dns_record_not_found", "DNS record not found.");
-  return r.last_operation === "delete" || r.status === "deleting"
-    ? await deleteRecord(req, u, id, recordId)
-    : await updateRecord(req, u, id, recordId, r as Json);
+  if (!["failed", "pending", "deleting"].includes(clean(r.status))) {
+    throw new HttpError(409, "dns_retry_not_required", "This DNS record is already active.");
+  }
+
+  // Provider writes are staged before /zones/apply. Retrying the original
+  // POST/PUT/DELETE would create a duplicate or target a record already being
+  // deleted, so retry only the idempotent apply step and then reconcile.
+  await applyZone(d);
+  const result = await fetchAndReconcileProviderZone(d);
+  const record = result.records.find((item: Json) => item.record_key === r.record_key) || null;
+  if (!record && r.last_operation !== "delete") {
+    throw new HttpError(
+      502,
+      "dns_retry_not_confirmed",
+      "The provider accepted the apply request but did not return the DNS record. The local failed state was preserved.",
+    );
+  }
+  return json(req, {
+    success: true,
+    record,
+    deleted: !record && r.last_operation === "delete",
+    providerSyncAt: result.syncAt,
+  });
 }
 function normalizeNameservers(values: unknown) {
   const ns = (Array.isArray(values) ? values : [])
@@ -772,7 +830,7 @@ Deno.serve(async (req) => {
       return json(req, {
         ok: true,
         service: "KmerHosting Domain DNS Tools",
-        version: 1,
+        version: 2,
         timestamp: now(),
       });
     const u = await auth(req);

@@ -13,12 +13,17 @@ import {
   Checkbox,
   ClickableTile,
   Column,
+  ContentSwitcher,
   Grid,
   InlineLoading,
   InlineNotification,
   Modal,
+  Search as SearchInput,
   Select,
   SelectItem,
+  SkeletonPlaceholder,
+  SkeletonText,
+  Switch,
   Table,
   TableBody,
   TableCell,
@@ -31,10 +36,11 @@ import {
   Tile,
   Toggle,
 } from "@carbon/react";
-import { Search } from "@carbon/react/icons";
+import { Search as SearchIcon } from "@carbon/react/icons";
 import {
   ApiClientError,
   api,
+  customerToolsApi,
   domainSearchApi,
   downloadDomainDocument,
   formatDate,
@@ -71,6 +77,7 @@ type TldPrice = {
   registration_periods?: number[];
   renewal_periods?: number[];
   transfer_periods?: number[];
+  min_years?: number;
   provider_attributes?: ProviderAttribute[];
   supports_privacy?: boolean;
 };
@@ -205,14 +212,6 @@ function Brand() {
   </a>;
 }
 
-function PublicFooter() {
-  return <footer className="footer"><div className="container footer-grid">
-    <div><Brand /><p>Domain registration and management through DomainNameAPI.</p></div>
-    <div><strong>Platform</strong><a href="/transfer-domain">Transfer a domain</a><a href="/auth">Customer sign in</a><a href="mailto:support@kmerhosting.com">Technical support</a></div>
-    <div><strong>Billing</strong><span>LIVE: central KmerHosting balance</span><span>TEST: DNA OTE balance</span><span>No domain wallet</span></div>
-  </div><div className="container footer-bottom">© {new Date().getFullYear()} KmerHosting LLC. All rights reserved.</div></footer>;
-}
-
 type CarbonTagType = "green" | "red" | "warm-gray" | "blue" | "gray";
 function tagType(value: string): CarbonTagType {
   const normalized = value.toLowerCase().replaceAll("_", "-");
@@ -228,7 +227,10 @@ function StatusBadge({ value }: { value: string }) {
 }
 
 function LoadingBlock({ label = "Loading" }: { label?: string }) {
-  return <InlineLoading description={label} />;
+  return <Tile className="carbon-loading-block" aria-label={label} aria-busy="true">
+    <SkeletonText heading width="38%" />
+    <SkeletonText paragraph lineCount={3} width="78%" />
+  </Tile>;
 }
 
 function ErrorNotice({ error, title = "Request failed" }: { error: unknown; title?: string }) {
@@ -248,7 +250,7 @@ function PageHeading({ eyebrow, title, description, actions }: { eyebrow: string
 }
 
 function MetricGrid({ metrics }: { metrics: Array<[string, ReactNode]> }) {
-  return <Grid fullWidth className="carbon-metric-grid">{metrics.map(([label, value]) => <Column sm={2} md={4} lg={4} key={label}><Tile className="carbon-metric"><span>{label}</span><strong>{value}</strong></Tile></Column>)}</Grid>;
+  return <Grid fullWidth className="carbon-metric-grid">{metrics.map(([label, value]) => <Column sm={4} md={4} lg={4} key={label}><Tile className="carbon-metric"><span>{label}</span><strong>{value}</strong></Tile></Column>)}</Grid>;
 }
 
 function HomePage() {
@@ -273,7 +275,18 @@ function HomePage() {
           <span className="kicker">KmerHosting Domains</span>
           <h1>Find the domain that fits your next idea.</h1>
           <p className="carbon-lead">Check live availability, compare provider-backed prices and manage every stage of your domain from one place.</p>
-          <form className="carbon-domain-search-form" onSubmit={submit}>
+          <div className="carbon-domain-search-mode">
+            <ContentSwitcher
+              selectedIndex={bulkMode ? 1 : 0}
+              onChange={(selection) => setBulkMode(selection.name === "bulk")}
+              size="lg"
+              aria-label="Domain search mode"
+            >
+              <Switch name="single" text="Single domain" />
+              <Switch name="bulk" text="Bulk search" />
+            </ContentSwitcher>
+          </div>
+          <form className={`carbon-domain-search-form${bulkMode ? " carbon-domain-search-form--bulk" : ""}`} onSubmit={submit}>
             <div className="carbon-domain-search-form__field">
               {bulkMode ? (
                 <TextArea
@@ -286,10 +299,10 @@ function HomePage() {
                   onChange={(event) => setQuery(event.target.value)}
                 />
               ) : (
-                <TextInput
+                <SearchInput
                   id="domain-search"
                   labelText="Search for a domain"
-                  hideLabel
+                  size="lg"
                   placeholder="Search a domain, for example yourbrand.com"
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
@@ -297,10 +310,7 @@ function HomePage() {
               )}
             </div>
             <div className="carbon-domain-search-form__actions">
-              <Button type="button" kind="ghost" size="sm" onClick={() => setBulkMode((enabled) => !enabled)}>
-                {bulkMode ? "Single domain" : "Bulk search"}
-              </Button>
-              <Button type="submit" size="lg" renderIcon={Search} disabled={search.isPending || !parsedDomains.length}>
+              <Button type="submit" size="lg" renderIcon={SearchIcon} disabled={search.isPending || !parsedDomains.length}>
                 {search.isPending ? "Checking…" : parsedDomains.length > 1 ? `Search ${parsedDomains.length} domains` : "Search domain"}
               </Button>
             </div>
@@ -313,7 +323,7 @@ function HomePage() {
       </Grid>
 
       {searched ? <div className="container carbon-search-results">
-        {search.isPending ? <LoadingBlock label="Checking live availability" /> : null}
+        {search.isPending ? <div className="carbon-search-skeletons" aria-label="Checking live availability" aria-busy="true">{parsedDomains.slice(0, 4).map((domain) => <Tile className="carbon-search-skeleton" key={domain}><SkeletonText heading width="56%" /><SkeletonText paragraph lineCount={2} width="88%" /><SkeletonPlaceholder /></Tile>)}</div> : null}
         {search.isError ? <ErrorNotice error={search.error} title="Domain search failed" /> : null}
         {search.data?.results.map((result) => {
           const available = isAvailable(result.registrar);
@@ -353,7 +363,7 @@ function HomePage() {
     </div></section>
 
     <section className="cta-section"><div className="container"><Tile className="carbon-cta"><div><span className="kicker">Start now</span><h2>Your next domain is one search away.</h2><p>Create one KmerHosting Account, add a WHOIS contact and pay from your shared USD balance.</p></div><Button href="https://dashboard.kmerhosting.com/register">Create account</Button></Tile></div></section>
-  </main><PublicFooter /></>;
+  </main></>;
 }
 
 type AuthMode = "login" | "register" | "reset";
@@ -410,11 +420,17 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
   const [customNameservers, setCustomNameservers] = useState(false);
   const [nameservers, setNameservers] = useState<string[]>(["", ""]);
   const [attributes, setAttributes] = useState<Row>({});
+  const [confirmOpen, setConfirmOpen] = useState(false);
+  const [orderKey, setOrderKey] = useState(() => newIdempotencyKey(type));
   const contacts = useQuery({ queryKey: ["contacts"], queryFn: () => api<{ contacts: Contact[] }>("/contacts"), enabled: Boolean(session) });
-  const availability = useMutation({ mutationFn: (name: string) => domainSearchApi<{ results: SearchResult[] }>("", { method: "POST", body: { domains: [name] } }) });
+  const availability = useMutation({
+    mutationFn: (name: string) => domainSearchApi<{ results: SearchResult[] }>("", { method: "POST", body: { domains: [name] } }),
+    onSuccess: () => setOrderKey(newIdempotencyKey(type)),
+  });
   const createOrder = useMutation({
-    mutationFn: (body: Row) => orderGuardApi<{ order: Order; quote: Row; billing?: Row }>(type === "registration" ? "/registration" : "/transfer", { method: "POST", body, idempotencyKey: newIdempotencyKey(type) }),
+    mutationFn: (body: Row) => orderGuardApi<{ order: Order; quote: Row; billing?: Row }>(type === "registration" ? "/registration" : "/transfer", { method: "POST", body, idempotencyKey: orderKey }),
     onSuccess: () => { window.location.href = "/dashboard/orders"; },
+    onError: () => setConfirmOpen(false),
   });
 
   useEffect(() => {
@@ -423,9 +439,12 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
 
   const result = availability.data?.results?.[0];
   const selectedPrice = result?.price;
+  // The public catalog exposes the exact displayed price for its default
+  // period. Other periods stay unavailable until they can be quoted before a
+  // charge rather than guessed client-side.
   const periods = type === "registration"
-    ? selectedPrice?.registration_periods?.length ? selectedPrice.registration_periods : [1]
-    : selectedPrice?.transfer_periods?.length ? selectedPrice.transfer_periods : [1];
+    ? [selectedPrice?.registration_periods?.[0] || selectedPrice?.min_years || 1]
+    : [selectedPrice?.transfer_periods?.[0] || 1];
 
   useEffect(() => {
     if (!periods.includes(years)) setYears(periods[0] || 1);
@@ -435,13 +454,25 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
     event.preventDefault();
     availability.mutate(domainName.trim().toLowerCase());
   };
+  const reviewOrder = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setConfirmOpen(true);
+  };
   const order = () => {
-    const body: Row = { domainName: domainName.trim().toLowerCase(), years, contactId };
+    const body: Row = { domainName: domainName.trim().toLowerCase(), years, contactId, expectedPriceUsd: dueNow };
     if (type === "transfer") body.authCode = authCode;
     if (customNameservers) body.nameServers = nameservers.filter(Boolean);
     if (type === "registration") body.tldAttributes = attributes;
     createOrder.mutate(body);
   };
+
+  const transferSupported = type === "transfer" && Boolean(selectedPrice && supportedPrice(selectedPrice.transfer_price_usd));
+  const orderOptionsVisible = Boolean(result && selectedPrice && (type === "registration" ? isAvailable(result.registrar) : transferSupported));
+  const dueNow = result && selectedPrice
+    ? type === "registration"
+      ? Number(premiumDisplayPrice(result) || 0)
+      : Number(selectedPrice.transfer_price_usd || 0)
+    : 0;
 
   if (!session) return <main className="section"><div className="container narrow"><EmptyState title="Sign in required" text="Sign in before creating a domain order." action={<Button href="/auth">Sign in</Button>} /></div></main>;
 
@@ -452,9 +483,9 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
         <Button type="submit" kind="secondary" disabled={availability.isPending}>{availability.isPending ? "Checking…" : type === "registration" ? "Check availability and pricing" : "Load transfer pricing"}</Button>
       </form>
       {availability.isError ? <ErrorNotice error={availability.error} title="Unable to quote domain" /> : null}
-      {result ? <><InfoNotice kind={type === "registration" && !isAvailable(result.registrar) ? "warning" : "success"} title={type === "registration" ? isAvailable(result.registrar) ? `${result.domainName} is available` : `${result.domainName} is not available` : `Transfer pricing loaded for ${result.domainName}`} subtitle="Review purchase, transfer and renewal pricing before continuing." /><DomainPriceBreakdown result={result} dueToday={type === "registration" && !isAvailable(result.registrar) ? null : type} /></> : null}
+      {result ? <><InfoNotice kind={type === "registration" ? isAvailable(result.registrar) ? "success" : "warning" : transferSupported ? "success" : "warning"} title={type === "registration" ? isAvailable(result.registrar) ? `${result.domainName} is available` : `${result.domainName} is not available` : transferSupported ? `Transfer pricing loaded for ${result.domainName}` : `Transfer is not supported for ${result.domainName}`} subtitle="Review purchase, transfer and renewal pricing before continuing." /><DomainPriceBreakdown result={result} dueToday={type === "registration" && !isAvailable(result.registrar) ? null : transferSupported || type === "registration" ? type : null} /></> : null}
 
-      {(type === "transfer" || result && isAvailable(result.registrar) && selectedPrice) ? <div className="carbon-form-stack carbon-order-options">
+      {orderOptionsVisible ? <form className="carbon-form-stack carbon-order-options" onSubmit={reviewOrder}>
         <Select id="order-contact" labelText="WHOIS contact" value={contactId} onChange={(event) => setContactId(event.target.value)}><SelectItem value="" text="Select a contact" />{(contacts.data?.contacts || []).map((contact) => <SelectItem key={contact.id} value={contact.id} text={`${contactName(contact)} · ${contact.email}`} />)}</Select>
         {!contacts.data?.contacts.length ? <InlineNotification kind="warning" lowContrast hideCloseButton title="WHOIS contact required" subtitle="Create a complete contact before placing the order." actions={<Button kind="ghost" size="sm" href="/dashboard/contacts">Open contacts</Button>} /> : null}
         <Select id="order-period" labelText="Period" value={String(years)} onChange={(event) => setYears(Number(event.target.value))}>{periods.map((period) => <SelectItem key={period} value={String(period)} text={`${period} year${period === 1 ? "" : "s"}`} />)}</Select>
@@ -462,10 +493,22 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
         <Toggle id="custom-nameservers" labelText="Nameservers" labelA="Default" labelB="Custom" toggled={customNameservers} onToggle={setCustomNameservers} />
         {customNameservers ? <div className="carbon-form-stack">{nameservers.map((value, index) => <div className="carbon-inline-field" key={index}><TextInput id={`nameserver-${index}`} labelText={`Nameserver ${index + 1}`} value={value} onChange={(event) => setNameservers(nameservers.map((item, position) => position === index ? event.target.value : item))} placeholder={`ns${index + 1}.example.com`} required /><Button type="button" kind="danger--ghost" size="sm" disabled={nameservers.length <= 2} onClick={() => setNameservers(nameservers.filter((_, position) => position !== index))}>Remove</Button></div>)}<Button type="button" kind="tertiary" size="sm" disabled={nameservers.length >= 13} onClick={() => setNameservers([...nameservers, ""])}>Add nameserver</Button></div> : null}
         <AttributeFields definitions={type === "registration" ? selectedPrice?.provider_attributes || [] : []} values={attributes} onChange={setAttributes} />
-        <Button type="button" disabled={createOrder.isPending || !contactId} onClick={order}>{createOrder.isPending ? "Confirming with DNA…" : type === "registration" ? "Confirm registration" : "Confirm transfer"}</Button>
+        <Button type="submit" disabled={createOrder.isPending || !contactId}>{type === "registration" ? "Review registration" : "Review transfer"}</Button>
         {createOrder.isError ? <ErrorNotice error={createOrder.error} title="Order creation failed" /> : null}
-      </div> : null}
+      </form> : null}
     </Tile></Column></Grid>
+    <Modal
+      open={confirmOpen}
+      modalHeading={type === "registration" ? "Confirm domain registration" : "Confirm domain transfer"}
+      primaryButtonText={createOrder.isPending ? "Submitting to provider…" : `${type === "registration" ? "Register" : "Start transfer"} · ${formatMoney(dueNow)}`}
+      secondaryButtonText="Go back"
+      primaryButtonDisabled={createOrder.isPending}
+      onRequestClose={() => { if (!createOrder.isPending) setConfirmOpen(false); }}
+      onRequestSubmit={order}
+    >
+      <p><strong>{domainName.trim().toLowerCase()}</strong> · {years} year{years === 1 ? "" : "s"}</p>
+      <p>This submits a real registrar operation. In LIVE, {formatMoney(dueNow)} is charged from the central KmerHosting balance only after the provider quote and balance are revalidated.</p>
+    </Modal>
   </div></main>;
 }
 
@@ -485,8 +528,8 @@ function DashboardOverview() {
   const data = query.data!;
   return <div className="dashboard-content"><PageHeading eyebrow="Account overview" title="Dashboard" description="Domains and orders connected directly to DomainNameAPI." actions={<Button href="/register-domain">Register domain</Button>} />
     <MetricGrid metrics={[["Domains", data.domains.length], ["Open orders", data.orders.filter((item) => !["completed", "cancelled", "refunded"].includes(item.status)).length], [data.balanceSource, formatMoney(data.balanceUsd)], ["Unread notifications", data.notifications.filter((item) => !item.read_at).length]]} />
-    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Recent domains</h2></div><a href="/dashboard/domains">View all</a></div>{data.domains.length ? <div className="carbon-activity-list">{data.domains.slice(0, 5).map((domain) => <ClickableTile href={`/dashboard/domains/${domain.id}`} key={domain.id}><strong>{domain.domain_name}</strong><span>Expires {formatDate(domain.expires_at)}</span><StatusBadge value={domain.status} /></ClickableTile>)}</div> : <EmptyState title="No domains" text="Register or transfer your first domain." />}</Tile></Column>
-    <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Recent orders</h2></div><a href="/dashboard/orders">View all</a></div>{data.orders.length ? <div className="carbon-activity-list">{data.orders.slice(0, 5).map((order) => <Tile className="carbon-activity-row" key={order.id}><strong>{order.domain_name}</strong><span>{order.type} · {formatMoney(order.price_usd)}</span><StatusBadge value={order.status} /></Tile>)}</div> : <EmptyState title="No orders" text="Your domain orders will appear here." />}</Tile></Column></Grid>
+    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Recent domains</h2></div><a href="/dashboard/domains">View all</a></div>{data.domains.length ? <div className="carbon-activity-list">{data.domains.slice(0, 5).map((domain) => <ClickableTile href={`/dashboard/domains/${domain.id}`} key={domain.id}><div className="carbon-activity-copy"><strong>{domain.domain_name}</strong><span>Expires {formatDate(domain.expires_at)}</span></div><StatusBadge value={domain.status} /></ClickableTile>)}</div> : <EmptyState title="No domains" text="Register or transfer your first domain." />}</Tile></Column>
+    <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Recent orders</h2></div><a href="/dashboard/orders">View all</a></div>{data.orders.length ? <div className="carbon-activity-list">{data.orders.slice(0, 5).map((order) => <Tile className="carbon-activity-row" key={order.id}><div className="carbon-activity-copy"><strong>{order.domain_name}</strong><span>{order.type} · {formatMoney(order.price_usd)}</span></div><StatusBadge value={order.status} /></Tile>)}</div> : <EmptyState title="No orders" text="Your domain orders will appear here." />}</Tile></Column></Grid>
   </div>;
 }
 
@@ -540,6 +583,7 @@ function ContactsPage() {
   const query = useQuery({ queryKey: ["contacts"], queryFn: () => api<{ contacts: Contact[] }>("/contacts") });
   const save = useMutation({ mutationFn: ({ id, body }: { id?: string; body: Row }) => api(id ? `/contacts/${id}` : "/contacts", { method: id ? "PUT" : "POST", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["contacts"] }) });
   const remove = useMutation({ mutationFn: (id: string) => api(`/contacts/${id}`, { method: "DELETE" }), onSuccess: () => client.invalidateQueries({ queryKey: ["contacts"] }) });
+  const verify = useMutation({ mutationFn: (id: string) => customerToolsApi<{ readyForRegistration: boolean; message: string }>(`/contacts/${id}/verification`, { method: "POST" }) });
   const [editing, setEditing] = useState<Contact | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Contact | null>(null);
   const submit = (event: FormEvent<HTMLFormElement>) => {
@@ -550,20 +594,20 @@ function ContactsPage() {
   };
 
   return <div className="dashboard-content"><PageHeading eyebrow="WHOIS contacts" title="Contacts" description="Complete contact data is required for registration and transfer." />
-    {query.isError || save.isError || remove.isError ? <ErrorNotice error={query.error || save.error || remove.error} /> : null}
-    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={4} lg={8}><Tile className="carbon-contact-form"><h2>{editing ? "Edit contact" : "Create contact"}</h2><form className="carbon-form-stack" onSubmit={submit} key={editing?.id || "new"}>
+    {query.isError || save.isError || remove.isError || verify.isError ? <ErrorNotice error={query.error || save.error || remove.error || verify.error} /> : null}
+    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={8} lg={7}><Tile className="carbon-contact-form"><h2>{editing ? "Edit contact" : "Create contact"}</h2><p>Use the registrant's real contact details. Required fields are validated before provider submission.</p><form className="carbon-form-stack" onSubmit={submit} key={editing?.id || "new"}>
       <TextInput id="contact-label" name="label" labelText="Label" defaultValue={editing?.label || "Default"} required />
-      <Grid condensed><Column sm={4} md={2} lg={4}><TextInput id="contact-first-name" name="firstName" labelText="First name" defaultValue={editing?.first_name || ""} required /></Column><Column sm={4} md={2} lg={4}><TextInput id="contact-last-name" name="lastName" labelText="Last name" defaultValue={editing?.last_name || ""} required /></Column></Grid>
+      <Grid fullWidth condensed><Column sm={4} md={4} lg={8}><TextInput id="contact-first-name" name="firstName" labelText="First name" defaultValue={editing?.first_name || ""} required /></Column><Column sm={4} md={4} lg={8}><TextInput id="contact-last-name" name="lastName" labelText="Last name" defaultValue={editing?.last_name || ""} required /></Column></Grid>
       <TextInput id="contact-company" name="companyName" labelText="Company" defaultValue={editing?.company_name || ""} />
       <TextInput id="contact-email" name="email" type="email" labelText="Email" defaultValue={editing?.email || ""} required />
-      <Grid condensed><Column sm={4} md={2} lg={4}><TextInput id="contact-dial-code" name="phoneCountryCode" labelText="Dialing code" helperText="Digits only, without the + sign." inputMode="numeric" pattern="[0-9]{1,3}" maxLength={3} placeholder="237" defaultValue={editing?.phone_country_code || "237"} required /></Column><Column sm={4} md={2} lg={4}><TextInput id="contact-phone" name="phone" type="tel" labelText="Phone number" helperText="Local number only." placeholder="670000000" defaultValue={editing?.phone || ""} required /></Column></Grid>
+      <Grid fullWidth condensed><Column sm={4} md={4} lg={8}><TextInput id="contact-dial-code" name="phoneCountryCode" labelText="Dialing code" helperText="Digits only, without the + sign." inputMode="numeric" pattern="[0-9]{1,3}" maxLength={3} placeholder="237" defaultValue={editing?.phone_country_code || "237"} required /></Column><Column sm={4} md={4} lg={8}><TextInput id="contact-phone" name="phone" type="tel" labelText="Phone number" helperText="Local number only." placeholder="670000000" defaultValue={editing?.phone || ""} required /></Column></Grid>
       <TextInput id="contact-address" name="address" labelText="Address" defaultValue={editing?.address || ""} required />
-      <Grid condensed><Column sm={4} md={2} lg={4}><TextInput id="contact-city" name="city" labelText="City" defaultValue={editing?.city || ""} required /></Column><Column sm={4} md={2} lg={4}><TextInput id="contact-state" name="state" labelText="State/region" defaultValue={editing?.state || ""} required /></Column></Grid>
-      <Grid condensed><Column sm={4} md={2} lg={4}><TextInput id="contact-postal" name="postalCode" labelText="Postal code" defaultValue={editing?.postal_code || ""} required /></Column><Column sm={4} md={2} lg={4}><TextInput id="contact-country" name="country" labelText="Country code" maxLength={2} defaultValue={editing?.country || "CM"} required /></Column></Grid>
+      <Grid fullWidth condensed><Column sm={4} md={4} lg={8}><TextInput id="contact-city" name="city" labelText="City" defaultValue={editing?.city || ""} required /></Column><Column sm={4} md={4} lg={8}><TextInput id="contact-state" name="state" labelText="State/region" defaultValue={editing?.state || ""} required /></Column></Grid>
+      <Grid fullWidth condensed><Column sm={4} md={4} lg={8}><TextInput id="contact-postal" name="postalCode" labelText="Postal code" defaultValue={editing?.postal_code || ""} required /></Column><Column sm={4} md={4} lg={8}><TextInput id="contact-country" name="country" labelText="ISO country code" helperText="Two-letter code, for example CM." maxLength={2} defaultValue={editing?.country || "CM"} required /></Column></Grid>
       <Checkbox id="contact-default" name="isDefault" labelText="Default contact" defaultChecked={editing?.is_default ?? true} />
       <div className="heading-actions"><Button type="submit" disabled={save.isPending}>{editing ? "Save contact" : "Create contact"}</Button>{editing ? <Button type="button" kind="secondary" onClick={() => setEditing(null)}>Cancel</Button> : null}</div>
     </form></Tile></Column>
-    <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><h2>Saved contacts</h2>{query.isPending ? <LoadingBlock /> : query.data?.contacts.length ? <div className="carbon-activity-list">{query.data.contacts.map((contact) => <Tile className="carbon-contact-row" key={contact.id}><div><strong>{contactName(contact)}</strong><span>{contact.email} · {contact.country}</span><small>{contact.registrar_verified ? "Provider verified" : "Not yet provider verified"}</small></div><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => setEditing(contact)}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setRemoveTarget(contact)}>Delete</Button></div></Tile>)}</div> : <EmptyState title="No contacts" text="Create a WHOIS contact before ordering a domain." />}</Tile></Column></Grid>
+    <Column sm={4} md={8} lg={9}><Tile className="carbon-dashboard-panel"><h2>Saved contacts</h2>{verify.isSuccess ? <InfoNotice kind="success" title="Contact is complete" subtitle={verify.data.message} /> : null}{query.isPending ? <LoadingBlock /> : query.data?.contacts.length ? <div className="carbon-activity-list">{query.data.contacts.map((contact) => <Tile className="carbon-contact-row" key={contact.id}><div><strong>{contactName(contact)}</strong><span>{contact.email} · {contact.country}</span><small>{contact.registrar_verified ? "Provider handle verified" : "DomainNameAPI validates this inline when it is submitted"}</small></div><div className="heading-actions">{!contact.registrar_verified ? <Button kind="tertiary" size="sm" disabled={verify.isPending} onClick={() => verify.mutate(contact.id)}>Check readiness</Button> : null}<Button kind="ghost" size="sm" onClick={() => setEditing(contact)}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setRemoveTarget(contact)}>Delete</Button></div></Tile>)}</div> : <EmptyState title="No contacts" text="Create a WHOIS contact before ordering a domain." />}</Tile></Column></Grid>
     <Modal
       open={Boolean(removeTarget)}
       danger

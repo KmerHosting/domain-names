@@ -21,6 +21,8 @@ function mapDnsPath(path: string): string {
   if (recordsRoot) return `/domains/${recordsRoot[1]}/dns`;
   const recordOne = path.match(/^\/domains\/([0-9a-f-]+)\/records\/([0-9a-f-]+)$/i);
   if (recordOne) return `/domains/${recordOne[1]}/dns/${recordOne[2]}`;
+  const retry = path.match(/^\/domains\/([0-9a-f-]+)\/records\/([0-9a-f-]+)\/retry$/i);
+  if (retry) return `/domains/${retry[1]}/dns/${retry[2]}/retry`;
   const sync = path.match(/^\/domains\/([0-9a-f-]+)\/sync$/i);
   if (sync) return `/domains/${sync[1]}/dns/sync`;
   return path;
@@ -38,9 +40,10 @@ function normalizeDnsPayload(payload: Record<string, any>): Record<string, any> 
       nameservers: rawDomain.nameservers || [],
       environment: rawDomain.environment || rawDomain.registrar_environment,
     },
-    synced: true,
+    synced: Boolean(payload.synced),
     managedDns: Boolean(payload.managedDns ?? dns.dnsManagedActive),
     warning: payload.warning ?? dns.warning ?? null,
+    providerSyncAt: payload.providerSyncAt ?? rawDomain.metadata?.lastDnsSyncAt ?? null,
     providerError: payload.providerError ?? null,
   };
 }

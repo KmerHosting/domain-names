@@ -6,17 +6,15 @@ import { router } from "./router";
 import { isNativePage, NativePageRouter } from "./native-pages";
 import { DnsSettingsPage, isDnsSettingsPage } from "./dns-settings-page";
 import { PlatformStatusBanner } from "./platform-status-banner";
-import "./customer-domain-tools";
 import { DomainCarbonExperience } from "./carbon-experience";
 import { DomainApplicationShell } from "./domain-shell";
-import "./styles.css";
-import "./router-compat.css";
-import "./platform-sync.css";
+// Carbon's emitted component CSS must load before every product-level override.
+// The former legacy CSS layers targeted native inputs/buttons globally and were
+// overriding Carbon React's field sizing, contrast and grid behavior.
+import "./carbon-alignment.scss";
 import "./carbon-product-alignment.scss";
 import "./carbon-dns-alignment.scss";
 import "./carbon-native-alignment.scss";
-import "./carbon-customer-tools.scss";
-import "./carbon-alignment.scss";
 import "./carbon-theme-contrast-fixes.scss";
 
 const queryClient = new QueryClient({

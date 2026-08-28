@@ -1,5 +1,6 @@
 @use '@carbon/react/scss/spacing' as spacing;
 @use '@carbon/react/scss/type' as type;
+@use '@carbon/react/scss/breakpoint' as breakpoint;
 
 .carbon-dns-page {
   padding-block: spacing.$spacing-07 spacing.$spacing-09;
@@ -7,6 +8,7 @@
 
 .carbon-dns-grid {
   row-gap: spacing.$spacing-06;
+  align-items: stretch;
 }
 
 .carbon-dns-panel {
@@ -21,6 +23,33 @@
   @include type.type-style('heading-04');
 }
 
+.carbon-dns-panel .card-heading {
+  min-block-size: 4.5rem;
+}
+
+.carbon-dns-panel .carbon-form-stack {
+  margin-block-start: spacing.$spacing-06;
+}
+
+.carbon-dns-panel .carbon-inline-field .cds--btn {
+  min-inline-size: 6.5rem;
+}
+
+.carbon-dns-panel .cds--text-area {
+  min-block-size: 8rem;
+  resize: vertical;
+}
+
+.carbon-dns-panel .cds--data-table-container,
+.carbon-dns-panel .cds--data-table-content {
+  min-inline-size: 56rem;
+}
+
+.carbon-dns-panel .cds--data-table td {
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
 .carbon-dns-panel .cds--inline-notification {
   max-inline-size: none;
 }
@@ -28,4 +57,14 @@
 .carbon-dns-page > .cds--inline-notification {
   max-inline-size: none;
   margin-block-end: spacing.$spacing-04;
+}
+
+@include breakpoint.breakpoint-down('md') {
+  .carbon-dns-panel {
+    padding: spacing.$spacing-05;
+  }
+
+  .carbon-dns-panel .card-heading {
+    min-block-size: 0;
+  }
 }

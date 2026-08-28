@@ -340,6 +340,16 @@ async function createOrder(req: Request, operation: Operation) {
   if (!(providerCost > 0) || !(customerPrice > 0)) throw new HttpError(409, "price_missing", "The exact price is unavailable for this operation.");
   if (customerPrice + 0.001 < providerCost * 1.30) throw new HttpError(409, "price_margin_invalid", "The customer price is below the configured minimum margin.", { providerCost, customerPrice });
 
+  const expectedPrice = Number(body.expectedPriceUsd);
+  if (Number.isFinite(expectedPrice) && expectedPrice > 0 && Math.abs(customerPrice - expectedPrice) > 0.009) {
+    throw new HttpError(
+      409,
+      "price_changed",
+      "The live provider-backed price changed. Review the new amount before trying again. No charge was made.",
+      { expectedPriceUsd: round2(expectedPrice), currentPriceUsd: customerPrice, currency: "USD" },
+    );
+  }
+
   const balance = await providerBalance(environment, providerCost);
   const quote = await insertQuote({
     user_id: user.id,
@@ -415,7 +425,7 @@ Deno.serve(async (req) => {
       return json(req, {
         ok: true,
         service: "KmerHosting Domain Order Guard",
-        version: 7,
+        version: 8,
         registrarEnvironment: cfg.registrar_environment,
         testMode: cfg.registrar_environment === "ote",
         providerBalanceSource: "DomainNameAPI deposit/accounts/me usdBalance",
