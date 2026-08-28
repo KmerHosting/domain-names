@@ -202,6 +202,49 @@ function showTransferCode(domainName: string, code: string, warning: string) {
   close.focus();
 }
 
+function confirmAction(
+  title: string,
+  message: string,
+  confirmLabel = "Continue",
+  kind: ButtonKind = "primary",
+): Promise<boolean> {
+  return new Promise((resolve) => {
+    const back = el("div", "khd-modal-backdrop");
+    back.id = "khd-action-confirm-modal";
+    const modal = el("div", "cds--modal-container khd-modal-card");
+    modal.setAttribute("role", "dialog");
+    modal.setAttribute("aria-modal", "true");
+    const head = el("div", "khd-modal-head");
+    const titleWrap = el("div");
+    append(titleWrap, "h2", title);
+    const close = button("×", () => finish(false), "ghost", "sm");
+    close.setAttribute("aria-label", "Close confirmation");
+    head.append(titleWrap, close);
+    append(modal, "p", message, "khd-modal-copy");
+    const actions = el("div", "khd-modal-actions");
+
+    const finish = (result: boolean) => {
+      back.remove();
+      resolve(result);
+    };
+
+    actions.append(
+      button("Cancel", () => finish(false), "secondary"),
+      button(confirmLabel, () => finish(true), kind),
+    );
+    modal.append(head, actions);
+    back.appendChild(modal);
+    back.addEventListener("click", (event) => {
+      if (event.target === back) finish(false);
+    });
+    back.addEventListener("keydown", (event) => {
+      if (event.key === "Escape") finish(false);
+    });
+    document.body.appendChild(back);
+    close.focus();
+  });
+}
+
 function installDomainCustomerTools() {
   const domainId = currentDomainId();
   if (!domainId || !token() || document.getElementById("khd-customer-domain-tools")) return;
@@ -215,12 +258,12 @@ function installDomainCustomerTools() {
   const grid = el("div", "khd-customer-tools-grid");
   grid.append(
     button("Show transfer code", async () => {
-      if (!confirm("Show the transfer code for this domain? Keep it private.")) return;
+      if (!(await confirmAction("Show transfer code", "The transfer code can start a transfer. Keep it private.", "Show code"))) return;
       const result = await customerToolsApi<{ domainName: string; transferCode: string; warning?: string }>(`/domains/${domainId}/transfer-code`, { method: "POST", body: { confirm: true } });
       showTransferCode(result.domainName, result.transferCode, result.warning || "Keep this code private.");
     }),
     button("Restore expired domain", async () => {
-      if (!confirm("Restore may be billable and only works for eligible expired domains. Continue?")) return;
+      if (!(await confirmAction("Restore expired domain", "Restore may be billable and only works for eligible expired domains.", "Restore", "primary"))) return;
       await customerToolsApi(`/domains/${domainId}/restore`, { method: "POST", body: { confirm: true } });
       notify("Restore request submitted.");
       window.setTimeout(() => window.location.reload(), 900);
@@ -249,7 +292,7 @@ function installDomainCustomerTools() {
   forwarding.append(
     forwardingForm,
     button("Remove forwarding", async () => {
-      if (!confirm("Remove web forwarding for this domain?")) return;
+      if (!(await confirmAction("Remove web forwarding", "This removes the redirect for this domain.", "Remove", "danger--tertiary"))) return;
       await customerToolsApi(`/domains/${domainId}/forwarding`, { method: "DELETE" });
       notify("Forwarding removed.");
     }, "ghost", "sm"),
