@@ -28,7 +28,7 @@ This portal is a domain-name platform. It does not expose SSL-certificate produc
 | Renew eligibility | POST | `/domains/renew/check` |
 | Renew | POST | `/domains/renew` |
 | Restore | POST | `/domains/restore` |
-| Lock / unlock | POST | `/domains/lock` with `lockStatus` |
+| Lock / unlock | POST | `/domains/lock` and `/domains/unlock` with `{domainName}` |
 | Privacy | POST | `/domains/privacy` with `privacyStatus` |
 | Nameservers | PUT | `/domains/dns/name-server` |
 | List DNS zone | GET | `/domains/zones?domainName=` |
