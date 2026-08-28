@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.2](https://github.com/KmerHosting/domain-names/compare/v1.5.1...v1.5.2) (2026-08-28)
+
+
+### Bug Fixes
+
+* **ui:** remove misleading production status badge ([2e58a97](https://github.com/KmerHosting/domain-names/commit/2e58a97628ee333d71ca839fb6b269e203abe585))
+* **ui:** show real domain order state ([73b14ee](https://github.com/KmerHosting/domain-names/commit/73b14ee1929116f507f80bfdc55f6ccd76c48e91))
+
 ## [1.5.1](https://github.com/KmerHosting/domain-names/compare/v1.5.0...v1.5.1) (2026-08-27)
 
 
