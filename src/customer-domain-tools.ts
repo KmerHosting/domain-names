@@ -234,7 +234,7 @@ function installDomainCustomerTools() {
   const forwardingForm = el("form", "khd-customer-form carbon-form-stack") as HTMLFormElement;
   forwardingForm.append(
     inputField("redirectAddress", "Destination URL", "https://example.com", { type: "url", autocomplete: "url" }),
-    selectField("forwardType", "Redirect type", [["Permanent", "Permanent redirect"], ["Temporary", "Temporary redirect"]]),
+    selectField("forwardType", "Forwarding mode", [["Standard", "Standard redirect"], ["Frame", "Frame redirect"]]),
     submitButton("Save forwarding"),
   );
   forwardingForm.addEventListener("submit", async (event) => {
@@ -292,7 +292,7 @@ async function installContactVerification() {
     if (document.getElementById("khd-contact-verification")) return;
     const card = el("section", "carbon-dashboard-panel khd-contact-verification");
     card.id = "khd-contact-verification";
-    card.appendChild(cardHeading("Contact verification", "Send or resend verification for saved registrant contacts."));
+    card.appendChild(cardHeading("Contact readiness", "Validate required fields before using a contact for registration or transfer."));
     const list = el("div", "khd-contact-verification-list");
     if (!contacts.length) append(list, "p", "No contact to verify.", "khd-muted");
     for (const contact of contacts) {
@@ -300,9 +300,9 @@ async function installContactVerification() {
       const label = el("div", "khd-contact-verification-copy");
       append(label, "strong", `${contact.first_name} ${contact.last_name}`);
       append(label, "span", `${contact.email} · ${contact.label || "Contact"}`);
-      row.append(label, button("Send verification", async () => {
-        await customerToolsApi(`/contacts/${contact.id}/verification`, { method: "POST" });
-        notify(`Verification sent to ${contact.email}.`);
+      row.append(label, button("Validate contact", async () => {
+        const result = await customerToolsApi<{ message?: string }>(`/contacts/${contact.id}/verification`, { method: "POST" });
+        notify(result.message || `Contact ${contact.email} is ready.`);
       }, "secondary", "sm"));
       list.appendChild(row);
     }
