@@ -215,7 +215,7 @@ function PublicFooter() {
 type CarbonTagType = "green" | "red" | "warm-gray" | "blue" | "gray";
 function tagType(value: string): CarbonTagType {
   const normalized = value.toLowerCase().replaceAll("_", "-");
-  if (["active", "completed", "paid", "verified", "live", "enabled"].includes(normalized)) return "green";
+  if (["active", "available", "completed", "paid", "verified", "enabled"].includes(normalized)) return "green";
   if (["failed", "expired", "cancelled", "disabled", "dead"].includes(normalized)) return "red";
   if (["pending", "processing", "queued", "transfer-pending", "pending-payment", "payment-pending"].includes(normalized)) return "warm-gray";
   if (["test-ote", "ote", "test"].includes(normalized)) return "blue";
@@ -321,7 +321,7 @@ function HomePage() {
           return <Tile className="carbon-result-row" key={result.domainName}>
             <div><strong>{result.domainName}</strong><p>{available ? premium ? "Available premium domain" : "Available to register" : "Not available"}</p></div>
             <DomainPriceBreakdown result={result} dueToday={available && result.price ? "registration" : (result.price?.transfer_price_usd || 0) > 0 ? "transfer" : null} />
-            <div className="carbon-result-row__meta">{premium ? <Tag type="purple">Premium</Tag> : null}<StatusBadge value={available ? "active" : "disabled"} />{available && result.price ? <Button href={`/register-domain?domain=${encodeURIComponent(result.domainName)}`}>Purchase</Button> : (result.price?.transfer_price_usd || 0) > 0 ? <Button kind="secondary" href={`/transfer-domain?domain=${encodeURIComponent(result.domainName)}`}>Transfer</Button> : null}</div>
+            <div className="carbon-result-row__meta">{premium ? <Tag type="purple">Premium</Tag> : null}<StatusBadge value={available ? "available" : "unavailable"} />{available && result.price ? <Button href={`/register-domain?domain=${encodeURIComponent(result.domainName)}`}>Purchase</Button> : (result.price?.transfer_price_usd || 0) > 0 ? <Button kind="secondary" href={`/transfer-domain?domain=${encodeURIComponent(result.domainName)}`}>Transfer</Button> : null}</div>
           </Tile>;
         })}
       </div> : null}
@@ -483,7 +483,6 @@ function DashboardOverview() {
   if (query.isError) return <div className="dashboard-content"><ErrorNotice error={query.error} /></div>;
   const data = query.data!;
   return <div className="dashboard-content"><PageHeading eyebrow="Account overview" title="Dashboard" description="Domains and orders connected directly to DomainNameAPI." actions={<Button href="/register-domain">Register domain</Button>} />
-    <InfoNotice kind={data.testMode ? "warning" : "info"} title={data.testMode ? "TEST / OTE" : "LIVE / Production"} subtitle={data.testMode ? "Orders use DNA OTE test funds and never charge your central balance." : "Orders use DNA production and charge your central KmerHosting balance."} />
     <MetricGrid metrics={[["Domains", data.domains.length], ["Open orders", data.orders.filter((item) => !["completed", "cancelled", "refunded"].includes(item.status)).length], [data.balanceSource, formatMoney(data.balanceUsd)], ["Unread notifications", data.notifications.filter((item) => !item.read_at).length]]} />
     <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Recent domains</h2></div><a href="/dashboard/domains">View all</a></div>{data.domains.length ? <div className="carbon-activity-list">{data.domains.slice(0, 5).map((domain) => <ClickableTile href={`/dashboard/domains/${domain.id}`} key={domain.id}><strong>{domain.domain_name}</strong><span>Expires {formatDate(domain.expires_at)}</span><StatusBadge value={domain.status} /></ClickableTile>)}</div> : <EmptyState title="No domains" text="Register or transfer your first domain." />}</Tile></Column>
     <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Recent orders</h2></div><a href="/dashboard/orders">View all</a></div>{data.orders.length ? <div className="carbon-activity-list">{data.orders.slice(0, 5).map((order) => <Tile className="carbon-activity-row" key={order.id}><strong>{order.domain_name}</strong><span>{order.type} · {formatMoney(order.price_usd)}</span><StatusBadge value={order.status} /></Tile>)}</div> : <EmptyState title="No orders" text="Your domain orders will appear here." />}</Tile></Column></Grid>
@@ -493,7 +492,7 @@ function DashboardOverview() {
 function DomainsPage() {
   const query = useQuery({ queryKey: ["domains"], queryFn: () => api<{ domains: Domain[] }>("/domains") });
   return <div className="dashboard-content"><PageHeading eyebrow="Portfolio" title="Domains" description="Live and test-environment domains are clearly separated." actions={<><Button kind="secondary" href="/transfer-domain">Transfer domain</Button><Button href="/register-domain">Register domain</Button></>} />
-    {query.isPending ? <LoadingBlock /> : query.isError ? <ErrorNotice error={query.error} /> : query.data?.domains.length ? <div className="carbon-domain-list">{query.data.domains.map((domain) => <Tile className="carbon-domain-row" key={domain.id}><div><strong>{domain.domain_name}</strong><span>Expires {formatDate(domain.expires_at)}</span></div><div className="heading-actions"><StatusBadge value={domain.registrar_environment === "ote" ? "test_ote" : "live"} /><StatusBadge value={domain.status} /><Button kind="ghost" href={`/dashboard/domains/${domain.id}`}>Open</Button></div></Tile>)}</div> : <EmptyState title="No domains" text="Register or transfer a domain to begin." />}
+    {query.isPending ? <LoadingBlock /> : query.isError ? <ErrorNotice error={query.error} /> : query.data?.domains.length ? <div className="carbon-domain-list">{query.data.domains.map((domain) => <Tile className="carbon-domain-row" key={domain.id}><div><strong>{domain.domain_name}</strong><span>Expires {formatDate(domain.expires_at)}</span></div><div className="heading-actions">{domain.registrar_environment === "ote" ? <StatusBadge value="test_ote" /> : null}<StatusBadge value={domain.status} /><Button kind="ghost" href={`/dashboard/domains/${domain.id}`}>Open</Button></div></Tile>)}</div> : <EmptyState title="No domains" text="Register or transfer a domain to begin." />}
   </div>;
 }
 
@@ -506,7 +505,7 @@ function DomainDetailPage() {
   if (query.isError || !query.data?.domain) return <div className="dashboard-content"><ErrorNotice error={query.error} /></div>;
   const domain = query.data.domain;
   return <div className="dashboard-content"><PageHeading eyebrow="Domain" title={domain.domain_name} description={`Last provider sync ${formatDate(domain.last_synced_at)}.`} actions={<><Button href={`/dashboard/domains/${domain.id}/manage`}>Manage domain</Button><Button kind="secondary" href={`/dashboard/domains/${domain.id}/dns`}>DNS settings</Button></>} />
-    <div className="heading-actions carbon-heading-tags"><StatusBadge value={domain.registrar_environment === "ote" ? "test_ote" : "live"} /><StatusBadge value={domain.status} /></div>
+    <div className="heading-actions carbon-heading-tags">{domain.registrar_environment === "ote" ? <StatusBadge value="test_ote" /> : null}<StatusBadge value={domain.status} /></div>
     {domain.registrar_environment === "ote" ? <InfoNotice kind="warning" title="Test domain" subtitle="Domain changes are sent to DNA OTE and never debit the central KmerHosting balance." /> : null}
     <MetricGrid metrics={[["Registered", formatDate(domain.registered_at)], ["Expires", formatDate(domain.expires_at)], ["Lock", domain.locked ? "Enabled" : "Disabled"], ["Privacy", domain.privacy_enabled ? "Enabled" : "Disabled"]]} />
     <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><h2>Automatic renewal</h2><p>Uses the USD account balance only after exact provider pricing and balance checks.</p><Toggle id="domain-auto-renew" labelText="Automatic renewal" labelA="Disabled" labelB="Enabled" toggled={domain.auto_renew} disabled={autoRenew.isPending} onToggle={(enabled) => autoRenew.mutate(enabled)} />{autoRenew.isError ? <ErrorNotice error={autoRenew.error} /> : null}</Tile></Column>
@@ -525,13 +524,12 @@ function OrdersPage() {
       client.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
-  return <div className="dashboard-content"><PageHeading eyebrow="Orders" title="Domain orders" description="Orders are authorized when created: free against DNA OTE test funds, or charged directly to the central KmerHosting balance in LIVE." />
+  return <div className="dashboard-content"><PageHeading eyebrow="Orders" title="Domain orders" description="Track each order by its real lifecycle status. Only completed registrations create an active domain." />
     {query.isError || retry.isError ? <ErrorNotice error={query.error || retry.error} /> : null}
     {retry.isSuccess ? <InfoNotice kind="success" title="DNA retry queued" subtitle="The order was re-queued after DNA confirmed that the domain is not registered." /> : null}
     {query.isPending ? <LoadingBlock /> : query.data?.orders.length ? <div className="carbon-order-list">{query.data.orders.map((order) => {
-      const environmentLabel = order.registrar_environment === "ote" ? "test_ote" : "live";
       const canRetry = order.registrar_environment === "ote" && ["processing", "failed"].includes(order.status);
-      return <Tile className="carbon-order-row" key={order.id}><div><strong>{order.domain_name}</strong><span>{order.order_number} · {order.type} · {formatDate(order.created_at)}</span><small>{order.registrar_environment === "ote" ? "DNA OTE test order · central charge $0.00" : "Charged to the central KmerHosting balance"}</small>{order.failure_message ? <small>{order.failure_message}</small> : null}</div><div className="heading-actions"><strong>{formatMoney(order.price_usd)}</strong><StatusBadge value={environmentLabel} /><StatusBadge value={order.status} />{canRetry ? <Button kind="ghost" size="sm" disabled={retry.isPending} onClick={() => retry.mutate(order.id)}>{retry.isPending ? "Retrying…" : "Retry DNA operation"}</Button> : null}</div></Tile>;
+      return <Tile className="carbon-order-row" key={order.id}><div><strong>{order.domain_name}</strong><span>{order.order_number} · {order.type} · {formatDate(order.created_at)}</span><small>{order.registrar_environment === "ote" ? "DNA OTE test order · central charge $0.00" : "Charged to the central KmerHosting balance"}</small>{order.failure_message ? <small>{order.failure_message}</small> : null}</div><div className="heading-actions"><strong>{formatMoney(order.price_usd)}</strong>{order.registrar_environment === "ote" ? <StatusBadge value="test_ote" /> : null}<StatusBadge value={order.status} />{canRetry ? <Button kind="ghost" size="sm" disabled={retry.isPending} onClick={() => retry.mutate(order.id)}>{retry.isPending ? "Retrying…" : "Retry DNA operation"}</Button> : null}</div></Tile>;
     })}</div> : <EmptyState title="No orders" text="Registration, transfer, renewal and restore orders appear here." />}
   </div>;
 }
