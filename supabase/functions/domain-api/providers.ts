@@ -1,6 +1,6 @@
 import {
   ApiError, Json, clean, constantTimeEqual, getConfig, getSecret, hmacHex,
-  paidStatus, pick, randomReference,
+  paidStatus, pick, randomReference, db,
 } from "./core.ts";
 
 async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 30_000): Promise<Response> {
@@ -20,38 +20,35 @@ async function fetchWithTimeout(url: string, init: RequestInit, timeoutMs = 30_0
 
 export async function registrarCall(path: string, method = "GET", body?: unknown, query?: Record<string, string | number | boolean | null | undefined>): Promise<Json> {
   const cfg = await getConfig();
-  const reseller = clean(cfg.registrar_reseller_id);
-  if (!reseller) throw new ApiError(503, "registrar_not_configured", "Domain registrar reseller ID is not configured.");
-  const secretName = cfg.registrar_environment === "production" ? "domain_registrar_api_key" : "domain_registrar_ote_api_key";
-  const apiKey = await getSecret(secretName);
-  const base = (cfg.registrar_environment === "production" ? cfg.registrar_production_base_url : cfg.registrar_ote_base_url).replace(/\/$/, "");
-  const url = new URL(`${base}${path}`);
-  for (const [key, value] of Object.entries(query || {})) {
-    if (value !== null && value !== undefined && String(value) !== "") url.searchParams.set(key, String(value));
-  }
-  const response = await fetchWithTimeout(url.toString(), {
-    method,
-    headers: {
-      "__reseller": reseller,
-      "X-API-KEY": apiKey,
-      "Content-Type": "application/json",
-      Accept: "application/json",
-      "User-Agent": "KmerHosting-Domains/1.0",
-    },
-    body: body === undefined ? undefined : JSON.stringify(body),
+  const environment = cfg.registrar_environment === "ote" ? "ote" : "production";
+  const { data, error } = await db.rpc("domain_registrar_proxy_env", {
+    p_path: path,
+    p_method: method,
+    p_body: body ?? null,
+    p_query: query || {},
+    p_environment: environment,
   });
-  const raw = await response.text();
-  let payload: Json = {};
-  try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = { raw: raw.slice(0, 2000) }; }
-  if (!response.ok) {
-    const message = clean(pick(payload, ["error.message","message","error","title","raw"])) || `Registrar request failed (${response.status}).`;
-    throw new ApiError(response.status >= 500 ? 502 : response.status, "registrar_error", message, payload);
+  if (error) throw new ApiError(502, "registrar_gateway_failed", "The shared registrar gateway could not complete the request.", error);
+  const envelope = (data || {}) as Json;
+  const status = Number(envelope.status || 0);
+  const payload = (envelope.body || {}) as Json;
+  if (!status || status < 200 || status >= 300) {
+    const message = clean(payload?.error?.message || payload?.error?.details || payload?.message || payload?.details || payload?.title || payload?.raw) || `DomainNameAPI request failed (${status || 502}).`;
+    throw new ApiError(status >= 500 ? 502 : status || 502, "registrar_error", message, {
+      providerHttpStatus: status || null,
+      providerBody: payload,
+      registrarEnvironment: environment,
+    });
   }
   return payload;
 }
 
 export async function searchDomain(domainName: string): Promise<Json> {
-  return await registrarCall("/api/v1/domains/search", "POST", { domainName });
+  const payload = await registrarCall("/api/v1/domains/bulk-search", "POST", [{ domainName }]);
+  const rows = Array.isArray(payload) ? payload : [payload.infos, payload.data?.infos, payload.items, payload.data?.items].find(Array.isArray) || [];
+  const match = rows.find((item: Json) => clean(item?.domainName || item?.info?.domainName).toLowerCase() === domainName.toLowerCase());
+  if (!match) throw new ApiError(502, "registrar_search_result_missing", "DomainNameAPI did not return a result for this domain.");
+  return match as Json;
 }
 
 export async function registerDomain(input: {
