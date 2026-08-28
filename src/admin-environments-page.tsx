@@ -2,6 +2,9 @@ import {
   Button,
   InlineLoading,
   InlineNotification,
+  Modal,
+  TextArea,
+  TextInput,
   Table,
   TableBody,
   TableCell,
@@ -40,6 +43,10 @@ export function AdminEnvironmentsPage() {
   const [data, setData] = useState<Payload | null>(null);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
+  const [switchTarget, setSwitchTarget] = useState<{ environment: Env; text: string } | null>(null);
+  const [creditTarget, setCreditTarget] = useState<{ user: Credit; environment: Env } | null>(null);
+  const [creditAmount, setCreditAmount] = useState("");
+  const [creditReason, setCreditReason] = useState("Manual support credit");
   const load = async () => {
     setError("");
     try { setData(await request("/api/environment-status")); }
@@ -47,53 +54,60 @@ export function AdminEnvironmentsPage() {
   };
   useEffect(() => { void load(); }, []);
 
-  const switchTo = async (environment: Env) => {
-    if (!data || data.config.customer_checkout_environment === environment) return;
+  const switchTo = (environment: Env) => {
+    if (!data || data.config.customer_checkout_environment === environment || busy) return;
     const text = environment === "production"
       ? "Use LIVE / PRODUCTION for NEW orders? Future paid orders can use real DomainNameAPI funds. Existing TEST records remain TEST."
       : "Use TEST / OTE for NEW orders? Existing LIVE records remain LIVE.";
-    if (!confirm(text)) return;
+    setSwitchTarget({ environment, text });
+  };
+  const confirmSwitch = async () => {
+    if (!switchTarget) return;
     setBusy(true);
     setError("");
     try {
       await request("/api/environment-switch", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ environment, confirm: environment }),
+        body: JSON.stringify({ environment: switchTarget.environment, confirm: switchTarget.environment }),
       });
+      setSwitchTarget(null);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Environment switch failed.");
     } finally {
       setBusy(false);
     }
-  };
+  };;
 
-  const addCredit = async (user: Credit, environment: Env) => {
-    const raw = prompt(`KmerHosting customer credit in USD for ${user.email} — ${label(environment)}`);
-    if (raw === null) return;
-    const amountUsd = Number(raw);
+  const addCredit = (user: Credit, environment: Env) => {
+    setCreditTarget({ user, environment });
+    setCreditAmount("");
+    setCreditReason("Manual support credit");
+  };
+  const confirmCredit = async () => {
+    if (!creditTarget) return;
+    const amountUsd = Number(creditAmount);
     if (!Number.isFinite(amountUsd) || amountUsd <= 0) {
       setError("Enter a positive USD amount.");
       return;
     }
-    if (!confirm(`Add ${money(amountUsd)} of KmerHosting customer credit to ${label(environment)}? This does NOT modify the DomainNameAPI reseller balance.`)) return;
-    const reason = prompt("Reason", "Manual support credit") || "Manual support credit";
     setBusy(true);
     setError("");
     try {
       await request("/api/environment-credit", {
         method: "POST",
-        headers: { "Content-Type": "application/json", "Idempotency-Key": `credit-${environment}-${Date.now()}` },
-        body: JSON.stringify({ userId: user.user_id, environment, amountUsd, reason }),
+        headers: { "Content-Type": "application/json", "Idempotency-Key": `credit-${creditTarget.environment}-${Date.now()}` },
+        body: JSON.stringify({ userId: creditTarget.user.user_id, environment: creditTarget.environment, amountUsd, reason: creditReason.trim() || "Manual support credit" }),
       });
+      setCreditTarget(null);
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Customer credit failed.");
     } finally {
       setBusy(false);
     }
-  };
+  };;
 
   return <main className="admin-main environment-admin-page">
     <div className="page-heading">
@@ -163,8 +177,8 @@ export function AdminEnvironmentsPage() {
           <TableCell className="test-credit">{money(user.ote_balance_usd)}</TableCell>
           <TableCell className="live-credit">{money(user.production_balance_usd)}</TableCell>
           <TableCell><div className="heading-actions">
-            <Button kind="ghost" size="sm" disabled={busy} onClick={() => void addCredit(user, "ote")}>Add TEST credit</Button>
-            <Button kind="ghost" size="sm" disabled={busy} onClick={() => void addCredit(user, "production")}>Add LIVE credit</Button>
+            <Button kind="ghost" size="sm" disabled={busy} onClick={() => addCredit(user, "ote")}>Add TEST credit</Button>
+            <Button kind="ghost" size="sm" disabled={busy} onClick={() => addCredit(user, "production")}>Add LIVE credit</Button>
           </div></TableCell>
         </TableRow>)}</TableBody></Table>
       </Tile>
@@ -177,5 +191,31 @@ export function AdminEnvironmentsPage() {
         <p><strong>Customer credit:</strong> {data.semantics.customerCredit}</p>
       </Tile>
     </>}
+
+    <Modal
+      open={Boolean(switchTarget)}
+      modalHeading={switchTarget?.environment === "production" ? "Switch to LIVE / PRODUCTION" : "Switch to TEST / OTE"}
+      primaryButtonText={busy ? "Switching…" : "Confirm switch"}
+      secondaryButtonText="Keep current environment"
+      primaryButtonDisabled={busy}
+      onRequestClose={() => { if (!busy) setSwitchTarget(null); }}
+      onRequestSubmit={() => { void confirmSwitch(); }}
+    >
+      <p className="khd-modal-copy">{switchTarget?.text}</p>
+    </Modal>
+    <Modal
+      open={Boolean(creditTarget)}
+      modalHeading="Add customer credit"
+      primaryButtonText={busy ? "Adding…" : "Add credit"}
+      secondaryButtonText="Cancel"
+      primaryButtonDisabled={busy || !creditAmount}
+      onRequestClose={() => { if (!busy) setCreditTarget(null); }}
+      onRequestSubmit={() => { void confirmCredit(); }}
+    >
+      <p className="khd-modal-copy">Add credit for <strong>{creditTarget?.user.email}</strong> in {creditTarget?.environment === "ote" ? "TEST / OTE" : "LIVE / PRODUCTION"}.</p>
+      <TextInput id="environment-credit-amount" type="number" labelText="Amount (USD)" min={0.01} step="0.01" value={creditAmount} onChange={(event) => { setCreditAmount(event.target.value); setError(""); }} />
+      <TextArea id="environment-credit-reason" labelText="Reason" value={creditReason} onChange={(event) => setCreditReason(event.target.value)} />
+      <p className="khd-modal-copy">This changes KmerHosting customer credit only; it does not change the DomainNameAPI reseller balance.</p>
+    </Modal>
   </main>;
 }
