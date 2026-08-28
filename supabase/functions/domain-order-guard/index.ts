@@ -1,7 +1,7 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
-import { exactDnaPrice, normalizeDnaCatalog, type DnaCatalogPrice } from "../_shared/dna-catalog.ts";
-import { directDnaRequest, DnaRequestError } from "../_shared/dna-client.ts";
+import { exactDnaPrice, normalizeDnaCatalog, type DnaCatalogPrice } from "./dna-catalog.ts";
+import { directDnaRequest, DnaRequestError } from "./dna-client.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -126,22 +126,26 @@ function pick(object: any, paths: string[]) {
 }
 
 async function providerRequest(environment: Environment, path: string, method = "GET", body: Json | Json[] | null = null, query: Json = {}) {
-  const { data: config, error: configError } = await db.from("domain_config").select("registrar_reseller_id").eq("id", true).single();
-  const resellerId = clean(config?.registrar_reseller_id);
-  const secretName = environment === "production" ? "domain_registrar_api_key" : "domain_registrar_ote_api_key";
-  const { data: secretValue, error: secretError } = await db.rpc("domain_secret", { p_name: secretName });
-  const apiKey = clean(secretValue);
-  if (configError || !resellerId || secretError || !apiKey) {
-    throw new HttpError(503, "registrar_not_configured", `DomainNameAPI ${environment.toUpperCase()} credentials are unavailable.`);
+  const { data, error } = await db.rpc("domain_registrar_proxy_env", {
+    p_path: path,
+    p_method: method,
+    p_body: body,
+    p_query: query,
+    p_environment: environment,
+  });
+  if (error) throw new HttpError(502, "registrar_gateway_failed", "The shared registrar gateway could not complete the request.", error);
+  const envelope = (data || {}) as Json;
+  const status = Number(envelope.status || 0);
+  const payload = (envelope.body || {}) as Json;
+  if (!status || status < 200 || status >= 300) {
+    const message = clean(payload?.error?.message || payload?.error?.details || payload?.message || payload?.details || payload?.title || payload?.raw) || `DomainNameAPI request failed (${status || 502}).`;
+    throw new HttpError(status >= 500 ? 502 : status || 502, "provider_error", message, {
+      providerHttpStatus: status || null,
+      providerBody: payload,
+      registrarEnvironment: environment,
+    });
   }
-  try {
-    return await directDnaRequest({ environment, resellerId, apiKey, path, method, body, query });
-  } catch (error) {
-    if (error instanceof DnaRequestError) {
-      throw new HttpError(error.status >= 500 ? error.status : error.status || 502, "provider_error", error.message, error.payload);
-    }
-    throw error;
-  }
+  return payload;
 }
 
 function searchInfo(payload: Json) { return (payload.info || payload.data?.info || payload.data || payload) as Json; }
@@ -321,18 +325,14 @@ async function createOrder(req: Request, operation: Operation) {
     domainName = domain.domain_name;
     tld = await tldData(environment, domain.tld || domainTld(domainName));
     if (operation === "renewal") {
-      providerPayload = await providerRequest(environment, "/api/v1/domains/renew/check", "POST", { domainName, period: years });
+      providerPayload = await providerRequest(environment, "/api/v1/domains/info", "GET", null, { DomainName: domainName });
+      const providerStatus = clean(providerPayload.status || providerPayload.statusCode || domain.status).toLowerCase();
+      if (/redemption|pendingdelete|cancel|suspend/.test(providerStatus)) throw new HttpError(409, "renewal_not_eligible", "This domain is not currently eligible for renewal.", { status: providerStatus });
       const price = exactPeriodPrice(tld, operation, years, environment);
       providerCost = price.providerCostUsd;
       customerPrice = price.customerPriceUsd;
     } else {
-      years = 1;
-      providerPayload = await providerRequest(environment, "/api/v1/domains/info", "GET", null, { DomainName: domainName });
-      const providerStatus = clean(providerPayload.status || providerPayload.statusCode || domain.status).toLowerCase();
-      if (!/redemption|expired|pendingdelete|restore/.test(providerStatus)) throw new HttpError(409, "restore_not_eligible", "This domain is not currently eligible for restoration.", { status: providerStatus });
-      const price = exactPeriodPrice(tld, operation, 1, environment);
-      providerCost = price.providerCostUsd;
-      customerPrice = price.customerPriceUsd;
+      throw new HttpError(503, "restore_not_supported", "Domain restoration is temporarily unavailable because the current official DomainNameAPI REST client does not expose a supported restore operation. No charge was made.");
     }
     nameservers = Array.isArray(domain.nameservers) ? domain.nameservers : [];
   }
