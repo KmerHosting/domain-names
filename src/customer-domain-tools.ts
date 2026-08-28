@@ -11,7 +11,7 @@ type Contact = {
 type ButtonKind = "primary" | "secondary" | "tertiary" | "ghost" | "danger--tertiary";
 
 function token() {
-  return getSession()?.token || "";
+  return getSession() ? "session" : "";
 }
 
 function currentDomainId() {
@@ -69,7 +69,7 @@ function inputField(
   node.type = options.type || "text";
   node.placeholder = placeholder;
   node.required = options.required ?? true;
-  if (options.autocomplete) node.autocomplete = options.autocomplete;
+  if (options.autocomplete) node.setAttribute("autocomplete", options.autocomplete);
   if (options.inputMode) node.inputMode = options.inputMode as HTMLInputElement["inputMode"];
   if (options.pattern) node.pattern = options.pattern;
   if (options.maxLength !== undefined) node.maxLength = options.maxLength;
