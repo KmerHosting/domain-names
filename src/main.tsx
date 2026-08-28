@@ -6,6 +6,7 @@ import { router } from "./router";
 import { isNativePage, NativePageRouter } from "./native-pages";
 import { DnsSettingsPage, isDnsSettingsPage } from "./dns-settings-page";
 import { PlatformStatusBanner } from "./platform-status-banner";
+import "./customer-domain-tools";
 import { DomainCarbonExperience } from "./carbon-experience";
 import { DomainApplicationShell } from "./domain-shell";
 import "./styles.css";
