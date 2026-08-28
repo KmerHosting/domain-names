@@ -172,6 +172,12 @@
   @include type.type-style('body-compact-01');
 }
 
+.khd-modal-copy {
+  margin: 0 0 spacing.$spacing-07;
+  color: var(--cds-text-primary);
+  @include type.type-style('body-compact-01');
+}
+
 .khd-warning-text {
   color: var(--cds-text-error);
   @include type.type-style('body-compact-01');
