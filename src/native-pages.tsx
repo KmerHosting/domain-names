@@ -119,13 +119,14 @@ function GlueHosts({ domainId, domainName }: { domainId: string; domainName: str
   const remove = useMutation({ mutationFn: (id: string) => customerToolsApi(`/domains/${domainId}/glue-hosts/${id}`, { method: "DELETE" }), onSuccess: () => client.invalidateQueries({ queryKey: ["glue-hosts", domainId] }) });
   const [editingHost, setEditingHost] = useState<Row | null>(null);
   const [editIps, setEditIps] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const values = Object.fromEntries(new FormData(event.currentTarget));
     add.mutate({ hostName: values.hostName, ipAddresses: String(values.ipAddresses || "").split(/[\s,]+/).filter(Boolean) });
     event.currentTarget.reset();
   };
-  return <Tile className="carbon-dashboard-panel carbon-table-section"><div className="card-heading"><div><h2>Child nameservers / glue hosts</h2><p>Use a full child hostname under {domainName} and one or more IPv4/IPv6 addresses.</p></div></div><form className="carbon-glue-form" onSubmit={submit}><TextInput id="glue-host" name="hostName" labelText="Host name" placeholder={`ns1.${domainName}`} required /><TextInput id="glue-ips" name="ipAddresses" labelText="IP addresses" placeholder="192.0.2.10, 2001:db8::10" required /><Button type="submit" disabled={add.isPending}>Add</Button></form>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : (query.data?.glueHosts || []).length ? <Table size="lg"><TableHead><TableRow><TableHeader>Host</TableHeader><TableHeader>IP addresses</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{(query.data?.glueHosts || []).map((host) => <TableRow key={host.id}><TableCell>{host.host_name}</TableCell><TableCell>{(host.ip_addresses || []).join(", ")}</TableCell><TableCell><Badge value={host.status} /></TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => { setEditingHost(host); setEditIps((host.ip_addresses || []).join(", ")); }}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => remove.mutate(host.id)}>Delete</Button></div></TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No glue hosts</h3><p>Add a child nameserver when your domain needs registrar glue records.</p></Tile>}{add.isError || edit.isError || remove.isError ? <ErrorNotice error={add.error || edit.error || remove.error} /> : null}
+  return <Tile className="carbon-dashboard-panel carbon-table-section"><div className="card-heading"><div><h2>Child nameservers / glue hosts</h2><p>Use a full child hostname under {domainName} and one or more IPv4/IPv6 addresses.</p></div></div><form className="carbon-glue-form" onSubmit={submit}><TextInput id="glue-host" name="hostName" labelText="Host name" placeholder={`ns1.${domainName}`} required /><TextInput id="glue-ips" name="ipAddresses" labelText="IP addresses" placeholder="192.0.2.10, 2001:db8::10" required /><Button type="submit" disabled={add.isPending}>Add</Button></form>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : (query.data?.glueHosts || []).length ? <Table size="lg"><TableHead><TableRow><TableHeader>Host</TableHeader><TableHeader>IP addresses</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{(query.data?.glueHosts || []).map((host) => <TableRow key={host.id}><TableCell>{host.host_name}</TableCell><TableCell>{(host.ip_addresses || []).join(", ")}</TableCell><TableCell><Badge value={host.status} /></TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => { setEditingHost(host); setEditIps((host.ip_addresses || []).join(", ")); }}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setDeleteTarget(host)}>Delete</Button></div></TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No glue hosts</h3><p>Add a child nameserver when your domain needs registrar glue records.</p></Tile>}{add.isError || edit.isError || remove.isError ? <ErrorNotice error={add.error || edit.error || remove.error} /> : null}
     <Modal
       open={Boolean(editingHost)}
       modalHeading="Edit child nameserver"
@@ -149,6 +150,21 @@ function GlueHosts({ domainId, domainName }: { domainId: string; domainName: str
         value={editIps}
         onChange={(event) => setEditIps(event.target.value)}
       />
+    </Modal>
+    <Modal
+      open={Boolean(deleteTarget)}
+      danger
+      modalHeading="Delete child nameserver"
+      primaryButtonText={remove.isPending ? "Deleting…" : "Delete"}
+      secondaryButtonText="Cancel"
+      primaryButtonDisabled={remove.isPending}
+      onRequestClose={() => setDeleteTarget(null)}
+      onRequestSubmit={() => {
+        if (!deleteTarget) return;
+        remove.mutate(deleteTarget.id, { onSettled: () => setDeleteTarget(null) });
+      }}
+    >
+      <p>Delete <strong>{deleteTarget?.host_name}</strong> and its glue addresses from the registrar.</p>
     </Modal>
   </Tile>;
 }
