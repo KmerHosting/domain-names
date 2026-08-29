@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.5.4](https://github.com/KmerHosting/domain-names/compare/v1.5.3...v1.5.4) (2026-08-29)
+
+
+### Bug Fixes
+
+* disclose minimum domain registration periods ([06e59cb](https://github.com/KmerHosting/domain-names/commit/06e59cb586aba18add1c746f5265b07e26177f4f))
+* reconcile provider DNS and align Carbon UI ([351b4ac](https://github.com/KmerHosting/domain-names/commit/351b4ac2a32521ff7ef5d146dd398cad91659974))
+* remove obsolete domain wallet navigation ([bdb0abf](https://github.com/KmerHosting/domain-names/commit/bdb0abf58b05cb35233673e3d94110d5768aec7e))
+
 ## [1.5.3](https://github.com/KmerHosting/domain-names/compare/v1.5.2...v1.5.3) (2026-08-28)
 
 
