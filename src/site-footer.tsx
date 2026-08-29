@@ -36,7 +36,6 @@ const footerGroups: FooterGroup[] = [
     title: "Account",
     links: [
       { label: "Central account", href: "https://dashboard.kmerhosting.com/?view=account" },
-      { label: "Wallet", href: "/dashboard/wallet" },
       { label: "WHOIS contacts", href: "/dashboard/contacts" },
       { label: "Orders", href: "/dashboard/orders" },
     ],

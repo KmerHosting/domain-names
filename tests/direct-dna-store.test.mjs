@@ -47,9 +47,11 @@ test('OTE skips central charging while LIVE uses the central credit ledger', asy
 test('customer UI exposes neither a domain wallet nor an administration route', async () => {
   const router = await read('src/router.tsx')
   const shell = await read('src/domain-shell.tsx')
+  const footer = await read('src/site-footer.tsx')
   const main = await read('src/main.tsx')
   assert.doesNotMatch(router, /walletApi|WalletPage|walletRoute|Pay from balance/)
   assert.doesNotMatch(shell, /adminNavigation|href="\/admin"|\/dashboard\/wallet/)
+  assert.doesNotMatch(footer, /dashboard\/wallet|label: "Wallet"/)
   assert.doesNotMatch(main, /AdminPage|AdminEnvironmentsPage|AdminOperationsPage/)
 })
 
