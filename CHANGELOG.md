@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.5](https://github.com/KmerHosting/domain-names/compare/v1.5.4...v1.5.5) (2026-08-29)
+
+
+### Bug Fixes
+
+* align bulk domain search action ([c52786b](https://github.com/KmerHosting/domain-names/commit/c52786bad437a3bf5efb2b10e180b29ca2ab9d1a))
+* align bulk search control with Carbon spacing ([a853136](https://github.com/KmerHosting/domain-names/commit/a853136dfc91926832d66fae0ced5f83e05f3949))
+
 ## [1.5.4](https://github.com/KmerHosting/domain-names/compare/v1.5.3...v1.5.4) (2026-08-29)
 
 
