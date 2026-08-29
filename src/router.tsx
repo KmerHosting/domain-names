@@ -193,13 +193,14 @@ function supportedPrice(value: unknown): number | null {
 
 function DomainPriceBreakdown({ result, dueToday }: { result: SearchResult; dueToday: "registration" | "transfer" | null }) {
   const purchasePrice = premiumDisplayPrice(result);
+  const registrationPeriod = result.price?.min_years || result.price?.registration_periods?.[0] || 1;
   const transferPrice = supportedPrice(result.price?.transfer_price_usd);
   const renewalPrice = supportedPrice(result.price?.renewal_price_usd);
   const dueTodayPrice = dueToday === "registration" ? purchasePrice : dueToday === "transfer" ? transferPrice : null;
   const display = (amount: number | null) => amount === null ? "Unavailable" : formatMoney(amount);
 
   return <div className="carbon-domain-price-breakdown" aria-label={`Pricing for ${result.domainName}`}>
-    <div><span>Purchase price</span><strong>{display(purchasePrice)}</strong></div>
+    <div><span>Purchase price · {registrationPeriod} {registrationPeriod === 1 ? "year" : "years"}</span><strong>{display(purchasePrice)}</strong></div>
     <div><span>Transfer price</span><strong>{display(transferPrice)}</strong></div>
     <div><span>Renewal price</span><strong>{display(renewalPrice)}</strong></div>
     <div className="carbon-domain-price-breakdown__due"><span>Due today{dueToday === "transfer" ? " · transfer" : dueToday === "registration" ? " · purchase" : ""}</span><strong>{dueToday ? display(dueTodayPrice) : "No purchase available"}</strong></div>
@@ -339,13 +340,15 @@ function HomePage() {
     </section>
 
     <section className="section" id="pricing"><div className="container">
-      <div className="section-heading"><div><span className="kicker">Provider-backed pricing</span><h2>Popular extensions</h2></div><p>Registration, renewal, transfer and restore prices are synchronized from the registrar.</p></div>
-      {prices.isPending ? <LoadingBlock /> : prices.isError ? <ErrorNotice error={prices.error} title="Pricing unavailable" /> : <Grid fullWidth className="carbon-card-grid">{featuredTlds(prices.data?.prices || []).map((price) => <Column sm={4} md={4} lg={4} key={price.tld}><Tile className="carbon-price-card">
+      <div className="section-heading"><div><span className="kicker">Provider-backed pricing</span><h2>Popular extensions</h2></div><p>Registration, renewal and transfer pricing is synchronized from the registrar. Published restore fees are shown for reference.</p></div>
+      {prices.isPending ? <LoadingBlock /> : prices.isError ? <ErrorNotice error={prices.error} title="Pricing unavailable" /> : <Grid fullWidth className="carbon-card-grid">{featuredTlds(prices.data?.prices || []).map((price) => {
+        const registrationPeriod = price.min_years || price.registration_periods?.[0] || 1;
+        return <Column sm={4} md={4} lg={4} key={price.tld}><Tile className="carbon-price-card">
         <div className="price-card-top"><strong className="tld">{price.tld}</strong>{price.is_promo ? <Tag type="green">Promo</Tag> : null}</div>
-        <strong className="big-price">{formatMoney(price.registration_price_usd)}</strong><span className="price-term">one-year registration</span>
+        <strong className="big-price">{formatMoney(price.registration_price_usd)}</strong><span className="price-term">{registrationPeriod}-year registration</span>
         <div className="price-lines"><span>Renewal <strong>{formatMoney(price.renewal_price_usd)}</strong></span><span>Transfer <strong>{price.transfer_price_usd > 0 ? formatMoney(price.transfer_price_usd) : "Unsupported"}</strong></span>{price.restore_price_usd ? <span>Restore <strong>{formatMoney(price.restore_price_usd)}</strong></span> : null}</div>
         <Button kind="secondary" href={`/register-domain?domain=${encodeURIComponent(`yourbrand${price.tld}`)}`}>Search {price.tld}</Button>
-      </Tile></Column>)}</Grid>}
+      </Tile></Column>})}</Grid>}
     </div></section>
 
     <SharedHostingCatalog />
@@ -354,7 +357,7 @@ function HomePage() {
       <div className="section-heading"><div><span className="kicker">Domain lifecycle</span><h2>Complete registrar management</h2></div><p>Domain operations stay focused on registration, transfer, DNS, contacts and security.</p></div>
       <Grid fullWidth className="carbon-card-grid">{[
         ["Registration and premium domains", "Availability, exact premium quote, supported periods and registry attributes."],
-        ["Transfers, renewals and restores", "Eligibility checks and live DomainNameAPI pricing for every operation."],
+        ["Transfers and renewals", "Eligibility checks and live registrar pricing. Restore submission stays disabled until the official API supports it."],
         ["DNS and nameservers", "A, AAAA, CNAME, MX, TXT, NS, SRV and CAA records with synchronization."],
         ["Lock and privacy", "Registrar-backed theft protection and WHOIS privacy controls."],
         ["WHOIS contacts", "Provider handles, verification and registry contact roles."],
@@ -443,7 +446,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
   // period. Other periods stay unavailable until they can be quoted before a
   // charge rather than guessed client-side.
   const periods = type === "registration"
-    ? [selectedPrice?.registration_periods?.[0] || selectedPrice?.min_years || 1]
+    ? [selectedPrice?.min_years || selectedPrice?.registration_periods?.[0] || 1]
     : [selectedPrice?.transfer_periods?.[0] || 1];
 
   useEffect(() => {

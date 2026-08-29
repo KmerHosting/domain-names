@@ -7,6 +7,8 @@ export type CatalogTld = {
   renewal_price_usd: number;
   transfer_price_usd: number;
   restore_price_usd?: number | null;
+  registration_periods?: number[];
+  min_years?: number;
   supports_privacy?: boolean;
 };
 

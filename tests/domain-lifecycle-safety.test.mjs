@@ -29,6 +29,13 @@ describe("domain lifecycle safety", () => {
     expect(source).not.toContain('createOrder.mutate(quote.operation)');
   });
 
+  test("registration uses the provider minimum period even when supported periods are unsorted", () => {
+    const source = read("../src/router.tsx");
+    expect(source).toContain("selectedPrice?.min_years || selectedPrice?.registration_periods?.[0] || 1");
+    expect(source).toContain("Purchase price · {registrationPeriod}");
+    expect(source).not.toContain("one-year registration");
+  });
+
   test("every DNS proxy exposes the idempotent apply retry route", () => {
     for (const path of [
       "../api/domain-proxy.ts",
