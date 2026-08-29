@@ -55,6 +55,23 @@ test('customer UI exposes neither a domain wallet nor an administration route', 
   assert.doesNotMatch(main, /AdminPage|AdminEnvironmentsPage|AdminOperationsPage/)
 })
 
+test('domain homepage reads shared hosting prices from the live catalog endpoint', async () => {
+  const catalog = await read('src/shared-hosting-catalog.tsx')
+  const proxy = await read('api/hosting-catalog.ts')
+  assert.match(catalog, /fetch\("\/api\/hosting-catalog"/)
+  assert.match(catalog, /monthly_price_micros/)
+  assert.match(catalog, /Number\(plan\.monthly_price_micros\s*\|\|\s*0\)\s*\/\s*1_000_000/)
+  assert.match(proxy, /hosting-api-gateway\/catalog/)
+  assert.doesNotMatch(catalog, /\$2\.99|\$3\.99|\$4\.99|\$6\.99|\$10\.99|\$15\.99/)
+})
+
+test('domain hero is centered without the redundant product label', async () => {
+  const router = await read('src/router.tsx')
+  const styles = await read('src/carbon-product-alignment.scss')
+  assert.match(styles, /\.carbon-domain-overview__content\s*\{[\s\S]*text-align:\s*center;/)
+  assert.doesNotMatch(router, /carbon-domain-overview__content">\s*<span className="kicker">KmerHosting Domains<\/span>/)
+})
+
 test('OTE orders expose a guarded DNA retry action', async () => {
   const backend = await read('supabase/functions/domain-api/index.ts')
   const router = await read('src/router.tsx')

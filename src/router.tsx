@@ -273,7 +273,6 @@ function HomePage() {
     <section className="carbon-hero carbon-domain-overview" id="search">
       <Grid fullWidth className="carbon-domain-overview__grid">
         <Column sm={4} md={8} lg={{ span: 12, offset: 2 }} className="carbon-domain-overview__content">
-          <span className="kicker">KmerHosting Domains</span>
           <h1>Find the domain that fits your next idea.</h1>
           <p className="carbon-lead">Check live availability, compare provider-backed prices and manage every stage of your domain from one place.</p>
           <div className="carbon-domain-search-mode">
