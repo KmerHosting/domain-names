@@ -292,7 +292,7 @@ function HomePage() {
                 <TextArea
                   id="domain-search"
                   labelText="Domains to check"
-                  helperText="Enter up to 20 domains. One per line, or separate them with commas, semicolons or spaces."
+                  helperText="Up to 20 domains. One per line or comma-separated."
                   placeholder={"yourbrand.com\nmyproduct.io\nteam.dev"}
                   rows={3}
                   value={query}
