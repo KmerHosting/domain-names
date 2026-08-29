@@ -45,4 +45,12 @@ describe("domain lifecycle safety", () => {
       expect(read(path)).toContain('/retry`');
     }
   });
+
+  test("internal domain worker RPCs are not executable by browser roles", () => {
+    const migration = read("../supabase/migrations/20260829043500_harden_dashboard_domain_worker_rpc.sql");
+    expect(migration).toContain("dashboard_domain_claim_queued_job(uuid)");
+    expect(migration).toContain("dashboard_queue_included_spaceship_domain_renewal_from_hosting_()");
+    expect(migration.match(/from public, anon, authenticated/g)?.length).toBe(2);
+    expect(migration.match(/to service_role/g)?.length).toBe(2);
+  });
 });
