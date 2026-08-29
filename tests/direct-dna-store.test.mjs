@@ -74,7 +74,7 @@ test('domain hero is centered without the redundant product label', async () => 
 
 test('bulk search aligns submit control with the textarea', async () => {
   const styles = await read('src/carbon-product-alignment.scss')
-  assert.match(styles, /\.carbon-domain-search-form--bulk\s+\.carbon-domain-search-form__actions\s*\{[\s\S]*margin-block-end:\s*spacing\.\$spacing-05;/)
+  assert.match(styles, /\.carbon-domain-search-form--bulk\s+\.carbon-domain-search-form__actions\s*\{[\s\S]*margin-block-end:\s*spacing\.\$spacing-05\s*\+\s*spacing\.\$spacing-02;/)
 })
 
 test('OTE orders expose a guarded DNA retry action', async () => {
