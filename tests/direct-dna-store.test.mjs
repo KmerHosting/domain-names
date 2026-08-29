@@ -72,6 +72,11 @@ test('domain hero is centered without the redundant product label', async () => 
   assert.doesNotMatch(router, /carbon-domain-overview__content">\s*<span className="kicker">KmerHosting Domains<\/span>/)
 })
 
+test('bulk search aligns submit control with the textarea', async () => {
+  const styles = await read('src/carbon-product-alignment.scss')
+  assert.match(styles, /\\.carbon-domain-search-form--bulk\\s+\\.carbon-domain-search-form__actions\\s*\\{[\\s\\S]*margin-block-end:\\s*spacing\\.\\$spacing-05;/)
+})
+
 test('OTE orders expose a guarded DNA retry action', async () => {
   const backend = await read('supabase/functions/domain-api/index.ts')
   const router = await read('src/router.tsx')

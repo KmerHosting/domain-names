@@ -139,6 +139,12 @@
   .carbon-domain-search-form__actions {
     align-self: end;
   }
+
+  // Carbon places helper text below a multiline field. Keep the submit
+  // control aligned with the textarea itself instead of the helper row.
+  .carbon-domain-search-form--bulk .carbon-domain-search-form__actions {
+    margin-block-end: spacing.$spacing-05;
+  }
 }
 
 @include breakpoint.breakpoint('lg') {
