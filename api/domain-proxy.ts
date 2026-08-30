@@ -132,26 +132,73 @@ function mapDnsPath(path: string): string {
   return path;
 }
 
-function normalizeDnsPayload(payload: Record<string, any>): Record<string, any> {
-  if (!payload?.domain || !Array.isArray(payload?.records)) return payload;
-
-  const rawDomain = payload.domain as Record<string, any>;
-  const dns = (payload.dns || {}) as Record<string, any>;
+function safeDnsRecord(value: Record<string, any> | null): Record<string, any> | null {
+  if (!value) return null;
   return {
-    ...payload,
-    domain: {
-      ...rawDomain,
-      id: rawDomain.id,
-      domainName: rawDomain.domainName || rawDomain.domain_name,
-      nameservers: Array.isArray(rawDomain.nameservers) ? rawDomain.nameservers : [],
-      environment: rawDomain.environment || rawDomain.registrar_environment,
-    },
-    synced: Boolean(payload.synced),
-    managedDns: Boolean(payload.managedDns ?? dns.dnsManagedActive),
-    warning: payload.warning ?? dns.warning ?? null,
-    providerSyncAt: payload.providerSyncAt ?? rawDomain.metadata?.lastDnsSyncAt ?? null,
-    providerError: payload.providerError ?? null,
+    id: value.id,
+    domain_id: value.domain_id,
+    name: String(value.name || "@"),
+    type: String(value.type || "").toUpperCase(),
+    contents: Array.isArray(value.contents) ? value.contents.map((item: unknown) => String(item ?? "").trim()).filter(Boolean).slice(0, 100) : [],
+    ttl: Number(value.ttl || 3600),
+    priority: value.priority == null ? null : Number(value.priority),
+    weight: value.weight == null ? null : Number(value.weight),
+    port: value.port == null ? null : Number(value.port),
+    target: value.target == null ? null : String(value.target).trim() || null,
+    flag: value.flag == null ? null : Number(value.flag),
+    tag: value.tag == null ? null : String(value.tag).trim() || null,
+    status: String(value.status || "pending"),
+    source: String(value.source || "local"),
+    synced_at: value.synced_at || null,
+    updated_at: value.updated_at || null,
   };
+}
+
+function safeDnsDomain(value: Record<string, any>): Record<string, any> {
+  return {
+    id: value.id,
+    domainName: value.domainName || value.domain_name || "",
+    nameservers: Array.isArray(value.nameservers) ? value.nameservers.map((item: unknown) => String(item ?? "").trim()).filter(Boolean).slice(0, 13) : [],
+    environment: value.environment || value.registrar_environment || "production",
+    status: String(value.status || "pending"),
+    expiresAt: value.expiresAt || value.expires_at || null,
+    registeredAt: value.registeredAt || value.registered_at || null,
+    autoRenew: Boolean(value.autoRenew ?? value.auto_renew),
+    privacyEnabled: Boolean(value.privacyEnabled ?? value.privacy_enabled),
+    locked: Boolean(value.locked),
+    eppStatuses: Array.isArray(value.eppStatuses || value.epp_statuses)
+      ? (value.eppStatuses || value.epp_statuses).map((item: unknown) => String(item ?? "").trim()).filter(Boolean).slice(0, 20)
+      : [],
+    lastSyncedAt: value.lastSyncedAt || value.last_synced_at || null,
+  };
+}
+
+function normalizeDnsPayload(payload: Record<string, any>): Record<string, any> {
+  if (!payload || typeof payload !== "object") return payload;
+  const output = { ...payload };
+  delete output.provider;
+  if (payload.domain && typeof payload.domain === "object") output.domain = safeDnsDomain(payload.domain);
+  if (Array.isArray(payload.records)) output.records = payload.records.map((item: Record<string, any>) => safeDnsRecord(item)).filter(Boolean);
+  if (Object.prototype.hasOwnProperty.call(payload, "record")) output.record = safeDnsRecord(payload.record);
+  if (payload.dns && typeof payload.dns === "object") {
+    output.dns = {
+      currentNameservers: Array.isArray(payload.dns.currentNameservers) ? payload.dns.currentNameservers.map((item: unknown) => String(item ?? "").trim()).filter(Boolean).slice(0, 13) : [],
+      managedNameservers: Array.isArray(payload.dns.managedNameservers) ? payload.dns.managedNameservers.map((item: unknown) => String(item ?? "").trim()).filter(Boolean).slice(0, 13) : [],
+      dnsManagedActive: Boolean(payload.dns.dnsManagedActive),
+      providerConfirmed: Boolean(payload.dns.providerConfirmed),
+      warning: payload.dns.warning || null,
+    };
+  }
+  if (payload.domain && Array.isArray(payload.records)) {
+    const rawDomain = payload.domain as Record<string, any>;
+    const dns = (output.dns || {}) as Record<string, any>;
+    output.synced = Boolean(payload.synced);
+    output.managedDns = Boolean(payload.managedDns ?? dns.dnsManagedActive);
+    output.warning = payload.warning ?? dns.warning ?? null;
+    output.providerSyncAt = payload.providerSyncAt ?? rawDomain.lastSyncedAt ?? rawDomain.last_synced_at ?? null;
+    output.providerError = payload.providerError ?? null;
+  }
+  return output;
 }
 
 async function responseFromUpstream(upstream: Response, service: string, upstreamPath: string): Promise<Response> {
