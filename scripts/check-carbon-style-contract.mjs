@@ -35,7 +35,7 @@ if (lastCssImport !== 'import "./carbon-theme-contrast-fixes.scss";') {
   violations.push("src/carbon-theme-contrast-fixes.scss must be the final application stylesheet import.");
 }
 
-if (/<Loading\\b|withOverlay/.test(experience)) {
+if (/<Loading\b|withOverlay/.test(experience)) {
   violations.push("Full-screen route loading must use Carbon skeletons without an overlay spinner.");
 }
 
