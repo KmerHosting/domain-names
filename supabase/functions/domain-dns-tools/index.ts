@@ -175,7 +175,7 @@ async function confirmProviderDomain(d: Json) {
       throw new HttpError(
         409,
         "provider_domain_missing",
-        "This domain is not present in the active DomainNameAPI environment. DNS and nameserver changes are blocked.",
+        "This domain is not present in the active registrar environment. DNS and nameserver changes are blocked.",
         error.details,
       );
     throw error;
@@ -902,7 +902,7 @@ Deno.serve(async (req) => {
     if (e instanceof HttpError)
       return json(
         req,
-        { error: e.code, message: e.message },
+        { error: e.code, message: customerErrorMessage(e) },
         e.status,
       );
     console.error(e);
@@ -910,7 +910,7 @@ Deno.serve(async (req) => {
       req,
       {
         error: "internal_error",
-        message: e instanceof Error ? e.message : "Unexpected error.",
+        message: "The DNS service could not complete this request.",
       },
       500,
     );
