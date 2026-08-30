@@ -104,7 +104,7 @@ function routeFromRewrite(url: URL): { service: string; upstreamPath: string } {
   if (RETIRED_SERVICES.has(service)) {
     throw jsonResponse({
       error: "external_payments_removed",
-      message: `External payment providers have been removed. Pay from the USD account balance or contact ${SUPPORT_EMAIL} for a manual credit.`,
+      message: `This payment option is no longer available. Use your KmerHosting account balance or contact ${SUPPORT_EMAIL} for a manual credit.`,
       supportEmail: SUPPORT_EMAIL,
     }, 410);
   }
@@ -243,7 +243,7 @@ export default async function handler(req: Request): Promise<Response> {
     ) {
       return jsonResponse({
         error: "external_payments_removed",
-        message: `External checkout has been removed. Pay from the USD account balance or contact ${SUPPORT_EMAIL} for a manual credit.`,
+        message: `This checkout option is no longer available. Use your KmerHosting account balance or contact ${SUPPORT_EMAIL} for a manual credit.`,
         supportEmail: SUPPORT_EMAIL,
       }, 410);
     }
@@ -270,6 +270,6 @@ export default async function handler(req: Request): Promise<Response> {
     return await responseFromUpstream(upstream, service, upstreamPath);
   } catch (error) {
     if (error instanceof Response) return error;
-    return jsonResponse({ error: "proxy_failed", message: error instanceof Error ? error.message : "Domain API proxy failed." }, 502);
+    return jsonResponse({ error: "proxy_failed", message: "The domain service could not complete this request." }, 502);
   }
 }
