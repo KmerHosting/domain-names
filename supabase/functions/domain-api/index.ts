@@ -76,7 +76,7 @@ function publicRegistrarResult(domainName: string, raw: Json, price: Json | null
     domainName,
     available,
     isAvailable: available,
-    status: available ? "available" : unavailable ? "unavailable" : rawStatus || "unknown",
+    status: available ? "available" : unavailable ? "unavailable" : "unknown",
     isPremium: premium,
     customerPriceUsd,
   };
@@ -123,6 +123,10 @@ function publicContact(value: Json | null): Json | null {
   };
 }
 
+function publicOrderFailure(value: unknown): string | null {
+  return clean(value) ? "This order could not be completed. No charge was made." : null;
+}
+
 function publicOrder(value: Json | null): Json | null {
   if (!value) return null;
   return {
@@ -134,7 +138,7 @@ function publicOrder(value: Json | null): Json | null {
     status: clean(value.status) || "pending",
     price_usd: Number(value.price_usd || 0),
     created_at: value.created_at || null,
-    failure_message: clean(value.failure_message).slice(0, 500) || null,
+    failure_message: publicOrderFailure(value.failure_message),
   };
 }
 
