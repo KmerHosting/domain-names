@@ -406,7 +406,12 @@ function publicRecord(value: Json | null): Json | null {
   };
 }
 function customerErrorMessage(error: unknown) {
-  if (error instanceof HttpError && !["provider_error", "registrar_proxy_failed", "provider_domain_missing"].includes(error.code)) return error.message;
+  if (
+    error instanceof HttpError &&
+    error.status < 500 &&
+    !["provider_error", "registrar_proxy_failed", "provider_domain_missing"].includes(error.code) &&
+    !/DomainNameAPI|provider|usdBalance|markup|cost|secret/i.test(error.message)
+  ) return error.message;
   return "DNS data could not be refreshed. Your current records remain visible.";
 }
 async function loadLocalRecords(domainId: string) {
