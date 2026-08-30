@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.0](https://github.com/KmerHosting/domain-names/compare/v1.5.7...v1.6.0) (2026-08-30)
+
+
+### Features
+
+* **api:** add trusted gateway authentication ([e1fa459](https://github.com/KmerHosting/domain-names/commit/e1fa459198350df032045b29813f20884f3a9d12))
+* **api:** allow signed gateway requests ([3b33b5a](https://github.com/KmerHosting/domain-names/commit/3b33b5a0c150156c1d8f3e022aacb1d83b066e3c))
+
 ## [1.5.7](https://github.com/KmerHosting/domain-names/compare/v1.5.6...v1.5.7) (2026-08-30)
 
 
