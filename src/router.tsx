@@ -630,33 +630,64 @@ function OrdersPage() {
 function ContactsPage() {
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["contacts"], queryFn: () => api<{ contacts: Contact[] }>("/contacts") });
-  const save = useMutation({ mutationFn: ({ id, body }: { id?: string; body: Row }) => api(id ? `/contacts/${id}` : "/contacts", { method: id ? "PUT" : "POST", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["contacts"] }) });
-  const remove = useMutation({ mutationFn: (id: string) => api(`/contacts/${id}`, { method: "DELETE" }), onSuccess: () => client.invalidateQueries({ queryKey: ["contacts"] }) });
-  const verify = useMutation({ mutationFn: (id: string) => customerToolsApi<{ readyForRegistration: boolean; message: string }>(`/contacts/${id}/verification`, { method: "POST" }) });
   const [editing, setEditing] = useState<Contact | null>(null);
   const [removeTarget, setRemoveTarget] = useState<Contact | null>(null);
+  const [invalidFields, setInvalidFields] = useState<string[]>([]);
+  const invalid = (name: string) => invalidFields.includes(name);
+  const save = useMutation({
+    mutationFn: ({ id, body }: { id?: string; body: Row }) => api(id ? `/contacts/${id}` : "/contacts", { method: id ? "PUT" : "POST", body }),
+    onSuccess: () => {
+      setInvalidFields([]);
+      void client.invalidateQueries({ queryKey: ["contacts"] });
+    },
+  });
+  const remove = useMutation({ mutationFn: (id: string) => api(`/contacts/${id}`, { method: "DELETE" }), onSuccess: () => client.invalidateQueries({ queryKey: ["contacts"] }) });
+  const verify = useMutation({ mutationFn: (id: string) => customerToolsApi<{ readyForRegistration: boolean; message: string }>(`/contacts/${id}/verification`, { method: "POST" }) });
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     const body = Object.fromEntries(new FormData(event.currentTarget));
+    const required = ["label", "firstName", "lastName", "email", "phoneCountryCode", "phone", "address", "city", "state", "postalCode", "country"];
+    const errors = required.filter((key) => !String(body[key] || "").trim());
+    if (body.email && !validContactEmail(String(body.email))) errors.push("email");
+    if (body.phoneCountryCode && !/^\d{1,3}$/.test(String(body.phoneCountryCode))) errors.push("phoneCountryCode");
+    if (body.country && !/^[A-Za-z]{2}$/.test(String(body.country))) errors.push("country");
+    const uniqueErrors = [...new Set(errors)];
+    setInvalidFields(uniqueErrors);
+    if (uniqueErrors.length) return;
     save.mutate({ id: editing?.id, body: { ...body, isDefault: body.isDefault === "on" } });
     if (!editing) event.currentTarget.reset();
   };
 
   return <div className="dashboard-content"><PageHeading eyebrow="WHOIS contacts" title="Contacts" description="Complete contact data is required for registration and transfer." />
     {query.isError || save.isError || remove.isError || verify.isError ? <ErrorNotice error={query.error || save.error || remove.error || verify.error} /> : null}
-    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={8} lg={7}><Tile className="carbon-contact-form"><h2>{editing ? "Edit contact" : "Create contact"}</h2><p>Use the registrant's real contact details. Required fields are validated before provider submission.</p><form className="carbon-form-stack" onSubmit={submit} key={editing?.id || "new"}>
-      <TextInput id="contact-label" name="label" labelText="Label" defaultValue={editing?.label || "Default"} required />
-      <Grid fullWidth condensed><Column sm={4} md={4} lg={8}><TextInput id="contact-first-name" name="firstName" labelText="First name" defaultValue={editing?.first_name || ""} required /></Column><Column sm={4} md={4} lg={8}><TextInput id="contact-last-name" name="lastName" labelText="Last name" defaultValue={editing?.last_name || ""} required /></Column></Grid>
-      <TextInput id="contact-company" name="companyName" labelText="Company" defaultValue={editing?.company_name || ""} />
-      <TextInput id="contact-email" name="email" type="email" labelText="Email" defaultValue={editing?.email || ""} required />
-      <Grid fullWidth condensed><Column sm={4} md={4} lg={8}><TextInput id="contact-dial-code" name="phoneCountryCode" labelText="Dialing code" helperText="Digits only, without the + sign." inputMode="numeric" pattern="[0-9]{1,3}" maxLength={3} placeholder="237" defaultValue={editing?.phone_country_code || "237"} required /></Column><Column sm={4} md={4} lg={8}><TextInput id="contact-phone" name="phone" type="tel" labelText="Phone number" helperText="Local number only." placeholder="670000000" defaultValue={editing?.phone || ""} required /></Column></Grid>
-      <TextInput id="contact-address" name="address" labelText="Address" defaultValue={editing?.address || ""} required />
-      <Grid fullWidth condensed><Column sm={4} md={4} lg={8}><TextInput id="contact-city" name="city" labelText="City" defaultValue={editing?.city || ""} required /></Column><Column sm={4} md={4} lg={8}><TextInput id="contact-state" name="state" labelText="State/region" defaultValue={editing?.state || ""} required /></Column></Grid>
-      <Grid fullWidth condensed><Column sm={4} md={4} lg={8}><TextInput id="contact-postal" name="postalCode" labelText="Postal code" defaultValue={editing?.postal_code || ""} required /></Column><Column sm={4} md={4} lg={8}><TextInput id="contact-country" name="country" labelText="ISO country code" helperText="Two-letter code, for example CM." maxLength={2} defaultValue={editing?.country || "CM"} required /></Column></Grid>
-      <Checkbox id="contact-default" name="isDefault" labelText="Default contact" defaultChecked={editing?.is_default ?? true} />
-      <div className="heading-actions"><Button type="submit" disabled={save.isPending}>{editing ? "Save contact" : "Create contact"}</Button>{editing ? <Button type="button" kind="secondary" onClick={() => setEditing(null)}>Cancel</Button> : null}</div>
+    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={8} lg={7}><Tile className="carbon-contact-form"><h2>{editing ? "Edit contact" : "Create contact"}</h2><p>Use the registrant's real contact details. Required fields are checked before you continue.</p><form className="carbon-form-stack" onSubmit={submit} noValidate key={editing?.id || "new"}>
+      <TextInput id="contact-label" name="label" labelText="Label" helperText="A name you will recognize in your account." autoComplete="off" defaultValue={editing?.label || "Default"} invalid={invalid("label")} invalidText="Enter a label." required />
+      <div className="carbon-form-grid carbon-form-grid--two">
+        <TextInput id="contact-first-name" name="firstName" labelText="First name" autoComplete="given-name" defaultValue={editing?.first_name || ""} invalid={invalid("firstName")} invalidText="Enter a first name." required />
+        <TextInput id="contact-last-name" name="lastName" labelText="Last name" autoComplete="family-name" defaultValue={editing?.last_name || ""} invalid={invalid("lastName")} invalidText="Enter a last name." required />
+      </div>
+      <TextInput id="contact-company" name="companyName" labelText="Company" autoComplete="organization" defaultValue={editing?.company_name || ""} />
+      <TextInput id="contact-email" name="email" type="email" labelText="Email" autoComplete="email" defaultValue={editing?.email || ""} invalid={invalid("email")} invalidText="Enter a valid email address." required />
+      <div className="carbon-form-grid carbon-form-grid--two">
+        <TextInput id="contact-dial-code" name="phoneCountryCode" labelText="Country calling code" helperText="Digits only, without the + sign." inputMode="numeric" pattern="[0-9]{1,3}" maxLength={3} autoComplete="tel-country-code" placeholder="237" defaultValue={editing?.phone_country_code || "237"} invalid={invalid("phoneCountryCode")} invalidText="Enter one to three digits." required />
+        <TextInput id="contact-phone" name="phone" type="tel" labelText="Phone number" helperText="Local number only." autoComplete="tel" placeholder="670000000" defaultValue={editing?.phone || ""} invalid={invalid("phone")} invalidText="Enter a phone number." required />
+      </div>
+      <TextInput id="contact-address" name="address" labelText="Address" autoComplete="street-address" defaultValue={editing?.address || ""} invalid={invalid("address")} invalidText="Enter an address." required />
+      <div className="carbon-form-grid carbon-form-grid--two">
+        <TextInput id="contact-city" name="city" labelText="City" autoComplete="address-level2" defaultValue={editing?.city || ""} invalid={invalid("city")} invalidText="Enter a city." required />
+        <TextInput id="contact-state" name="state" labelText="State or region" autoComplete="address-level1" defaultValue={editing?.state || ""} invalid={invalid("state")} invalidText="Enter a state or region." required />
+      </div>
+      <div className="carbon-form-grid carbon-form-grid--two">
+        <TextInput id="contact-postal" name="postalCode" labelText="Postal code" autoComplete="postal-code" defaultValue={editing?.postal_code || ""} invalid={invalid("postalCode")} invalidText="Enter a postal code." required />
+        <Select id="contact-country" name="country" labelText="Country" helperText="Select the registrant's two-letter country code." defaultValue={String(editing?.country || "CM").toUpperCase()} invalid={invalid("country")} invalidText="Select a two-letter country code." required>
+          <SelectItem value="" text="Select a country" />
+          {COUNTRY_CODES.map((code) => <SelectItem key={code} value={code} text={code} />)}
+        </Select>
+      </div>
+      <Checkbox id="contact-default" name="isDefault" labelText="Use as the default contact" defaultChecked={editing?.is_default ?? true} />
+      <div className="heading-actions"><Button type="submit" disabled={save.isPending}>{save.isPending ? "Saving…" : editing ? "Save contact" : "Create contact"}</Button>{editing ? <Button type="button" kind="secondary" onClick={() => { setEditing(null); setInvalidFields([]); }}>Cancel</Button> : null}</div>
     </form></Tile></Column>
-    <Column sm={4} md={8} lg={9}><Tile className="carbon-dashboard-panel"><h2>Saved contacts</h2>{verify.isSuccess ? <InfoNotice kind="success" title="Contact is complete" subtitle={verify.data.message} /> : null}{query.isPending ? <LoadingBlock /> : query.data?.contacts.length ? <div className="carbon-activity-list">{query.data.contacts.map((contact) => <Tile className="carbon-contact-row" key={contact.id}><div><strong>{contactName(contact)}</strong><span>{contact.email} · {contact.country}</span><small>{contact.registrar_verified ? "Provider handle verified" : "DomainNameAPI validates this inline when it is submitted"}</small></div><div className="heading-actions">{!contact.registrar_verified ? <Button kind="tertiary" size="sm" disabled={verify.isPending} onClick={() => verify.mutate(contact.id)}>Check readiness</Button> : null}<Button kind="ghost" size="sm" onClick={() => setEditing(contact)}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setRemoveTarget(contact)}>Delete</Button></div></Tile>)}</div> : <EmptyState title="No contacts" text="Create a WHOIS contact before ordering a domain." />}</Tile></Column></Grid>
+    <Column sm={4} md={8} lg={9}><Tile className="carbon-dashboard-panel"><h2>Saved contacts</h2>{verify.isSuccess ? <InfoNotice kind="success" title="Contact is complete" subtitle={verify.data.message} /> : null}{query.isPending ? <LoadingBlock /> : query.data?.contacts.length ? <div className="carbon-activity-list">{query.data.contacts.map((contact) => <Tile className="carbon-contact-row" key={contact.id}><div><strong>{contactName(contact)}</strong><span>{contact.email} · {contact.country}</span><small>{contact.registrar_verified ? "Ready to use" : "This contact will be checked when you place an order"}</small></div><div className="heading-actions">{!contact.registrar_verified ? <Button kind="tertiary" size="sm" disabled={verify.isPending} onClick={() => verify.mutate(contact.id)}>Check readiness</Button> : null}<Button kind="ghost" size="sm" onClick={() => { setEditing(contact); setInvalidFields([]); }}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setRemoveTarget(contact)}>Delete</Button></div></Tile>)}</div> : <EmptyState title="No contacts" text="Create a WHOIS contact before ordering a domain." />}</Tile></Column></Grid>
     <Modal
       open={Boolean(removeTarget)}
       danger
