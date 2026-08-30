@@ -26,10 +26,20 @@ async function auth(req: Request) {
   if (ue || !u || u.status !== "active" || Number(u.session_version) !== Number(s.session_version)) throw new HttpError(401, "invalid_session", "Session expired or invalid.");
   return u as Json;
 }
+function publicInvoice(value: Json): Json {
+  return {
+    id: value.id,
+    invoice_number: clean(value.invoice_number),
+    issued_at: value.issued_at || null,
+    amount_usd: Number(value.amount_usd || 0),
+    amount_xaf: Number(value.amount_xaf || 0),
+    status: clean(value.status) || "issued",
+  };
+}
 async function invoiceList(userId: string) {
   const { data, error } = await db.from("domain_billing_documents").select("*").eq("user_id", userId).order("issued_at", { ascending: false }).limit(100);
   if (error) throw error;
-  return data || [];
+  return (data || []).map((item) => publicInvoice(item as Json));
 }
 async function loadByInvoice(userId: string, invoiceId: string) {
   const { data: invoice, error } = await db.from("domain_invoices").select("*").eq("id", invoiceId).eq("user_id", userId).maybeSingle();
@@ -101,7 +111,7 @@ Deno.serve(async (req: Request) => {
     if (req.method === "GET" && rec) { const b = await loadByOrder(user.id, rec[1]); return pdfResponse(await pdfBuffer("receipt", b), `${b.order.order_number}-receipt.pdf`); }
     return json({ error:"not_found", message:"Endpoint not found." }, 404);
   } catch (e) {
-    if (e instanceof HttpError) return json({ error:e.code, message:e.message, details:e.details }, e.status);
-    console.error(e); return json({ error:"internal_error", message:e instanceof Error ? e.message : "Unexpected error." }, 500);
+    if (e instanceof HttpError) return json({ error:e.code, message:e.message }, e.status);
+    console.error(e); return json({ error:"internal_error", message:"The document service could not complete this request." }, 500);
   }
 });
