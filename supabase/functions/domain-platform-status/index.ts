@@ -36,16 +36,11 @@ Deno.serve(async (req) => {
     testMode: environment === "ote",
     registrarEnvironment: environment,
     customerCheckoutEnvironment: environment,
-    providerBalanceSource: "DomainNameAPI deposit/accounts/me usdBalance",
-    customerBillingSource: "KmerHosting customer credit ledger",
-    paymentMode: data.payment_mode || "wallet_only",
-    topupMode: data.wallet_topup_mode || "manual_support",
-    realProviderChargesPossible: checkoutEnabled && liveMode,
     message: maintenanceMode
       ? (data.checkout_pause_message || "Domain ordering is temporarily unavailable during maintenance.")
       : liveMode
-        ? "LIVE / Production: new orders use the real DomainNameAPI production environment and reseller usdBalance."
-        : "TEST / OTE: new orders use the DomainNameAPI OTE environment and do not create real registrations.",
+        ? "New domain orders are processed in live mode."
+        : "New domain orders are currently using test mode. No live registration is created.",
     supportEmail: data.support_email || "support@kmerhosting.com",
   });
 });
