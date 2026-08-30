@@ -356,7 +356,7 @@ function managedStatus(d: Json, cfg: Json, providerConfirmed = true) {
     currentNameservers: current,
     managedNameservers: managed,
     dnsManagedActive: same,
-    providerConfirmed,
+    domainConfirmed: providerConfirmed,
     warning: !providerConfirmed
       ? "This domain is not present in the active registrar environment. DNS operations are disabled."
       : same
@@ -400,7 +400,7 @@ function publicRecord(value: Json | null): Json | null {
     flag: value.flag == null ? null : Number(value.flag),
     tag: clean(value.tag) || null,
     status: clean(value.status) || "pending",
-    source: clean(value.source) || "local",
+    source: clean(value.source) === "provider" ? "synced" : clean(value.source) || "local",
     synced_at: value.synced_at || null,
     updated_at: value.updated_at || null,
   };
@@ -592,8 +592,8 @@ async function listDns(req: Request, u: Json, id: string) {
     records: records.map(publicRecord).filter(Boolean),
     dns: managedStatus(d, cfg, providerConfirmed),
     synced,
-    providerSyncAt: d.metadata?.lastDnsSyncAt || null,
-    providerError,
+    lastRefreshedAt: d.metadata?.lastDnsSyncAt || null,
+    syncError: providerError,
     currentEnvironment: cfg.registrar_environment,
   });
 }
@@ -607,7 +607,7 @@ async function syncDns(req: Request, u: Json, id: string) {
     success: true,
     imported: result.records.length,
     records: result.records.map(publicRecord).filter(Boolean),
-    providerSyncAt: result.syncAt,
+    lastRefreshedAt: result.syncAt,
   });
 }
 function zoneStruct(r: Json) {
@@ -814,7 +814,7 @@ async function retryRecord(
     success: true,
     record: publicRecord(record),
     deleted: !record && r.last_operation === "delete",
-    providerSyncAt: result.syncAt,
+    lastRefreshedAt: result.syncAt,
   });
 }
 function normalizeNameservers(values: unknown) {
