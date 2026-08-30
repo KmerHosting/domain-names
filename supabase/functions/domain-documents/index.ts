@@ -111,7 +111,7 @@ Deno.serve(async (req: Request) => {
     if (req.method === "GET" && rec) { const b = await loadByOrder(user.id, rec[1]); return pdfResponse(await pdfBuffer("receipt", b), `${b.order.order_number}-receipt.pdf`); }
     return json({ error:"not_found", message:"Endpoint not found." }, 404);
   } catch (e) {
-    if (e instanceof HttpError) return json({ error:e.code, message:e.message }, e.status);
+    if (e instanceof HttpError && e.status < 500) return json({ error:e.code, message:e.message }, e.status);
     console.error(e); return json({ error:"internal_error", message:"The document service could not complete this request." }, 500);
   }
 });
