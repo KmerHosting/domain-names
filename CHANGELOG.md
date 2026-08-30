@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.7](https://github.com/KmerHosting/domain-names/compare/v1.5.6...v1.5.7) (2026-08-30)
+
+
+### Bug Fixes
+
+* center domain search hero title ([aa38d4f](https://github.com/KmerHosting/domain-names/commit/aa38d4f1649176db694993eaaa3d2d7d8df3303e))
+* center domain search hero title ([5eb882d](https://github.com/KmerHosting/domain-names/commit/5eb882df4f16b596f46d06d90ed31e868f01a3c0))
+
 ## [1.5.6](https://github.com/KmerHosting/domain-names/compare/v1.5.5...v1.5.6) (2026-08-30)
 
 
