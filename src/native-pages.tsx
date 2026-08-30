@@ -59,6 +59,12 @@ function validHostname(value: string): boolean {
   );
 }
 
+function validChildHostname(value: string, domainName: string): boolean {
+  const host = value.trim().toLowerCase().replace(/\.$/, "");
+  const domain = domainName.trim().toLowerCase().replace(/\.$/, "");
+  return validHostname(host) && (!host.includes(".") || host.endsWith("." + domain));
+}
+
 function validIpAddress(value: string): boolean {
   const ip = value.trim();
   if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
@@ -154,6 +160,7 @@ function GlueHosts({ domainId, domainName }: { domainId: string; domainName: str
   const remove = useMutation({ mutationFn: (id: string) => customerToolsApi(`/domains/${domainId}/glue-hosts/${id}`, { method: "DELETE" }), onSuccess: () => client.invalidateQueries({ queryKey: ["glue-hosts", domainId] }) });
   const [editingHost, setEditingHost] = useState<Row | null>(null);
   const [editIps, setEditIps] = useState("");
+  const [editIpsAttempted, setEditIpsAttempted] = useState(false);
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
   const [glueHost, setGlueHost] = useState("");
   const [glueIps, setGlueIps] = useState("");
@@ -163,13 +170,13 @@ function GlueHosts({ domainId, domainName }: { domainId: string; domainName: str
     setGlueAttempted(true);
     const hostName = glueHost.trim();
     const ipAddresses = glueIps.split(/[\s,]+/).map((value) => value.trim()).filter(Boolean);
-    if (!validHostname(hostName) || ipAddresses.length === 0 || ipAddresses.some((value) => !validIpAddress(value))) return;
+    if (!validChildHostname(hostName, domainName) || ipAddresses.length === 0 || ipAddresses.some((value) => !validIpAddress(value))) return;
     add.mutate({ hostName, ipAddresses });
     setGlueHost("");
     setGlueIps("");
     event.currentTarget.reset();
   };
-  return <Tile className="carbon-dashboard-panel carbon-table-section"><div className="card-heading"><div><h2>Child nameservers / glue hosts</h2><p>Use a full child hostname under {domainName} and one or more IPv4/IPv6 addresses.</p></div></div><form className="carbon-glue-form" onSubmit={submit} noValidate><TextInput id="glue-host" name="hostName" labelText="Host name" helperText={`Use a hostname under ${domainName}.`} value={glueHost} onChange={(event) => setGlueHost(event.target.value)} placeholder={`ns1.${domainName}`} required invalid={glueAttempted && !validHostname(glueHost)} invalidText="Enter a valid host name." /><TextInput id="glue-ips" name="ipAddresses" labelText="IP addresses" helperText="Separate multiple IPv4 or IPv6 addresses with commas." value={glueIps} onChange={(event) => setGlueIps(event.target.value)} placeholder="192.0.2.10, 2001:db8::10" required invalid={glueAttempted && (glueIps.split(/[\s,]+/).filter(Boolean).length === 0 || glueIps.split(/[\s,]+/).filter(Boolean).some((value) => !validIpAddress(value)))} invalidText="Enter valid IPv4 or IPv6 addresses." /><Button type="submit" disabled={add.isPending}>Add</Button></form>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : (query.data?.glueHosts || []).length ? <Table size="lg"><TableHead><TableRow><TableHeader>Host</TableHeader><TableHeader>IP addresses</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{(query.data?.glueHosts || []).map((host) => <TableRow key={host.id}><TableCell>{host.host_name}</TableCell><TableCell>{(host.ip_addresses || []).join(", ")}</TableCell><TableCell><Badge value={host.status} /></TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => { setEditingHost(host); setEditIps((host.ip_addresses || []).join(", ")); }}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setDeleteTarget(host)}>Delete</Button></div></TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No glue hosts</h3><p>Add a child nameserver when your domain needs registrar glue records.</p></Tile>}{add.isError || edit.isError || remove.isError ? <ErrorNotice error={add.error || edit.error || remove.error} /> : null}
+  return <Tile className="carbon-dashboard-panel carbon-table-section"><div className="card-heading"><div><h2>Child nameservers / glue hosts</h2><p>Use a full child hostname under {domainName} and one or more IPv4/IPv6 addresses.</p></div></div><form className="carbon-glue-form" onSubmit={submit} noValidate><TextInput id="glue-host" name="hostName" labelText="Host name" helperText={`Use a hostname under ${domainName}.`} value={glueHost} onChange={(event) => setGlueHost(event.target.value)} placeholder={`ns1.${domainName}`} required invalid={glueAttempted && !validChildHostname(glueHost, domainName)} invalidText={`Enter a valid child host under ${domainName}.`} /><TextInput id="glue-ips" name="ipAddresses" labelText="IP addresses" helperText="Separate multiple IPv4 or IPv6 addresses with commas." value={glueIps} onChange={(event) => setGlueIps(event.target.value)} placeholder="192.0.2.10, 2001:db8::10" required invalid={glueAttempted && (glueIps.split(/[\s,]+/).filter(Boolean).length === 0 || glueIps.split(/[\s,]+/).filter(Boolean).some((value) => !validIpAddress(value)))} invalidText="Enter valid IPv4 or IPv6 addresses." /><Button type="submit" disabled={add.isPending}>Add</Button></form>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : (query.data?.glueHosts || []).length ? <Table size="lg"><TableHead><TableRow><TableHeader>Host</TableHeader><TableHeader>IP addresses</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{(query.data?.glueHosts || []).map((host) => <TableRow key={host.id}><TableCell>{host.host_name}</TableCell><TableCell>{(host.ip_addresses || []).join(", ")}</TableCell><TableCell><Badge value={host.status} /></TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => { setEditingHost(host); setEditIps((host.ip_addresses || []).join(", ")); setEditIpsAttempted(false); }}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setDeleteTarget(host)}>Delete</Button></div></TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No glue hosts</h3><p>Add a child nameserver when your domain needs registrar glue records.</p></Tile>}{add.isError || edit.isError || remove.isError ? <ErrorNotice error={add.error || edit.error || remove.error} /> : null}
     <Modal
       open={Boolean(editingHost)}
       modalHeading="Edit child nameserver"
@@ -179,8 +186,11 @@ function GlueHosts({ domainId, domainName }: { domainId: string; domainName: str
       onRequestClose={() => setEditingHost(null)}
       onRequestSubmit={() => {
         if (!editingHost) return;
+        setEditIpsAttempted(true);
+        const ips = editIps.split(/[\s,]+/).map((value) => value.trim()).filter(Boolean);
+        if (!ips.length || ips.some((value) => !validIpAddress(value))) return;
         edit.mutate(
-          { id: editingHost.id, name: editingHost.host_name, ips: editIps.split(/[\s,]+/).filter(Boolean) },
+          { id: editingHost.id, name: editingHost.host_name, ips },
           { onSettled: () => setEditingHost(null) },
         );
       }}
@@ -192,6 +202,8 @@ function GlueHosts({ domainId, domainName }: { domainId: string; domainName: str
         helperText="Separate multiple addresses with spaces or commas."
         value={editIps}
         onChange={(event) => setEditIps(event.target.value)}
+        invalid={editIpsAttempted && (!editIps.trim() || editIps.split(/[\s,]+/).filter(Boolean).some((value) => !validIpAddress(value)))}
+        invalidText="Enter valid IPv4 or IPv6 addresses."
       />
     </Modal>
     <Modal
