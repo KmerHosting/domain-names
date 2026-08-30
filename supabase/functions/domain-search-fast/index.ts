@@ -68,6 +68,12 @@ function json(req: Request, body: unknown, status = 200) {
   return new Response(JSON.stringify(body), { status, headers: cors(req) });
 }
 
+function publicErrorMessage(error: HttpError): string {
+  return /^registrar_/.test(error.code)
+    ? "Domain search is temporarily unavailable. Try again shortly."
+    : error.message;
+}
+
 function normalizeDomain(value: unknown) {
   return clean(value)
     .toLowerCase()
@@ -148,7 +154,7 @@ async function registrar(config: RegistrarConfig, path: string, method = "GET", 
   const status = Number(envelope.status || 0);
   const payload = (envelope.body || {}) as Json;
   if (!status || status < 200 || status >= 300) {
-    const message = clean(payload?.error?.message || payload?.error?.details || payload?.message || payload?.details || payload?.title || payload?.raw) || "The domain service could not complete this request." ;
+    const message = clean(payload?.error?.message || payload?.error?.details || payload?.message || payload?.details || payload?.title || payload?.raw) || "The domain service could not complete this request.";
     throw new HttpError(status >= 500 ? 502 : status || 502, "registrar_error", message, {
       providerHttpStatus: status || null,
       providerBody: payload,
@@ -324,8 +330,6 @@ Deno.serve(async (req) => {
       return json(req, {
         ok: true,
         service: "KmerHosting Bulk Domain Search",
-        dnaVersion: "3.0.1",
-        endpoints: ["domains/bulk-search"],
         priceSource: "Current domain catalog",
         maxDomains: 20,
         timestamp: now(),
@@ -334,8 +338,8 @@ Deno.serve(async (req) => {
     if (req.method === "POST") return await check(req);
     throw new HttpError(405, "method_not_allowed", "Method not allowed.");
   } catch (error) {
-    if (error instanceof HttpError) return json(req, { error: error.code, message: error.message }, error.status);
+    if (error instanceof HttpError) return json(req, { error: error.code, message: publicErrorMessage(error) }, error.status);
     console.error(error);
-    return json(req, { error: "internal_error", message: error instanceof Error ? error.message : "Unexpected error." }, 500);
+    return json(req, { error: "internal_error", message: "The domain service could not complete this request." }, 500);
   }
 });
