@@ -18,7 +18,7 @@ async function directCatalog() {
   const environment = clean(cfg.registrar_environment).toLowerCase() === "ote" ? "ote" : "production";
   const payload = await registrarCall("/api/v1/products/tlds", "GET", undefined, { Currency: "USD", SkipCount: 0, MaxResultCount: 1000 });
   const prices = normalizeDnaCatalog(payload, environment);
-  if (!prices.length) throw new ApiError(502, "provider_catalog_empty", "DomainNameAPI returned an empty TLD catalog.");
+  if (!prices.length) throw new ApiError(502, "provider_catalog_empty", "Domain pricing is temporarily unavailable.");
   return { environment, prices };
 }
 
@@ -196,7 +196,9 @@ function publicPayment(value: Json | null): Json | null {
     order_id: value.order_id,
     status: clean(value.status) || "pending",
     amount_usd: Number(value.amount_usd || 0),
-    currency: clean(value.currency).toUpperCase() || "USD",
+    amount_xaf: Number(value.amount_xaf || 0),
+    currency: clean(value.currency).toUpperCase() || "XAF",
+    payment_method: clean(value.payment_method) || null,
     created_at: value.created_at || null,
     paid_at: value.paid_at || null,
   };
@@ -387,7 +389,7 @@ async function createOrder(req: Request, type: "registration" | "transfer" | "re
   const amountXaf = Math.ceil(priceUsd * cfg.usd_to_xaf_rate);
   const idempotency = clean(req.headers.get("idempotency-key")) || clean(body.idempotencyKey) || randomReference("IDEMP");
   const existing = await db.from("domain_orders").select("*").eq("user_id", auth.user.id).eq("idempotency_key", idempotency).maybeSingle();
-  if (existing.data) return json(req, { order: existing.data, reused: true });
+  if (existing.data) return json(req, { order: publicOrder(existing.data as Json), reused: true });
   const prefix = type === "registration" ? "KHD-REG" : type === "transfer" ? "KHD-TRN" : "KHD-REN";
   const authCode = type === "transfer" ? clean(body.authCode) : "";
   if (type === "transfer" && (authCode.length < 4 || authCode.length > 128)) throw new ApiError(400, "auth_code_required", "A valid EPP/auth code is required.");
@@ -401,7 +403,7 @@ async function createOrder(req: Request, type: "registration" | "transfer" | "re
   }).select("*").single();
   if (error || !order) throw new ApiError(500, "order_create_failed", "Unable to create order.", error);
   await audit(req, `order.${type}.created`, auth.user.id, "order", order.id, { domainName });
-  return json(req, { order }, 201);
+  return json(req, { order: publicOrder(order as Json) }, 201);
 }
 
 async function checkout(req: Request, auth: Json, orderId: string): Promise<Response> {
@@ -410,8 +412,8 @@ async function checkout(req: Request, auth: Json, orderId: string): Promise<Resp
   if (error || !order) throw new ApiError(404, "order_not_found", "Order not found.");
   if (order.status === "completed") throw new ApiError(409, "order_completed", "This order is already completed.");
   const existing = await db.from("domain_payments").select("*").eq("order_id", order.id).in("status", ["pending","processing","paid"]).order("created_at", { ascending: false }).limit(1);
-  if (existing.data?.[0]?.status === "paid") return json(req, { payment: existing.data[0] });
-  if (existing.data?.[0]?.checkout_url) return json(req, { payment: existing.data[0], reused: true });
+  if (existing.data?.[0]?.status === "paid") return json(req, { payment: publicPayment(existing.data[0] as Json) });
+  if (existing.data?.[0]?.checkout_url) return json(req, { payment: publicPayment(existing.data[0] as Json), reused: true });
   const invoice = newInvoiceId();
   const phone = normalizePhone(body.phone || order.domain_users.phone);
   if (phone.length < 9) throw new ApiError(400, "phone_required", "A valid payment phone number is required.");
@@ -438,7 +440,7 @@ async function checkout(req: Request, auth: Json, orderId: string): Promise<Resp
         p_payload: { paymentId: payment.id }, p_run_after: new Date(Date.now() + 120_000).toISOString(),
       });
     }
-    return json(req, { payment: updated.data });
+    return json(req, { payment: publicPayment(updated.data as Json) });
   } catch (providerError) {
     await db.from("domain_payments").update({ status: "failed", raw_payload: { error: providerError instanceof Error ? providerError.message : "Payment initiation failed" } }).eq("id", payment.id);
     throw providerError;
@@ -611,7 +613,7 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
     const b = await bodyJson(req);
     const result = await db.from("domain_domains").update({ auto_renew: Boolean(b.enabled) }).eq("id", autoMatch[1]).eq("user_id", auth.user.id).select("*").single();
     if (result.error) throw new ApiError(404, "domain_not_found", "Domain not found.");
-    return json(req, { domain: result.data });
+    return json(req, { domain: publicDomain(result.data as Json) });
   }
   const nsMatch = path.match(/^\/domains\/([0-9a-f-]+)\/nameservers$/i);
   if (nsMatch && req.method === "PUT") {
