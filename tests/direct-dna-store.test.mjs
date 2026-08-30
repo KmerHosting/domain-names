@@ -85,7 +85,7 @@ test('OTE orders expose a guarded DNA retry action', async () => {
   assert.match(backend, /status: "pending", run_after: now/)
   assert.match(backend, /\.eq\("status", "failed"\)/)
   assert.match(backend, /retry_ote_only/)
-  assert.match(router, /Retry DNA operation/)
+  assert.match(router, /Retry operation/)
   assert.match(router, /api\(`\/orders\/\$\{orderId\}\/retry`, \{ method: "POST" \}\)/)
 })
 
