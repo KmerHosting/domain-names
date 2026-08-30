@@ -188,33 +188,28 @@ a {
   margin: 0;
   padding: spacing.$spacing-07 spacing.$spacing-05 spacing.$spacing-09;
   background: var(--cds-background);
-
-  @include breakpoint.breakpoint('md') {
-    padding-inline: spacing.$spacing-07;
-  }
-
-  @include breakpoint.breakpoint('lg') {
-    padding-inline: spacing.$spacing-08;
-  }
 }
 
 .container {
   inline-size: 100%;
   max-inline-size: 99rem;
   margin-inline: auto;
+  // Carbon's page grid keeps a stable 16px outer keyline at every breakpoint.
   padding-inline: spacing.$spacing-05;
-
-  @include breakpoint.breakpoint('md') {
-    padding-inline: spacing.$spacing-07;
-  }
-
-  @include breakpoint.breakpoint('lg') {
-    padding-inline: spacing.$spacing-08;
-  }
 }
 
 .container.narrow {
   max-inline-size: 48rem;
+}
+
+.container > .cds--grid,
+.container > .carbon-card-grid,
+.container > .carbon-metric-grid,
+.container > .carbon-dashboard-grid,
+.container > .carbon-purchase-grid,
+.dashboard-content > .cds--grid,
+.native-page > .cds--grid {
+  margin-inline: calc(-1 * spacing.$spacing-05);
 }
 
 .page-heading,
