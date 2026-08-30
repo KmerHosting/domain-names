@@ -3,7 +3,7 @@ import {
   ApiError, Json, audit, bodyJson, clean, clientIp, createSession, db, encryptSensitive,
   enforceRateLimit, functionPath, getConfig, getSecret, getTld, hashPassword, json,
   normalizeDomain, normalizeEmail, normalizePhone, notify, publicUser, queueEmail,
-  randomCode, randomReference, requireAuth, runtimeStatus, sendOtp, sha256, userAgent,
+  randomCode, randomReference, requireAuth, sendOtp, sha256, userAgent,
   validDomain, validEmail, verifyPassword,
 } from "./core.ts";
 import {
@@ -204,10 +204,31 @@ function publicPayment(value: Json | null): Json | null {
   };
 }
 
+function publicErrorMessage(error: ApiError): string {
+  switch (error.code) {
+    case "provider_domain_exists":
+      return "This order cannot be retried because the domain is already registered.";
+    case "period_price_missing":
+      return "That period is not available for this domain.";
+    case "premium_price_missing":
+      return "The exact price for this domain is temporarily unavailable.";
+    case "provider_usd_balance_low":
+    case "provider_usd_balance_unreadable":
+    case "price_margin_invalid":
+      return "This order cannot be completed right now. No charge was made.";
+    case "restore_not_supported":
+      return "Domain restoration is temporarily unavailable. No charge was made.";
+    default:
+      return /DomainNameAPI|provider|usdBalance|margin|markup|cost/i.test(error.message)
+        ? "The domain service is temporarily unavailable. No charge was made."
+        : error.message;
+  }
+}
+
 function errorResponse(req: Request, error: unknown): Response {
-  if (error instanceof ApiError) return json(req, { error: error.code, message: error.message }, error.status);
+  if (error instanceof ApiError) return json(req, { error: error.code, message: publicErrorMessage(error) }, error.status);
   console.error(error);
-  return json(req, { error: "internal_error", message: error instanceof Error ? error.message : "Unexpected server error." }, 500);
+  return json(req, { error: "internal_error", message: "The domain service could not complete this request." }, 500);
 }
 
 async function requestOtp(req: Request, purpose: string, body: Json): Promise<Response> {
@@ -727,7 +748,7 @@ async function publicRoutes(req: Request, path: string): Promise<Response | null
     return json(req, {
       ok: true, service: "KmerHosting Domains API", company: cfg.company_name,
       environment: cfg.registrar_environment, maintenance: cfg.maintenance_mode,
-      runtime: await runtimeStatus(), timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString(),
     });
   }
   if (req.method === "GET" && path === "/prices") {
