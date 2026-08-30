@@ -154,7 +154,7 @@ function publicDnsRecord(value: Json | null): Json | null {
     flag: value.flag == null ? null : Number(value.flag),
     tag: clean(value.tag) || null,
     status: clean(value.status) || "pending",
-    source: clean(value.source) || "local",
+    source: clean(value.source) === "provider" ? "synced" : clean(value.source) || "local",
     synced_at: value.synced_at || null,
     updated_at: value.updated_at || null,
   };
