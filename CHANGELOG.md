@@ -1,5 +1,28 @@
 # Changelog
 
+## [1.5.6](https://github.com/KmerHosting/domain-names/compare/v1.5.5...v1.5.6) (2026-08-30)
+
+
+### Bug Fixes
+
+* align domain portal with Carbon and hide provider internals ([18eca2a](https://github.com/KmerHosting/domain-names/commit/18eca2a5ed3b8b34d30cc2d47f9e3879a3383247))
+* align page containers to Carbon grid keylines ([2b33954](https://github.com/KmerHosting/domain-names/commit/2b339548af5a97efb50f23b45a06894a1284bd81))
+* expose only customer prices in public domain API responses ([b700f37](https://github.com/KmerHosting/domain-names/commit/b700f37b027eb872365ba9036380565b0f6cff33))
+* keep DNS tool responses customer safe ([313bda8](https://github.com/KmerHosting/domain-names/commit/313bda856c85090dfb47ca70de96f8295c503afe))
+* keep provider pricing internal to the domain search API ([8dd3f20](https://github.com/KmerHosting/domain-names/commit/8dd3f20da60404752235de424397797a2582e6d8))
+* keep public platform status customer-facing ([0261819](https://github.com/KmerHosting/domain-names/commit/026181903dd4d6e4901f88be320ab2b2e50910f4))
+* remove Carbon Search overrides and normalize form grid ([88ec088](https://github.com/KmerHosting/domain-names/commit/88ec088db616241f7beeb4e0f7d3d4b73a60cd74))
+* remove provider payloads from customer domain tools ([db13cbe](https://github.com/KmerHosting/domain-names/commit/db13cbe94a0a5446b268f6bb0cb3ea3b3b9b163d))
+* return only customer-safe order data ([82184ad](https://github.com/KmerHosting/domain-names/commit/82184ad151999a90b593c740a6235c5b83e5650e))
+* sanitize customer notifications ([c73bc9c](https://github.com/KmerHosting/domain-names/commit/c73bc9c31554d471b27e75339dfdef08b271782e))
+* sanitize legacy domain API responses ([5115f21](https://github.com/KmerHosting/domain-names/commit/5115f2144a4506cbd5e67a37faa1bf757efce552))
+* strip provider data at DNS proxy boundary ([1b2074f](https://github.com/KmerHosting/domain-names/commit/1b2074fc5139f6d8b46254a0ab1e2447c15410b2))
+* strip provider data at DNS proxy boundary ([f4b0e8e](https://github.com/KmerHosting/domain-names/commit/f4b0e8e5a17168d31771cd207ecd0811e7348350))
+* strip provider data at DNS proxy boundary ([f75e297](https://github.com/KmerHosting/domain-names/commit/f75e2976f968d3e11739d0402f9d6880d37e47c4))
+* use skeletons without full-screen spinner overlay ([2271d1d](https://github.com/KmerHosting/domain-names/commit/2271d1da5a0714fb3135087cb8749db5cc0bf307))
+* validate DNS names and numeric fields in Carbon forms ([cae7767](https://github.com/KmerHosting/domain-names/commit/cae77674484f098d0bbbcec711caed1f53be6035))
+* validate glue host and IP fields in Carbon forms ([a9ff0ea](https://github.com/KmerHosting/domain-names/commit/a9ff0eaaa308401413d050ee25169349fd0615f3))
+
 ## [1.5.5](https://github.com/KmerHosting/domain-names/compare/v1.5.4...v1.5.5) (2026-08-29)
 
 
