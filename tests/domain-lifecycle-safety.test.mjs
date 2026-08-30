@@ -24,7 +24,7 @@ describe("domain lifecycle safety", () => {
 
   test("unsupported restore is represented as unavailable instead of a broken action", () => {
     const source = read("../src/native-pages.tsx");
-    expect(source).toContain("Unavailable from provider API");
+    expect(source).toContain("Restoration is not currently available for this domain.");
     expect(source).not.toContain('getQuote.mutate("restore")');
     expect(source).not.toContain('createOrder.mutate(quote.operation)');
   });
