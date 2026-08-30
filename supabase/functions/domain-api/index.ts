@@ -219,7 +219,7 @@ function publicErrorMessage(error: ApiError): string {
     case "restore_not_supported":
       return "Domain restoration is temporarily unavailable. No charge was made.";
     default:
-      return /DomainNameAPI|provider|usdBalance|margin|markup|cost/i.test(error.message)
+      return error.status >= 500 || /DomainNameAPI|provider|usdBalance|margin|markup|cost|secret/i.test(error.message)
         ? "The domain service is temporarily unavailable. No charge was made."
         : error.message;
   }
