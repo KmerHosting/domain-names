@@ -148,7 +148,7 @@ async function registrar(config: RegistrarConfig, path: string, method = "GET", 
   const status = Number(envelope.status || 0);
   const payload = (envelope.body || {}) as Json;
   if (!status || status < 200 || status >= 300) {
-    const message = clean(payload?.error?.message || payload?.error?.details || payload?.message || payload?.details || payload?.title || payload?.raw) || `DomainNameAPI request failed (${status || 502}).`;
+    const message = clean(payload?.error?.message || payload?.error?.details || payload?.message || payload?.details || payload?.title || payload?.raw) || "The domain service could not complete this request." ;
     throw new HttpError(status >= 500 ? 502 : status || 502, "registrar_error", message, {
       providerHttpStatus: status || null,
       providerBody: payload,
@@ -296,7 +296,6 @@ async function check(req: Request) {
   return json(req, {
     results: domains.map((domainName) => ordered.get(domainName)).filter(Boolean),
     bulkSearch: supported.length > 1,
-    providerRequestCount: supported.length ? 1 : 0,
     availabilitySource: environment,
     registrarEnvironment: environment,
     requested: normalized.length,
@@ -317,7 +316,7 @@ Deno.serve(async (req) => {
         prices: await publicCatalog(),
         registrarEnvironment: environment,
         testMode: environment === "ote",
-        priceSource: "synchronized DomainNameAPI catalog",
+        priceSource: "Current domain catalog",
         generatedAt: now(),
       });
     }
@@ -327,7 +326,7 @@ Deno.serve(async (req) => {
         service: "KmerHosting Bulk Domain Search",
         dnaVersion: "3.0.1",
         endpoints: ["domains/bulk-search"],
-        priceSource: "synchronized DomainNameAPI catalog",
+        priceSource: "Current domain catalog",
         maxDomains: 20,
         timestamp: now(),
       });
