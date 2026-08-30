@@ -240,6 +240,10 @@ async function ownedDomain(id: string, userId: string, environment: Environment)
 function contactSnapshot(contact: Json) { const { registrar_metadata: _metadata, ...safe } = contact; return safe; }
 async function insertQuote(input: Json, environment: Environment) { const { data, error } = await db.from("domain_provider_quotes").insert({ ...input, registrar_environment: environment, expires_at: new Date(Date.now() + 15 * 60_000).toISOString() }).select("*").single(); if (error || !data) throw new HttpError(500, "quote_create_failed", "Unable to create the exact quote.", error); return data as Json; }
 
+function publicOrderFailure(value: unknown): string | null {
+  return clean(value) ? "This order could not be completed. No charge was made." : null;
+}
+
 function publicOrder(order: Json | null): Json | null {
   if (!order) return null;
   return {
@@ -251,7 +255,7 @@ function publicOrder(order: Json | null): Json | null {
     status: order.status,
     price_usd: order.price_usd,
     created_at: order.created_at,
-    failure_message: order.failure_message || null,
+    failure_message: publicOrderFailure(order.failure_message),
   };
 }
 function customerErrorMessage(error: HttpError): string {
