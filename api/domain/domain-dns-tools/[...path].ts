@@ -168,7 +168,7 @@ export default async function handler(req: Request): Promise<Response> {
     return new Response(
       JSON.stringify({
         error: "dns_proxy_failed",
-        message: error instanceof Error ? error.message : "DNS API proxy failed.",
+        message: "The DNS service could not complete this request.",
       }),
       {
         status: 502,
