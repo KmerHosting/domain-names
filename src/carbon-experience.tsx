@@ -3,7 +3,6 @@ import {
   GlobalTheme,
   Grid,
   Layer,
-  Loading,
   SkeletonPlaceholder,
   SkeletonText,
   Theme,
@@ -98,30 +97,31 @@ function subscribeLocation(callback: () => void) {
 }
 
 export function DomainLoadingScreen({ description = "Loading KmerHosting Domains" }: { description?: string }) {
-  return <div className="domain-loading-stage" aria-live="polite" aria-busy="true">
-    <div className="domain-loading-stage__underlay" aria-hidden="true" inert>
-      <Layer>
-        <div className="domain-loading-stage__header">
-          <SkeletonPlaceholder className="domain-loading-stage__brand" />
-          <SkeletonPlaceholder className="domain-loading-stage__action" />
-        </div>
-        <Grid fullWidth className="domain-loading-stage__grid">
-          <Column sm={4} md={6} lg={10}>
-            <SkeletonText heading width="48%" />
-            <SkeletonText paragraph lineCount={2} width="76%" />
-          </Column>
-          {[0, 1, 2, 3].map((item) => <Column sm={2} md={2} lg={4} key={item}>
-            <Tile className="domain-loading-stage__tile">
-              <SkeletonText width="58%" />
-              <SkeletonText heading width="44%" />
-              <SkeletonText width="82%" />
-            </Tile>
-          </Column>)}
-        </Grid>
-      </Layer>
+  return (
+    <div className="domain-loading-stage" aria-label={description} aria-live="polite" aria-busy="true">
+      <div className="domain-loading-stage__underlay" aria-hidden="true" inert>
+        <Layer>
+          <div className="domain-loading-stage__header">
+            <SkeletonPlaceholder className="domain-loading-stage__brand" />
+            <SkeletonPlaceholder className="domain-loading-stage__action" />
+          </div>
+          <Grid fullWidth className="domain-loading-stage__grid">
+            <Column sm={4} md={6} lg={10}>
+              <SkeletonText heading width="48%" />
+              <SkeletonText paragraph lineCount={2} width="76%" />
+            </Column>
+            {[0, 1, 2, 3].map((item) => <Column sm={2} md={2} lg={4} key={item}>
+              <Tile className="domain-loading-stage__tile">
+                <SkeletonText width="58%" />
+                <SkeletonText heading width="44%" />
+                <SkeletonText width="82%" />
+              </Tile>
+            </Column>)}
+          </Grid>
+        </Layer>
+      </div>
     </div>
-    <Loading active withOverlay description={description} />
-  </div>;
+  );
 }
 
 export function DomainCarbonExperience({ children }: { children: ReactNode }) {
