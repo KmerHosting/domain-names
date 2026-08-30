@@ -43,7 +43,7 @@ function safeDnsRecord(value: Record<string, any> | null): Record<string, any> |
     flag: value.flag == null ? null : Number(value.flag),
     tag: value.tag == null ? null : String(value.tag).trim() || null,
     status: String(value.status || "pending"),
-    source: String(value.source || "local"),
+    source: String(value.source || "local") === "provider" ? "synced" : String(value.source || "local"),
     synced_at: value.synced_at || null,
     updated_at: value.updated_at || null,
   };
@@ -80,7 +80,7 @@ function normalizeDnsPayload(payload: Record<string, any>): Record<string, any> 
       currentNameservers: Array.isArray(payload.dns.currentNameservers) ? payload.dns.currentNameservers.map((item: unknown) => String(item ?? "").trim()).filter(Boolean).slice(0, 13) : [],
       managedNameservers: Array.isArray(payload.dns.managedNameservers) ? payload.dns.managedNameservers.map((item: unknown) => String(item ?? "").trim()).filter(Boolean).slice(0, 13) : [],
       dnsManagedActive: Boolean(payload.dns.dnsManagedActive),
-      providerConfirmed: Boolean(payload.dns.providerConfirmed),
+      domainConfirmed: Boolean(payload.dns.domainConfirmed ?? payload.dns.providerConfirmed),
       warning: payload.dns.warning || null,
     };
   }
@@ -90,8 +90,8 @@ function normalizeDnsPayload(payload: Record<string, any>): Record<string, any> 
     output.synced = Boolean(payload.synced);
     output.managedDns = Boolean(payload.managedDns ?? dns.dnsManagedActive);
     output.warning = payload.warning ?? dns.warning ?? null;
-    output.providerSyncAt = payload.providerSyncAt ?? rawDomain.lastSyncedAt ?? rawDomain.last_synced_at ?? null;
-    output.providerError = payload.providerError ?? null;
+    output.lastRefreshedAt = payload.lastRefreshedAt ?? payload.providerSyncAt ?? rawDomain.lastSyncedAt ?? rawDomain.last_synced_at ?? null;
+    output.syncError = payload.syncError ?? payload.providerError ?? null;
   }
   return output;
 }
