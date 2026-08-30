@@ -26,10 +26,10 @@ type DnsState = {
   domain: { id: string; domainName: string; nameservers: string[]; environment: "production" | "ote" };
   records: Row[];
   synced: boolean;
-  providerError?: string | null;
+  syncError?: string | null;
   managedDns: boolean;
   warning?: string | null;
-  providerSyncAt?: string | null;
+  lastRefreshedAt?: string | null;
 };
 type RecordFormState = {
   name: string;
@@ -256,7 +256,7 @@ export function DnsSettingsPage() {
     </div>
 
     {env === "ote" ? <InlineNotification kind="warning" lowContrast hideCloseButton title="Test domain" subtitle="Changes in this test environment do not affect live DNS or your KmerHosting balance." /> : null}
-    {state?.providerError ? <InlineNotification kind="warning" lowContrast hideCloseButton title="DNS refresh failed" subtitle={`${state.providerError}. Your current records remain visible and were not deleted.`} /> : null}
+    {state?.syncError ? <InlineNotification kind="warning" lowContrast hideCloseButton title="DNS refresh failed" subtitle={`${state.syncError}. Your current records remain visible and were not deleted.`} /> : null}
     {state?.warning ? <InlineNotification kind="warning" lowContrast hideCloseButton title="Nameserver warning" subtitle={state.warning} /> : null}
     {success ? <InlineNotification kind="success" lowContrast hideCloseButton title="Done" subtitle={success} /> : null}
     {error ? <InlineNotification kind="error" lowContrast hideCloseButton title="DNS operation failed" subtitle={error} /> : null}
@@ -289,8 +289,8 @@ export function DnsSettingsPage() {
         </form>
       </Tile></Column>
 
-      <Column sm={4} md={8} lg={16}><Tile className="carbon-dns-panel carbon-table-section"><div className="card-heading"><div><h2>DNS records</h2><p>{state.records.length} DNS record(s).{state.providerSyncAt ? ` Last refreshed ${formatDate(state.providerSyncAt)}.` : " Refresh runs automatically when this page opens."}</p></div>{state.synced ? <Badge value="synced" /> : null}</div>
-        {state.records.length ? <Table size="lg"><TableHead><TableRow><TableHeader>Name</TableHeader><TableHeader>Type</TableHeader><TableHeader>Value</TableHeader><TableHeader>TTL</TableHeader><TableHeader>Status</TableHeader><TableHeader>Source</TableHeader><TableHeader>Synced</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{state.records.map((item) => <TableRow key={item.id}><TableCell>{item.name}</TableCell><TableCell><Tag type="cool-gray">{item.type}</Tag></TableCell><TableCell>{Array.isArray(item.contents) ? item.contents.join(", ") : "—"}</TableCell><TableCell>{item.ttl}</TableCell><TableCell><Badge value={item.status} /></TableCell><TableCell>{item.source === "provider" ? "synced" : item.source || "local"}</TableCell><TableCell>{formatDate(item.synced_at || item.updated_at)}</TableCell><TableCell>{isSystemRecord(item) ? <Tag type="cool-gray">Read only</Tag> : <div className="heading-actions">{["failed", "pending", "deleting"].includes(String(item.status)) ? <Button kind="tertiary" size="sm" disabled={Boolean(busy)} onClick={() => void run(`retry-${item.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${item.id}/retry`, { method: "POST" }), "Pending DNS change applied.")}>Retry apply</Button> : <Button kind="ghost" size="sm" onClick={() => { setEditingId(item.id); setRecord(formFromRecord(item)); }}>Edit</Button>}<Button kind="danger--ghost" size="sm" disabled={Boolean(busy)} onClick={() => setDeleteTarget(item)}>Delete</Button></div>}</TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No DNS records</h3><p>Add a record or refresh DNS data.</p></Tile>}
+      <Column sm={4} md={8} lg={16}><Tile className="carbon-dns-panel carbon-table-section"><div className="card-heading"><div><h2>DNS records</h2><p>{state.records.length} DNS record(s).{state.lastRefreshedAt ? ` Last refreshed ${formatDate(state.lastRefreshedAt)}.` : " Refresh runs automatically when this page opens."}</p></div>{state.synced ? <Badge value="synced" /> : null}</div>
+        {state.records.length ? <Table size="lg"><TableHead><TableRow><TableHeader>Name</TableHeader><TableHeader>Type</TableHeader><TableHeader>Value</TableHeader><TableHeader>TTL</TableHeader><TableHeader>Status</TableHeader><TableHeader>Source</TableHeader><TableHeader>Synced</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{state.records.map((item) => <TableRow key={item.id}><TableCell>{item.name}</TableCell><TableCell><Tag type="cool-gray">{item.type}</Tag></TableCell><TableCell>{Array.isArray(item.contents) ? item.contents.join(", ") : "—"}</TableCell><TableCell>{item.ttl}</TableCell><TableCell><Badge value={item.status} /></TableCell><TableCell>{item.source || "local"}</TableCell><TableCell>{formatDate(item.synced_at || item.updated_at)}</TableCell><TableCell>{isSystemRecord(item) ? <Tag type="cool-gray">Read only</Tag> : <div className="heading-actions">{["failed", "pending", "deleting"].includes(String(item.status)) ? <Button kind="tertiary" size="sm" disabled={Boolean(busy)} onClick={() => void run(`retry-${item.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${item.id}/retry`, { method: "POST" }), "Pending DNS change applied.")}>Retry apply</Button> : <Button kind="ghost" size="sm" onClick={() => { setEditingId(item.id); setRecord(formFromRecord(item)); }}>Edit</Button>}<Button kind="danger--ghost" size="sm" disabled={Boolean(busy)} onClick={() => setDeleteTarget(item)}>Delete</Button></div>}</TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No DNS records</h3><p>Add a record or refresh DNS data.</p></Tile>}
       </Tile></Column>
     </Grid>}
 
