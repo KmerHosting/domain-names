@@ -40,8 +40,8 @@ export function PlatformStatusBanner() {
   const detail = maintenance
     ? String(status.message || "Domain ordering is temporarily unavailable. Registrar operations are paused until maintenance mode is disabled.")
     : live
-      ? "Orders call DomainNameAPI production and debit the central KmerHosting balance."
-      : "Orders call DomainNameAPI OTE, use its test funds and never debit the central KmerHosting balance.";
+      ? "New domain orders are processed in live mode."
+      : "New domain orders are currently using test mode. No live registration is created.";
   const subtitle = maintenance ? `${detail} Support: ${status.supportEmail || "support@kmerhosting.com"}` : detail;
 
   return createElement(InlineNotification, {
