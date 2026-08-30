@@ -69,8 +69,9 @@ function json(req: Request, body: unknown, status = 200) {
 }
 
 function publicErrorMessage(error: HttpError): string {
-  return /^registrar_/.test(error.code)
-    ? "Domain search is temporarily unavailable. Try again shortly."
+  if (/^registrar_/.test(error.code)) return "Domain search is temporarily unavailable. Try again shortly.";
+  return error.status >= 500
+    ? "Domain information is temporarily unavailable. Try again shortly."
     : error.message;
 }
 
