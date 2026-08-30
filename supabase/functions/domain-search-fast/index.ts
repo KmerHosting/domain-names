@@ -201,7 +201,7 @@ function normalizeProviderResult(domainName: string, raw: any, environment: Envi
     domainName,
     available: normalized.available,
     isAvailable: normalized.available,
-    status: normalized.status,
+    status: normalized.known ? normalized.status : "unknown",
     isPremium: premium,
     customerPriceUsd,
     availabilitySource: environment,
