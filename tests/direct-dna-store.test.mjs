@@ -88,3 +88,31 @@ test('OTE orders expose a guarded DNA retry action', async () => {
   assert.match(router, /Retry DNA operation/)
   assert.match(router, /api\(`\/orders\/\$\{orderId\}\/retry`, \{ method: "POST" \}\)/)
 })
+
+
+test('public boundaries hide provider costs, markup metadata, and raw provider payloads', async () => {
+  const search = await read('supabase/functions/domain-search-fast/index.ts')
+  const api = await read('supabase/functions/domain-api/index.ts')
+  const customerTools = await read('supabase/functions/domain-customer-tools/index.ts')
+  const orderGuard = await read('supabase/functions/domain-order-guard/index.ts')
+  assert.match(search, /function publicCatalogPrice/)
+  assert.match(search, /customerPriceUsd/)
+  assert.doesNotMatch(search, /markupPercent/)
+  assert.doesNotMatch(api, /markupPercent/)
+  assert.doesNotMatch(customerTools, /providerCostUsd|markupPercent/)
+  assert.match(orderGuard, /function publicOrder/)
+  assert.doesNotMatch(orderGuard, /return json\(req, \{[\\s\\S]{0,500}providerCostUsd/)
+})
+
+test('route loading is skeleton-only and forms expose Carbon validation controls', async () => {
+  const experience = await read('src/carbon-experience.tsx')
+  const router = await read('src/router.tsx')
+  const styles = await read('src/carbon-product-alignment.scss')
+  assert.doesNotMatch(experience, /withOverlay|<Loading\\b/)
+  assert.match(experience, /SkeletonText/)
+  assert.match(router, /invalidText=/)
+  assert.match(router, /RadioButtonGroup/)
+  assert.match(router, /PasswordInput/)
+  assert.match(router, /carbon-form-grid--two/)
+  assert.doesNotMatch(styles, /cds--search-input[\\s\\S]{0,120}min-block-size:\\s*4rem/)
+})
