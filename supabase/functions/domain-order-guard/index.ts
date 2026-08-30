@@ -240,6 +240,21 @@ async function ownedDomain(id: string, userId: string, environment: Environment)
 function contactSnapshot(contact: Json) { const { registrar_metadata: _metadata, ...safe } = contact; return safe; }
 async function insertQuote(input: Json, environment: Environment) { const { data, error } = await db.from("domain_provider_quotes").insert({ ...input, registrar_environment: environment, expires_at: new Date(Date.now() + 15 * 60_000).toISOString() }).select("*").single(); if (error || !data) throw new HttpError(500, "quote_create_failed", "Unable to create the exact quote.", error); return data as Json; }
 
+function publicOrder(order: Json | null): Json | null {
+  if (!order) return null;
+  return {
+    id: order.id,
+    order_number: order.order_number,
+    type: order.type,
+    domain_name: order.domain_name,
+    registrar_environment: order.registrar_environment,
+    status: order.status,
+    price_usd: order.price_usd,
+    created_at: order.created_at,
+    failure_message: order.failure_message || null,
+  };
+}
+
 async function checkoutOrder(userId: string, orderId: string) {
   const { data, error } = await db.rpc("domain_checkout_direct", { p_user_id: userId, p_order_id: orderId });
   if (error) {
@@ -262,9 +277,9 @@ async function createOrder(req: Request, operation: Operation) {
   const { data: existing } = await db.from("domain_orders").select("*").eq("user_id", user.id).eq("idempotency_key", idempotencyKey).maybeSingle();
   if (existing) {
     if (existing.registrar_environment !== environment) throw new HttpError(409, "idempotency_environment_mismatch", "This request key was already used in another environment.");
-    const checkout = await checkoutOrder(user.id, existing.id);
+    await checkoutOrder(user.id, existing.id);
     const { data: paidOrder } = await db.from("domain_orders").select("*").eq("id", existing.id).single();
-    return json(req, { order: paidOrder || existing, checkout, reused: true, registrarEnvironment: environment, testMode });
+    return json(req, { order: publicOrder(paidOrder || existing), reused: true, registrarEnvironment: environment, testMode });
   }
 
   let domainName = normalizeDomain(body.domainName);
@@ -398,22 +413,10 @@ async function createOrder(req: Request, operation: Operation) {
   });
   if (error || !order) throw new HttpError(500, "order_create_failed", error?.message || "Unable to create the order.", error);
 
-  const checkout = await checkoutOrder(user.id, order.id);
+  await checkoutOrder(user.id, order.id);
   const { data: paidOrder } = await db.from("domain_orders").select("*").eq("id", order.id).single();
 
-  return json(req, {
-    order: paidOrder || order,
-    quote,
-    checkout,
-    billing: {
-      mode: testMode ? "ote_test" : "central_credit",
-      registrarEnvironment: environment,
-      testMode,
-      chargedCentralUsd: testMode ? 0 : customerPrice,
-      balanceSource: testMode ? "DomainNameAPI OTE usdBalance" : "KmerHosting central balance",
-      providerBalanceKind: "DomainNameAPI direct usdBalance",
-    },
-  }, 201);
+  return json(req, { order: publicOrder(paidOrder || order) }, 201);
 }
 
 Deno.serve(async (req) => {
@@ -440,7 +443,7 @@ Deno.serve(async (req) => {
     if (!operation) throw new HttpError(404, "not_found", "Endpoint not found.");
     return await createOrder(req, operation);
   } catch (error) {
-    if (error instanceof HttpError) return json(req, { error: error.code, message: error.message, details: error.details }, error.status);
+    if (error instanceof HttpError) return json(req, { error: error.code, message: error.message }, error.status);
     console.error(error);
     return json(req, { error: "internal_error", message: error instanceof Error ? error.message : "Unexpected error." }, 500);
   }
