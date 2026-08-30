@@ -1,6 +1,5 @@
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "@supabase/supabase-js";
-import { type DnaCatalogPrice } from "./dna-catalog.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -17,6 +16,41 @@ class HttpError extends Error {
 
 const clean = (value: unknown) => String(value ?? "").trim();
 const now = () => new Date().toISOString();
+
+function publicProviderAttributes(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map((attribute: any) => {
+    const options = Array.isArray(attribute.options)
+      ? attribute.options.map((option: any) => typeof option === "string" ? option : clean(option?.value)).filter(Boolean)
+      : [];
+    return {
+      key: clean(attribute.key),
+      type: clean(attribute.type) || undefined,
+      options,
+      isRequired: Boolean(attribute.isRequired),
+      description: clean(attribute.description) || undefined,
+    };
+  }).filter((attribute) => attribute.key);
+}
+
+function publicCatalogPrice(value: any): Json {
+  return {
+    tld: clean(value.tld).toLowerCase(),
+    popular: Boolean(value.popular),
+    is_promo: Boolean(value.is_promo),
+    registration_price_usd: Number(value.registration_price_usd || 0),
+    renewal_price_usd: Number(value.renewal_price_usd || 0),
+    transfer_price_usd: Number(value.transfer_price_usd || 0),
+    restore_price_usd: value.restore_price_usd == null ? null : Number(value.restore_price_usd),
+    min_years: Number(value.min_years || value.registration_periods?.[0] || 1),
+    max_years: Number(value.max_years || value.registration_periods?.at(-1) || value.registration_periods?.[0] || 1),
+    registration_periods: Array.isArray(value.registration_periods) ? value.registration_periods.map(Number).filter((period: number) => period > 0) : [],
+    renewal_periods: Array.isArray(value.renewal_periods) ? value.renewal_periods.map(Number).filter((period: number) => period > 0) : [],
+    transfer_periods: Array.isArray(value.transfer_periods) ? value.transfer_periods.map(Number).filter((period: number) => period > 0) : [],
+    supports_privacy: value.supports_privacy !== false,
+    provider_attributes: publicProviderAttributes(value.provider_attributes),
+  };
+}
 
 function cors(req: Request): HeadersInit {
   return {
@@ -139,14 +173,30 @@ function normalizeStatus(raw: any): { available: boolean; known: boolean; status
   };
 }
 
-function normalizeProviderResult(domainName: string, raw: any, environment: Environment) {
+function providerInfo(raw: any): Json {
+  return (raw?.info || raw?.data?.info || raw?.data || raw || {}) as Json;
+}
+
+function boolish(value: unknown) {
+  return [true, 1, "1", "true", "yes", "available"].includes(value as any);
+}
+
+function normalizeProviderResult(domainName: string, raw: any, environment: Environment, catalogPrice?: Json) {
   const normalized = normalizeStatus(raw);
+  const info = providerInfo(raw);
+  const premium = boolish(info.isPremium ?? info.premium);
+  const providerPrice = Number(info.price ?? info.premiumPrice ?? raw?.price);
+  const basePrice = Number(catalogPrice?.registration_price_usd || 0);
+  const customerPriceUsd = premium && Number.isFinite(providerPrice) && providerPrice > 0
+    ? Math.round(Math.max(providerPrice * 1.30, basePrice) * 100) / 100
+    : basePrice > 0 ? basePrice : null;
   return {
-    ...(typeof raw === "object" && raw ? raw : {}),
     domainName,
     available: normalized.available,
     isAvailable: normalized.available,
     status: normalized.status,
+    isPremium: premium,
+    customerPriceUsd,
     availabilitySource: environment,
     error: normalized.known ? null : "unknown_availability_status",
   };
@@ -160,7 +210,7 @@ function infos(payload: any): Json[] {
 
 async function pricesFor(domains: string[]) {
   const requested = new Set(domains.map(tld));
-  const map = new Map<string, DnaCatalogPrice>();
+  const map = new Map<string, Json>();
   const { data, error } = await db
     .from("domain_tld_prices")
     .select("tld,enabled,popular,registration_price_usd,renewal_price_usd,transfer_price_usd,restore_price_usd,min_years,max_years,supports_privacy,is_promo,registration_periods,renewal_periods,transfer_periods,provider_attributes")
@@ -168,7 +218,7 @@ async function pricesFor(domains: string[]) {
     .eq("enabled", true)
     .eq("provider_available", true);
   if (error) throw new HttpError(500, "catalog_unavailable", "The synchronized TLD catalog is unavailable.", error);
-  for (const price of data || []) map.set(clean(price.tld).toLowerCase(), price as DnaCatalogPrice);
+  for (const price of data || []) map.set(clean(price.tld).toLowerCase(), publicCatalogPrice(price));
   return map;
 }
 
@@ -181,7 +231,7 @@ async function publicCatalog() {
     .order("popular", { ascending: false })
     .order("registration_price_usd", { ascending: true });
   if (error) throw new HttpError(500, "catalog_unavailable", "The synchronized TLD catalog is unavailable.", error);
-  return (data || []) as DnaCatalogPrice[];
+  return (data || []).map(publicCatalogPrice);
 }
 
 async function check(req: Request) {
@@ -228,7 +278,7 @@ async function check(req: Request) {
       providerResults.push({
         domainName,
         registrar: item
-          ? normalizeProviderResult(domainName, item, environment)
+          ? normalizeProviderResult(domainName, item, environment, prices.get(tld(domainName)))
           : {
               domainName,
               available: false,
@@ -268,7 +318,6 @@ Deno.serve(async (req) => {
         registrarEnvironment: environment,
         testMode: environment === "ote",
         priceSource: "synchronized DomainNameAPI catalog",
-        markupPercent: 30,
         generatedAt: now(),
       });
     }
@@ -279,7 +328,6 @@ Deno.serve(async (req) => {
         dnaVersion: "3.0.1",
         endpoints: ["domains/bulk-search"],
         priceSource: "synchronized DomainNameAPI catalog",
-        markupPercent: 30,
         maxDomains: 20,
         timestamp: now(),
       });
@@ -287,7 +335,7 @@ Deno.serve(async (req) => {
     if (req.method === "POST") return await check(req);
     throw new HttpError(405, "method_not_allowed", "Method not allowed.");
   } catch (error) {
-    if (error instanceof HttpError) return json(req, { error: error.code, message: error.message, details: error.details }, error.status);
+    if (error instanceof HttpError) return json(req, { error: error.code, message: error.message }, error.status);
     console.error(error);
     return json(req, { error: "internal_error", message: error instanceof Error ? error.message : "Unexpected error." }, 500);
   }
