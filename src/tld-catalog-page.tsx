@@ -33,8 +33,8 @@ function TldCard({ price }: { price: CatalogTld }) {
     </div>
     <dl className="carbon-tld-catalog__details">
       <div><dt>Renewal</dt><dd>{formatMoney(price.renewal_price_usd)}</dd></div>
-      <div><dt>Transfer</dt><dd>{price.transfer_price_usd > 0 ? formatMoney(price.transfer_price_usd) : "Unsupported"}</dd></div>
-      <div><dt>Privacy</dt><dd>{price.supports_privacy === false ? "Not supported" : "Supported"}</dd></div>
+      <div><dt>Transfer</dt><dd>{price.transfer_price_usd > 0 ? formatMoney(price.transfer_price_usd) : "Not available"}</dd></div>
+      <div><dt>Privacy</dt><dd>{price.supports_privacy === false ? "Not available" : "Available"}</dd></div>
     </dl>
     <Button kind="secondary" href={`/register-domain?domain=${encodeURIComponent(`yourbrand${price.tld}`)}`}>Search {price.tld}</Button>
   </Tile>;
@@ -66,8 +66,8 @@ export function TldCatalogPage() {
     <section className="carbon-tld-catalog-page__hero">
       <Grid fullWidth>
         <Column sm={4} md={8} lg={12}>
-          <h1>Supported TLDs</h1>
-          <p>Browse the extensions currently supported by KmerHosting Domains. Prices and availability are synchronized from our registrar catalogue.</p>
+          <h1>Domain extensions</h1>
+          <p>Browse the domain extensions currently available through KmerHosting. Prices and availability are updated regularly.</p>
         </Column>
       </Grid>
     </section>
@@ -77,17 +77,17 @@ export function TldCatalogPage() {
         <Column sm={4} md={8} lg={16}>
           <div className="carbon-tld-catalog__toolbar">
             <div>
-              <h2 id="supported-tlds-heading">Find an extension</h2>
-              <p>{query.isSuccess ? `${catalog.length} supported extensions` : "Loading the supported extension catalogue"}</p>
+              <h2 id="supported-tlds-heading">Find a domain extension</h2>
+              <p>{query.isSuccess ? `${catalog.length} extensions available` : "Loading available extensions…"}</p>
             </div>
-            <Search id="supported-tld-search" labelText="Search supported extensions" placeholder="Search .com, .shop, .dev" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Search id="supported-tld-search" labelText="Search extensions" placeholder="Search .com, .shop, .dev" value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
         </Column>
       </Grid>
 
       {query.isPending ? <div className="carbon-tld-catalog__status"><InlineLoading description="Loading supported extensions…" /></div> : null}
-      {query.isError ? <InlineNotification kind="error" lowContrast hideCloseButton title="Extensions unavailable" subtitle="The supported extension catalogue could not be loaded. Please try again shortly." /> : null}
-      {query.isSuccess && filtered.length === 0 ? <InlineNotification kind="info" lowContrast hideCloseButton title="No supported extension found" subtitle="Try another extension name, such as com, store or dev." /> : null}
+      {query.isError ? <InlineNotification kind="error" lowContrast hideCloseButton title="Extensions unavailable" subtitle="We couldn't load the extension list. Try again shortly." /> : null}
+      {query.isSuccess && filtered.length === 0 ? <InlineNotification kind="info" lowContrast hideCloseButton title="No extension found" subtitle="Try another extension name, such as com, store or dev." /> : null}
       {query.isSuccess && visible.length > 0 ? <>
         <Grid fullWidth className="carbon-tld-catalog__grid">
           {visible.map((price) => <Column sm={4} md={4} lg={4} key={price.tld}><TldCard price={price} /></Column>)}

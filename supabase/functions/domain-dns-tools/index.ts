@@ -175,7 +175,7 @@ async function confirmProviderDomain(d: Json) {
       throw new HttpError(
         409,
         "provider_domain_missing",
-        "This domain is not present in the active DomainNameAPI environment. DNS and nameserver changes are blocked.",
+        "This domain is not present in the active registrar environment. DNS and nameserver changes are blocked.",
         error.details,
       );
     throw error;
@@ -356,16 +356,63 @@ function managedStatus(d: Json, cfg: Json, providerConfirmed = true) {
     currentNameservers: current,
     managedNameservers: managed,
     dnsManagedActive: same,
-    providerConfirmed,
+    domainConfirmed: providerConfirmed,
     warning: !providerConfirmed
-      ? "This domain is not present at DomainNameAPI. Provider-backed DNS operations are disabled."
+      ? "This domain is not present in the active registrar environment. DNS operations are disabled."
       : same
       ? null
-      : "This domain is not using the managed DNS nameservers. Local/provider DNS records may not be active publicly.",
+      : "This domain is not using the managed DNS nameservers. Local DNS records may not be active publicly.",
   };
 }
 function systemRecordType(type: unknown) {
   return ["SOA", "RRSIG", "DNSKEY", "NSEC", "NSEC3"].includes(upper(type));
+}
+function publicDomain(value: Json | null): Json | null {
+  if (!value) return null;
+  return {
+    id: value.id,
+    domain_name: clean(value.domain_name),
+    nameservers: Array.isArray(value.nameservers) ? value.nameservers.map(clean).filter(Boolean).slice(0, 13) : [],
+    registrar_environment: lower(value.registrar_environment) === "production" ? "production" : "ote",
+    status: clean(value.status) || "pending",
+    expires_at: value.expires_at || null,
+    registered_at: value.registered_at || null,
+    auto_renew: Boolean(value.auto_renew),
+    privacy_enabled: Boolean(value.privacy_enabled),
+    locked: Boolean(value.locked),
+    epp_statuses: Array.isArray(value.epp_statuses) ? value.epp_statuses.map(clean).filter(Boolean).slice(0, 20) : [],
+    last_synced_at: value.last_synced_at || null,
+  };
+}
+function publicRecord(value: Json | null): Json | null {
+  if (!value) return null;
+  return {
+    id: value.id,
+    domain_id: value.domain_id,
+    name: clean(value.name) || "@",
+    type: upper(value.type),
+    contents: Array.isArray(value.contents) ? value.contents.map(clean).filter(Boolean).slice(0, 100) : [],
+    ttl: Number(value.ttl || 3600),
+    priority: value.priority == null ? null : Number(value.priority),
+    weight: value.weight == null ? null : Number(value.weight),
+    port: value.port == null ? null : Number(value.port),
+    target: clean(value.target) || null,
+    flag: value.flag == null ? null : Number(value.flag),
+    tag: clean(value.tag) || null,
+    status: clean(value.status) || "pending",
+    source: clean(value.source) === "provider" ? "synced" : clean(value.source) || "local",
+    synced_at: value.synced_at || null,
+    updated_at: value.updated_at || null,
+  };
+}
+function customerErrorMessage(error: unknown) {
+  if (
+    error instanceof HttpError &&
+    error.status < 500 &&
+    !["provider_error", "registrar_proxy_failed", "provider_domain_missing"].includes(error.code) &&
+    !/DomainNameAPI|provider|usdBalance|markup|cost|secret/i.test(error.message)
+  ) return error.message;
+  return "DNS data could not be refreshed. Your current records remain visible.";
 }
 async function loadLocalRecords(domainId: string) {
   const { data, error } = await db
@@ -538,15 +585,15 @@ async function listDns(req: Request, u: Json, id: string) {
     }
     synced = true;
   } catch (error) {
-    providerError = error instanceof Error ? error.message : String(error);
+    providerError = customerErrorMessage(error);
   }
   return json(req, {
-    domain: d,
-    records,
+    domain: publicDomain(d),
+    records: records.map(publicRecord).filter(Boolean),
     dns: managedStatus(d, cfg, providerConfirmed),
     synced,
-    providerSyncAt: d.metadata?.lastDnsSyncAt || null,
-    providerError,
+    lastRefreshedAt: d.metadata?.lastDnsSyncAt || null,
+    syncError: providerError,
     currentEnvironment: cfg.registrar_environment,
   });
 }
@@ -559,9 +606,8 @@ async function syncDns(req: Request, u: Json, id: string) {
   return json(req, {
     success: true,
     imported: result.records.length,
-    records: result.records,
-    provider: result.provider,
-    providerSyncAt: result.syncAt,
+    records: result.records.map(publicRecord).filter(Boolean),
+    lastRefreshedAt: result.syncAt,
   });
 }
 function zoneStruct(r: Json) {
@@ -611,7 +657,7 @@ async function createRecord(req: Request, u: Json, id: string, b: Json) {
     throw error;
   }
   const saved = await saveProviderRecord(d, { ...providerDraft, status: "active", last_error: null }, "create");
-  return json(req, { success: true, record: saved, provider }, 201);
+  return json(req, { success: true, record: publicRecord(saved) }, 201);
 }
 async function updateRecord(
   req: Request,
@@ -678,7 +724,7 @@ async function updateRecord(
     .single();
   if (error)
     throw new HttpError(500, "dns_record_update_failed", error.message, error);
-  return json(req, { success: true, record: data, provider });
+  return json(req, { success: true, record: publicRecord(data) });
 }
 async function deleteRecord(
   req: Request,
@@ -715,7 +761,7 @@ async function deleteRecord(
     const { error: localDeleteError } = await db.from("domain_dns_records").delete().eq("id", recordId);
     if (localDeleteError)
       throw new HttpError(500, "dns_record_delete_persist_failed", "The provider applied the deletion, but the local record could not be removed.", localDeleteError);
-    return json(req, { success: true, provider });
+    return json(req, { success: true });
   } catch (e) {
     await db
       .from("domain_dns_records")
@@ -766,9 +812,9 @@ async function retryRecord(
   }
   return json(req, {
     success: true,
-    record,
+    record: publicRecord(record),
     deleted: !record && r.last_operation === "delete",
-    providerSyncAt: result.syncAt,
+    lastRefreshedAt: result.syncAt,
   });
 }
 function normalizeNameservers(values: unknown) {
@@ -816,9 +862,8 @@ async function updateNameservers(req: Request, u: Json, id: string, b: Json) {
     throw new HttpError(500, "nameserver_update_failed", error.message, error);
   return json(req, {
     success: true,
-    domain: data,
+    domain: publicDomain(data as Json),
     dns: managedStatus(data as Json, cfg),
-    provider,
   });
 }
 Deno.serve(async (req) => {
@@ -862,7 +907,7 @@ Deno.serve(async (req) => {
     if (e instanceof HttpError)
       return json(
         req,
-        { error: e.code, message: e.message, details: e.details },
+        { error: e.code, message: customerErrorMessage(e) },
         e.status,
       );
     console.error(e);
@@ -870,7 +915,7 @@ Deno.serve(async (req) => {
       req,
       {
         error: "internal_error",
-        message: e instanceof Error ? e.message : "Unexpected error.",
+        message: "The DNS service could not complete this request.",
       },
       500,
     );

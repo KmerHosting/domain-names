@@ -93,12 +93,6 @@
   inline-size: 100%;
 }
 
-.carbon-domain-search-form__field .cds--search-input,
-.carbon-domain-search-form__field .cds--text-input {
-  min-block-size: 4rem;
-  @include type.type-style('heading-compact-01');
-}
-
 .carbon-domain-search-form__field .cds--text-area {
   min-block-size: 7.5rem;
   resize: vertical;
@@ -115,7 +109,6 @@
 .carbon-domain-search-form__actions .cds--btn {
   inline-size: 100%;
   max-inline-size: none;
-  min-block-size: 4rem;
 }
 
 .carbon-domain-search-form__meta {
@@ -144,12 +137,6 @@
   // control aligned with the textarea itself instead of the helper row.
   .carbon-domain-search-form--bulk .carbon-domain-search-form__actions {
     margin-block-end: spacing.$spacing-05 + spacing.$spacing-02;
-  }
-}
-
-@include breakpoint.breakpoint('lg') {
-  .carbon-domain-overview__content {
-    padding-inline: spacing.$spacing-08;
   }
 }
 
@@ -410,6 +397,16 @@
 .carbon-form-grid {
   display: grid;
   gap: spacing.$spacing-07;
+}
+
+.carbon-form-grid--two {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+@include breakpoint.breakpoint('md') {
+  .carbon-form-grid--two {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
 }
 
 .carbon-form-stack .cds--form-item,

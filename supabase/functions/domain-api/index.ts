@@ -3,7 +3,7 @@ import {
   ApiError, Json, audit, bodyJson, clean, clientIp, createSession, db, encryptSensitive,
   enforceRateLimit, functionPath, getConfig, getSecret, getTld, hashPassword, json,
   normalizeDomain, normalizeEmail, normalizePhone, notify, publicUser, queueEmail,
-  randomCode, randomReference, requireAuth, runtimeStatus, sendOtp, sha256, userAgent,
+  randomCode, randomReference, requireAuth, sendOtp, sha256, userAgent,
   validDomain, validEmail, verifyPassword,
 } from "./core.ts";
 import {
@@ -18,14 +18,221 @@ async function directCatalog() {
   const environment = clean(cfg.registrar_environment).toLowerCase() === "ote" ? "ote" : "production";
   const payload = await registrarCall("/api/v1/products/tlds", "GET", undefined, { Currency: "USD", SkipCount: 0, MaxResultCount: 1000 });
   const prices = normalizeDnaCatalog(payload, environment);
-  if (!prices.length) throw new ApiError(502, "provider_catalog_empty", "DomainNameAPI returned an empty TLD catalog.");
+  if (!prices.length) throw new ApiError(502, "provider_catalog_empty", "Domain pricing is temporarily unavailable.");
   return { environment, prices };
 }
 
+function publicProviderAttributes(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map((attribute: any) => {
+    const options = Array.isArray(attribute.options)
+      ? attribute.options.map((option: any) => typeof option === "string" ? option : clean(option?.value)).filter(Boolean)
+      : [];
+    return {
+      key: clean(attribute.key),
+      type: clean(attribute.type) || undefined,
+      options,
+      isRequired: Boolean(attribute.isRequired),
+      description: clean(attribute.description) || undefined,
+    };
+  }).filter((attribute) => attribute.key);
+}
+
+function publicCatalogPrice(value: Json): Json {
+  return {
+    tld: clean(value.tld).toLowerCase(),
+    popular: Boolean(value.popular),
+    is_promo: Boolean(value.is_promo),
+    registration_price_usd: Number(value.registration_price_usd || 0),
+    renewal_price_usd: Number(value.renewal_price_usd || 0),
+    transfer_price_usd: Number(value.transfer_price_usd || 0),
+    restore_price_usd: value.restore_price_usd == null ? null : Number(value.restore_price_usd),
+    min_years: Number(value.min_years || value.registration_periods?.[0] || 1),
+    max_years: Number(value.max_years || value.registration_periods?.at(-1) || value.registration_periods?.[0] || 1),
+    registration_periods: Array.isArray(value.registration_periods) ? value.registration_periods.map(Number).filter((period: number) => period > 0) : [],
+    renewal_periods: Array.isArray(value.renewal_periods) ? value.renewal_periods.map(Number).filter((period: number) => period > 0) : [],
+    transfer_periods: Array.isArray(value.transfer_periods) ? value.transfer_periods.map(Number).filter((period: number) => period > 0) : [],
+    supports_privacy: value.supports_privacy !== false,
+    provider_attributes: publicProviderAttributes(value.provider_attributes),
+  };
+}
+
+function boolishPublic(value: unknown) {
+  return [true, 1, "1", "true", "yes", "available"].includes(value as any);
+}
+
+function publicRegistrarResult(domainName: string, raw: Json, price: Json | null): Json {
+  const info = (raw?.info || raw?.data?.info || raw?.data || raw) as Json;
+  const rawStatus = clean(info.status ?? raw.status ?? info.available ?? raw.available).toLowerCase().replace(/[\\s_-]+/g, "");
+  const available = ["available", "true", "1", "free"].includes(rawStatus);
+  const unavailable = ["notavailable", "unavailable", "registered", "taken", "false", "0", "reserved", "blocked"].includes(rawStatus);
+  const premium = boolishPublic(info.isPremium ?? info.premium);
+  const providerPrice = Number(info.price ?? info.premiumPrice ?? raw.price);
+  const basePrice = Number(price?.registration_price_usd || 0);
+  const customerPriceUsd = premium && Number.isFinite(providerPrice) && providerPrice > 0
+    ? Math.round(Math.max(providerPrice * 1.30, basePrice) * 100) / 100
+    : basePrice > 0 ? basePrice : null;
+  return {
+    domainName,
+    available,
+    isAvailable: available,
+    status: available ? "available" : unavailable ? "unavailable" : "unknown",
+    isPremium: premium,
+    customerPriceUsd,
+  };
+}
+
+function publicDomain(value: Json | null): Json | null {
+  if (!value) return null;
+  const environment = clean(value.registrar_environment).toLowerCase();
+  return {
+    id: value.id,
+    domain_name: clean(value.domain_name),
+    tld: clean(value.tld).toLowerCase(),
+    registrar_environment: environment === "production" ? "production" : "ote",
+    status: clean(value.status) || "pending",
+    expires_at: value.expires_at || null,
+    registered_at: value.registered_at || null,
+    auto_renew: Boolean(value.auto_renew),
+    privacy_enabled: Boolean(value.privacy_enabled),
+    locked: Boolean(value.locked),
+    nameservers: Array.isArray(value.nameservers) ? value.nameservers.map(clean).filter(Boolean).slice(0, 13) : [],
+    epp_statuses: Array.isArray(value.epp_statuses) ? value.epp_statuses.map(clean).filter(Boolean).slice(0, 20) : [],
+    last_synced_at: value.last_synced_at || null,
+  };
+}
+
+function publicContact(value: Json | null): Json | null {
+  if (!value) return null;
+  return {
+    id: value.id,
+    label: clean(value.label) || "Contact",
+    first_name: clean(value.first_name),
+    last_name: clean(value.last_name),
+    company_name: clean(value.company_name) || null,
+    email: clean(value.email),
+    phone_country_code: clean(value.phone_country_code),
+    phone: clean(value.phone),
+    address: clean(value.address),
+    city: clean(value.city),
+    state: clean(value.state),
+    postal_code: clean(value.postal_code),
+    country: clean(value.country).toUpperCase(),
+    is_default: Boolean(value.is_default),
+    registrar_verified: Boolean(value.registrar_verified),
+  };
+}
+
+function publicOrderFailure(value: unknown): string | null {
+  return clean(value) ? "This order could not be completed. No charge was made." : null;
+}
+
+function publicOrder(value: Json | null): Json | null {
+  if (!value) return null;
+  return {
+    id: value.id,
+    order_number: clean(value.order_number),
+    type: clean(value.type),
+    domain_name: clean(value.domain_name),
+    registrar_environment: clean(value.registrar_environment).toLowerCase() === "production" ? "production" : "ote",
+    status: clean(value.status) || "pending",
+    price_usd: Number(value.price_usd || 0),
+    created_at: value.created_at || null,
+    failure_message: publicOrderFailure(value.failure_message),
+  };
+}
+
+function publicDnsRecord(value: Json | null): Json | null {
+  if (!value) return null;
+  return {
+    id: value.id,
+    domain_id: value.domain_id,
+    name: clean(value.name) || "@",
+    type: clean(value.type).toUpperCase(),
+    contents: Array.isArray(value.contents) ? value.contents.map(clean).filter(Boolean) : [],
+    ttl: Number(value.ttl || 3600),
+    priority: value.priority == null ? null : Number(value.priority),
+    weight: value.weight == null ? null : Number(value.weight),
+    port: value.port == null ? null : Number(value.port),
+    target: clean(value.target) || null,
+    flag: value.flag == null ? null : Number(value.flag),
+    tag: clean(value.tag) || null,
+    status: clean(value.status) || "pending",
+    source: clean(value.source) === "provider" ? "synced" : clean(value.source) || "local",
+    synced_at: value.synced_at || null,
+    updated_at: value.updated_at || null,
+  };
+}
+
+function publicNotification(value: Json | null): Json | null {
+  if (!value) return null;
+  return {
+    id: value.id,
+    type: clean(value.type) || "account",
+    title: clean(value.title),
+    message: clean(value.message),
+    read_at: value.read_at || null,
+    created_at: value.created_at || null,
+  };
+}
+
+function publicInvoice(value: Json | null): Json | null {
+  if (!value) return null;
+  const order = value.domain_orders as Json | null;
+  return {
+    id: value.id,
+    invoice_number: clean(value.invoice_number),
+    issued_at: value.issued_at || null,
+    amount_usd: Number(value.amount_usd || 0),
+    status: clean(value.status) || "issued",
+    domain_orders: order ? {
+      domain_name: clean(order.domain_name),
+      type: clean(order.type),
+      order_number: clean(order.order_number),
+    } : null,
+  };
+}
+
+function publicPayment(value: Json | null): Json | null {
+  if (!value) return null;
+  return {
+    id: value.id,
+    order_id: value.order_id,
+    status: clean(value.status) || "pending",
+    amount_usd: Number(value.amount_usd || 0),
+    amount_xaf: Number(value.amount_xaf || 0),
+    currency: clean(value.currency).toUpperCase() || "XAF",
+    payment_method: clean(value.payment_method) || null,
+    created_at: value.created_at || null,
+    paid_at: value.paid_at || null,
+  };
+}
+
+function publicErrorMessage(error: ApiError): string {
+  switch (error.code) {
+    case "provider_domain_exists":
+      return "This order cannot be retried because the domain is already registered.";
+    case "period_price_missing":
+      return "That period is not available for this domain.";
+    case "premium_price_missing":
+      return "The exact price for this domain is temporarily unavailable.";
+    case "provider_usd_balance_low":
+    case "provider_usd_balance_unreadable":
+    case "price_margin_invalid":
+      return "This order cannot be completed right now. No charge was made.";
+    case "restore_not_supported":
+      return "Domain restoration is temporarily unavailable. No charge was made.";
+    default:
+      return error.status >= 500 || /DomainNameAPI|provider|usdBalance|margin|markup|cost|secret/i.test(error.message)
+        ? "The domain service is temporarily unavailable. No charge was made."
+        : error.message;
+  }
+}
+
 function errorResponse(req: Request, error: unknown): Response {
-  if (error instanceof ApiError) return json(req, { error: error.code, message: error.message, details: error.details }, error.status);
+  if (error instanceof ApiError) return json(req, { error: error.code, message: publicErrorMessage(error) }, error.status);
   console.error(error);
-  return json(req, { error: "internal_error", message: error instanceof Error ? error.message : "Unexpected server error." }, 500);
+  return json(req, { error: "internal_error", message: "The domain service could not complete this request." }, 500);
 }
 
 async function requestOtp(req: Request, purpose: string, body: Json): Promise<Response> {
@@ -207,7 +414,7 @@ async function createOrder(req: Request, type: "registration" | "transfer" | "re
   const amountXaf = Math.ceil(priceUsd * cfg.usd_to_xaf_rate);
   const idempotency = clean(req.headers.get("idempotency-key")) || clean(body.idempotencyKey) || randomReference("IDEMP");
   const existing = await db.from("domain_orders").select("*").eq("user_id", auth.user.id).eq("idempotency_key", idempotency).maybeSingle();
-  if (existing.data) return json(req, { order: existing.data, reused: true });
+  if (existing.data) return json(req, { order: publicOrder(existing.data as Json), reused: true });
   const prefix = type === "registration" ? "KHD-REG" : type === "transfer" ? "KHD-TRN" : "KHD-REN";
   const authCode = type === "transfer" ? clean(body.authCode) : "";
   if (type === "transfer" && (authCode.length < 4 || authCode.length > 128)) throw new ApiError(400, "auth_code_required", "A valid EPP/auth code is required.");
@@ -221,7 +428,7 @@ async function createOrder(req: Request, type: "registration" | "transfer" | "re
   }).select("*").single();
   if (error || !order) throw new ApiError(500, "order_create_failed", "Unable to create order.", error);
   await audit(req, `order.${type}.created`, auth.user.id, "order", order.id, { domainName });
-  return json(req, { order }, 201);
+  return json(req, { order: publicOrder(order as Json) }, 201);
 }
 
 async function checkout(req: Request, auth: Json, orderId: string): Promise<Response> {
@@ -230,8 +437,8 @@ async function checkout(req: Request, auth: Json, orderId: string): Promise<Resp
   if (error || !order) throw new ApiError(404, "order_not_found", "Order not found.");
   if (order.status === "completed") throw new ApiError(409, "order_completed", "This order is already completed.");
   const existing = await db.from("domain_payments").select("*").eq("order_id", order.id).in("status", ["pending","processing","paid"]).order("created_at", { ascending: false }).limit(1);
-  if (existing.data?.[0]?.status === "paid") return json(req, { payment: existing.data[0] });
-  if (existing.data?.[0]?.checkout_url) return json(req, { payment: existing.data[0], reused: true });
+  if (existing.data?.[0]?.status === "paid") return json(req, { payment: publicPayment(existing.data[0] as Json) });
+  if (existing.data?.[0]?.checkout_url) return json(req, { payment: publicPayment(existing.data[0] as Json), reused: true });
   const invoice = newInvoiceId();
   const phone = normalizePhone(body.phone || order.domain_users.phone);
   if (phone.length < 9) throw new ApiError(400, "phone_required", "A valid payment phone number is required.");
@@ -258,7 +465,7 @@ async function checkout(req: Request, auth: Json, orderId: string): Promise<Resp
         p_payload: { paymentId: payment.id }, p_run_after: new Date(Date.now() + 120_000).toISOString(),
       });
     }
-    return json(req, { payment: updated.data });
+    return json(req, { payment: publicPayment(updated.data as Json) });
   } catch (providerError) {
     await db.from("domain_payments").update({ status: "failed", raw_payload: { error: providerError instanceof Error ? providerError.message : "Payment initiation failed" } }).eq("id", payment.id);
     throw providerError;
@@ -359,8 +566,8 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
       const account = await registrarCall("/api/v1/deposit/accounts/me", "GET", undefined, { currency: "USD" });
       const rawBalance = account.usdBalance ?? account.data?.usdBalance ?? account.account?.usdBalance ?? account.result?.usdBalance;
       balanceUsd = Number(rawBalance);
-      if (!Number.isFinite(balanceUsd)) throw new ApiError(502, "provider_usd_balance_unreadable", "DomainNameAPI did not return a readable OTE usdBalance.");
-      balanceSource = "DomainNameAPI OTE usdBalance";
+      if (!Number.isFinite(balanceUsd)) throw new ApiError(502, "provider_usd_balance_unreadable", "The test balance is temporarily unavailable.");
+      balanceSource = "Test registrar balance";
     } else {
       const identity = await db.from("dashboard_product_identities").select("user_id").eq("product", "domain").eq("external_user_id", auth.user.id).maybeSingle();
       if (identity.error || !identity.data) throw new ApiError(409, "central_identity_not_linked", "This domain account is not linked to the central KmerHosting account.", identity.error);
@@ -369,13 +576,13 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
       balanceUsd = Number(central.data?.balance_micros || 0) / 1_000_000;
     }
     return json(req, {
-      domains: domains.data || [], orders: orders.data || [], notifications: notifications.data || [], invoices: invoices.data || [],
+      domains: (domains.data || []).map((item) => publicDomain(item as Json)).filter(Boolean), orders: (orders.data || []).map((item) => publicOrder(item as Json)).filter(Boolean), notifications: (notifications.data || []).map((item) => publicNotification(item as Json)).filter(Boolean), invoices: (invoices.data || []).map((item) => publicInvoice(item as Json)).filter(Boolean),
       balanceUsd, balanceSource, registrarEnvironment: checkoutEnvironment, testMode: checkoutEnvironment === "ote",
     });
   }
   if (path === "/contacts" && req.method === "GET") {
     const result = await db.from("domain_contacts").select("*").eq("user_id", auth.user.id).order("is_default", { ascending: false }).order("created_at");
-    return json(req, { contacts: result.data || [] });
+    return json(req, { contacts: (result.data || []).map((item) => publicContact(item as Json)).filter(Boolean) });
   }
   if (path === "/contacts" && req.method === "POST") {
     const b = await bodyJson(req);
@@ -395,7 +602,7 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
     if (payload.is_default) await db.from("domain_contacts").update({ is_default: false }).eq("user_id", auth.user.id);
     const result = await db.from("domain_contacts").insert(payload).select("*").single();
     if (result.error) throw result.error;
-    return json(req, { contact: result.data }, 201);
+    return json(req, { contact: publicContact(result.data as Json) }, 201);
   }
   const contactMatch = path.match(/^\/contacts\/([0-9a-f-]+)$/i);
   if (contactMatch && req.method === "PUT") {
@@ -408,7 +615,7 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
     if (allowed.is_default) await db.from("domain_contacts").update({ is_default: false }).eq("user_id", auth.user.id);
     const result = await db.from("domain_contacts").update(allowed).eq("id", contactMatch[1]).eq("user_id", auth.user.id).select("*").single();
     if (result.error) throw new ApiError(404, "contact_not_found", "Contact not found.");
-    return json(req, { contact: result.data });
+    return json(req, { contact: publicContact(result.data as Json) });
   }
   if (contactMatch && req.method === "DELETE") {
     const used = await db.from("domain_domains").select("id").eq("contact_id", contactMatch[1]).eq("user_id", auth.user.id).limit(1);
@@ -418,20 +625,20 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
   }
   if (req.method === "GET" && path === "/domains") {
     const result = await db.from("domain_domains").select("*").eq("user_id", auth.user.id).order("created_at", { ascending: false });
-    return json(req, { domains: result.data || [] });
+    return json(req, { domains: (result.data || []).map((item) => publicDomain(item as Json)).filter(Boolean) });
   }
   const domainMatch = path.match(/^\/domains\/([0-9a-f-]+)$/i);
   if (domainMatch && req.method === "GET") {
     const result = await db.from("domain_domains").select("*,domain_dns_records(*),domain_contacts(*)").eq("id", domainMatch[1]).eq("user_id", auth.user.id).single();
     if (result.error) throw new ApiError(404, "domain_not_found", "Domain not found.");
-    return json(req, { domain: result.data });
+    return json(req, { domain: publicDomain(result.data as Json) });
   }
   const autoMatch = path.match(/^\/domains\/([0-9a-f-]+)\/auto-renew$/i);
   if (autoMatch && req.method === "PUT") {
     const b = await bodyJson(req);
     const result = await db.from("domain_domains").update({ auto_renew: Boolean(b.enabled) }).eq("id", autoMatch[1]).eq("user_id", auth.user.id).select("*").single();
     if (result.error) throw new ApiError(404, "domain_not_found", "Domain not found.");
-    return json(req, { domain: result.data });
+    return json(req, { domain: publicDomain(result.data as Json) });
   }
   const nsMatch = path.match(/^\/domains\/([0-9a-f-]+)\/nameservers$/i);
   if (nsMatch && req.method === "PUT") {
@@ -451,7 +658,7 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
     const owned = await db.from("domain_domains").select("id").eq("id", dnsCollection[1]).eq("user_id", auth.user.id).single();
     if (owned.error) throw new ApiError(404, "domain_not_found", "Domain not found.");
     const result = await db.from("domain_dns_records").select("*").eq("domain_id", dnsCollection[1]).order("name");
-    return json(req, { records: result.data || [] });
+    return json(req, { records: (result.data || []).map((item) => publicDnsRecord(item as Json)).filter(Boolean) });
   }
   if (dnsCollection && req.method === "POST") {
     const owned = await db.from("domain_domains").select("*").eq("id", dnsCollection[1]).eq("user_id", auth.user.id).single();
@@ -469,7 +676,7 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
       p_type: "create_dns_record", p_idempotency_key: `dns-create:${result.data.id}`, p_user_id: auth.user.id,
       p_domain_id: owned.data.id, p_payload: { recordId: result.data.id },
     });
-    return json(req, { record: result.data, status: "queued" }, 202);
+    return json(req, { record: publicDnsRecord(result.data as Json), status: "queued" }, 202);
   }
   const dnsItem = path.match(/^\/domains\/([0-9a-f-]+)\/dns\/([0-9a-f-]+)$/i);
   if (dnsItem && req.method === "PUT") {
@@ -488,7 +695,7 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
       p_type: "update_dns_record", p_idempotency_key: `dns-update:${record.data.id}:${Date.now()}`, p_user_id: auth.user.id,
       p_domain_id: dnsItem[1], p_payload: { recordId: record.data.id, oldName: record.data.name },
     });
-    return json(req, { record: updated.data, status: "queued" }, 202);
+    return json(req, { record: publicDnsRecord(updated.data as Json), status: "queued" }, 202);
   }
   if (dnsItem && req.method === "DELETE") {
     const record = await db.from("domain_dns_records").select("*,domain_domains!inner(user_id)").eq("id", dnsItem[2]).eq("domain_id", dnsItem[1]).eq("domain_domains.user_id", auth.user.id).single();
@@ -502,7 +709,7 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
   }
   if (req.method === "GET" && path === "/orders") {
     const result = await db.from("domain_orders").select("*,domain_payments(*)").eq("user_id", auth.user.id).order("created_at", { ascending: false });
-    return json(req, { orders: result.data || [] });
+    return json(req, { orders: (result.data || []).map((item) => publicOrder(item as Json)).filter(Boolean) });
   }
   if (req.method === "POST" && ["/orders/registration", "/orders/transfer", "/orders/renewal"].includes(path)) {
     throw new ApiError(410, "legacy_checkout_removed", "Use the direct DNA order endpoint. Separate checkout has been removed.");
@@ -515,17 +722,17 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
   if (orderMatch && req.method === "GET") {
     const result = await db.from("domain_orders").select("*,domain_payments(*),domain_invoices(*)").eq("id", orderMatch[1]).eq("user_id", auth.user.id).single();
     if (result.error) throw new ApiError(404, "order_not_found", "Order not found.");
-    return json(req, { order: result.data });
+    return json(req, { order: publicOrder(result.data as Json) });
   }
   const paymentMatch = path.match(/^\/payments\/([0-9a-f-]+)\/status$/i);
   if (paymentMatch && req.method === "GET") {
     const { data: payment, error } = await db.from("domain_payments").select("*").eq("order_id", paymentMatch[1]).eq("user_id", auth.user.id).order("created_at", { ascending: false }).limit(1).maybeSingle();
     if (error || !payment) throw new ApiError(404, "payment_not_found", "Payment not found.");
-    return json(req, { payment });
+    return json(req, { payment: publicPayment(payment as Json) });
   }
   if (req.method === "GET" && path === "/notifications") {
     const result = await db.from("domain_notifications").select("*").eq("user_id", auth.user.id).order("created_at", { ascending: false }).limit(100);
-    return json(req, { notifications: result.data || [] });
+    return json(req, { notifications: (result.data || []).map((item) => publicNotification(item as Json)).filter(Boolean) });
   }
   const notificationMatch = path.match(/^\/notifications\/([0-9a-f-]+)\/read$/i);
   if (notificationMatch && req.method === "PUT") {
@@ -534,7 +741,7 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
   }
   if (req.method === "GET" && path === "/invoices") {
     const result = await db.from("domain_invoices").select("*,domain_orders(domain_name,type,order_number)").eq("user_id", auth.user.id).order("issued_at", { ascending: false });
-    return json(req, { invoices: result.data || [] });
+    return json(req, { invoices: (result.data || []).map((item) => publicInvoice(item as Json)).filter(Boolean) });
   }
   throw new ApiError(404, "not_found", "Endpoint not found.");
 }
@@ -545,12 +752,12 @@ async function publicRoutes(req: Request, path: string): Promise<Response | null
     return json(req, {
       ok: true, service: "KmerHosting Domains API", company: cfg.company_name,
       environment: cfg.registrar_environment, maintenance: cfg.maintenance_mode,
-      runtime: await runtimeStatus(), timestamp: new Date().toISOString(),
+      timestamp: new Date().toISOString(),
     });
   }
   if (req.method === "GET" && path === "/prices") {
     const catalog = await directCatalog();
-    return json(req, { currency: "USD", prices: catalog.prices, registrarEnvironment: catalog.environment, testMode: catalog.environment === "ote", priceSource: "DomainNameAPI live catalog", markupPercent: 30 });
+    return json(req, { currency: "USD", prices: catalog.prices.map(publicCatalogPrice), registrarEnvironment: catalog.environment, testMode: catalog.environment === "ote", priceSource: "Current domain catalog" });
   }
   if (req.method === "POST" && path === "/domains/check") {
     await enforceRateLimit(`domain-check:${clientIp(req)}`, 30, 60);
@@ -564,9 +771,10 @@ async function publicRoutes(req: Request, path: string): Promise<Response | null
     for (const domainName of domains) {
       const registrar = await searchDomain(domainName);
       const tld = getTld(domainName);
-      results.push({ domainName, registrar, price: priceByTld.get(tld) || null });
+      const price = priceByTld.get(tld) || null;
+      results.push({ domainName, registrar: publicRegistrarResult(domainName, registrar, price), price: price ? publicCatalogPrice(price) : null });
     }
-    return json(req, { results, registrarEnvironment: catalog.environment, testMode: catalog.environment === "ote", priceSource: "DomainNameAPI live catalog" });
+    return json(req, { results, registrarEnvironment: catalog.environment, testMode: catalog.environment === "ote", priceSource: "Current domain catalog" });
   }
   return null;
 }

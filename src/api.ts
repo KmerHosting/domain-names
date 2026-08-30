@@ -145,7 +145,7 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
 
 /** @deprecated External payment providers have been removed. */
 export async function paymentApi<T>(_path: string, _options: ApiOptions = {}): Promise<T> {
-  throw new ApiClientError(410, "external_payments_removed", "External payments have been removed. Use the USD account balance.");
+  throw new ApiClientError(410, "external_payments_removed", "Domain orders use your KmerHosting account balance.");
 }
 
 export async function walletApi<T>(path: string, options: ApiOptions = {}): Promise<T> {

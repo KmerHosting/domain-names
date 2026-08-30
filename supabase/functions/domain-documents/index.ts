@@ -26,10 +26,20 @@ async function auth(req: Request) {
   if (ue || !u || u.status !== "active" || Number(u.session_version) !== Number(s.session_version)) throw new HttpError(401, "invalid_session", "Session expired or invalid.");
   return u as Json;
 }
+function publicInvoice(value: Json): Json {
+  return {
+    id: value.id,
+    invoice_number: clean(value.invoice_number),
+    issued_at: value.issued_at || null,
+    amount_usd: Number(value.amount_usd || 0),
+    amount_xaf: Number(value.amount_xaf || 0),
+    status: clean(value.status) || "issued",
+  };
+}
 async function invoiceList(userId: string) {
   const { data, error } = await db.from("domain_billing_documents").select("*").eq("user_id", userId).order("issued_at", { ascending: false }).limit(100);
   if (error) throw error;
-  return data || [];
+  return (data || []).map((item) => publicInvoice(item as Json));
 }
 async function loadByInvoice(userId: string, invoiceId: string) {
   const { data: invoice, error } = await db.from("domain_invoices").select("*").eq("id", invoiceId).eq("user_id", userId).maybeSingle();
@@ -82,7 +92,7 @@ async function pdfBuffer(kind:"invoice"|"receipt", bundle:{user:Json;order:Json;
   if(payment?.paid_at) line(doc, "Paid", date(payment.paid_at), 330);
   addTable(doc, order);
   doc.font("Helvetica-Bold").fontSize(11).fillColor("#172033").text("Payment", 54, 500);
-  doc.font("Helvetica").fontSize(10).text(`Provider: ${payment?.provider || "wallet/direct"}`, 54, 522).text(`Method: ${payment?.payment_method || order.payment_method || "—"}`, 54, 538).text(`Reference: ${payment?.provider_reference || payment?.merchant_invoice_id || "—"}`, 54, 554);
+  doc.font("Helvetica").fontSize(10).text(`Payment channel: ${payment?.payment_method || order.payment_method || "Account balance"}`, 54, 522).text(`Reference: ${payment?.merchant_invoice_id || "—"}`, 54, 538);
   doc.fontSize(8).fillColor("#667085").text("This document was generated automatically by KmerHosting Domains. For support, contact support@kmerhosting.com.", 54, 735, { width:486, align:"center" });
   doc.end();
   return await done;
@@ -101,7 +111,7 @@ Deno.serve(async (req: Request) => {
     if (req.method === "GET" && rec) { const b = await loadByOrder(user.id, rec[1]); return pdfResponse(await pdfBuffer("receipt", b), `${b.order.order_number}-receipt.pdf`); }
     return json({ error:"not_found", message:"Endpoint not found." }, 404);
   } catch (e) {
-    if (e instanceof HttpError) return json({ error:e.code, message:e.message, details:e.details }, e.status);
-    console.error(e); return json({ error:"internal_error", message:e instanceof Error ? e.message : "Unexpected error." }, 500);
+    if (e instanceof HttpError && e.status < 500) return json({ error:e.code, message:e.message }, e.status);
+    console.error(e); return json({ error:"internal_error", message:"The document service could not complete this request." }, 500);
   }
 });

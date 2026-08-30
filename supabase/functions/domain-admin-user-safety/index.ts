@@ -12,6 +12,6 @@ Deno.serve((req: Request) => {
   if (req.method === "OPTIONS") return new Response(null, { status: 204, headers });
   return new Response(JSON.stringify({
     error: "legacy_domain_service_removed",
-    message: "This legacy domain service was removed. The storefront now uses direct DomainNameAPI operations and the central KmerHosting balance.",
+    message: "This legacy domain endpoint is no longer available. Use the current KmerHosting Domains administration tools.",
   }), { status: 410, headers });
 });
