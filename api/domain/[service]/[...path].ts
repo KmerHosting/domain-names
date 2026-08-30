@@ -114,8 +114,8 @@ async function responseFromUpstream(upstream: Response, service: string, upstrea
 export default async function handler(req: Request): Promise<Response> {
   try {
     const url = new URL(req.url); let { service, upstreamPath } = parseRoute(url); const method = req.method.toUpperCase(); let requestBody = method === "GET" || method === "HEAD" ? undefined : await req.arrayBuffer();
-    if (service === "domain-api" && (/^\/orders\/[0-9a-f-]+\/checkout$/i.test(upstreamPath) || upstreamPath === "/webhooks/camerpay")) return jsonResponse({ error: "external_payments_removed", message: `External checkout has been removed. Pay from your account balance or contact ${SUPPORT_EMAIL} for a manual credit.`, supportEmail: SUPPORT_EMAIL }, 410);
-    if (service === "domain-payment-status" && method !== "GET") return jsonResponse({ error: "external_payments_removed", message: `External payment polling has been removed. Contact ${SUPPORT_EMAIL} if your balance needs to be credited.`, supportEmail: SUPPORT_EMAIL }, 410);
+    if (service === "domain-api" && (/^\/orders\/[0-9a-f-]+\/checkout$/i.test(upstreamPath) || upstreamPath === "/webhooks/camerpay")) return jsonResponse({ error: "external_payments_removed", message: `This checkout option is no longer available. Use your KmerHosting account balance or contact ${SUPPORT_EMAIL} for a manual credit.`, supportEmail: SUPPORT_EMAIL }, 410);
+    if (service === "domain-payment-status" && method !== "GET") return jsonResponse({ error: "external_payments_removed", message: `This payment status path is no longer available. Contact ${SUPPORT_EMAIL} if your balance needs to be credited.`, supportEmail: SUPPORT_EMAIL }, 410);
     const adminCredit = service === "domain-admin" ? upstreamPath.match(/^\/users\/([0-9a-f-]+)\/wallet-credit$/i) : null;
     if (adminCredit && method === "POST") { let payload: Record<string, unknown> = {}; try { payload = JSON.parse(new TextDecoder().decode(requestBody || new ArrayBuffer(0)) || "{}") as Record<string, unknown>; } catch { return jsonResponse({ error: "invalid_json", message: "A JSON object is required." }, 400); } service = "domain-wallet"; upstreamPath = "/admin/credit"; requestBody = new TextEncoder().encode(JSON.stringify({ ...payload, userId: adminCredit[1] })).buffer; }
     if (service === "domain-admin" && /^\/users\/[0-9a-f-]{36}$/i.test(upstreamPath) && (method === "PATCH" || method === "DELETE")) service = "domain-admin-user-safety";
@@ -126,5 +126,5 @@ export default async function handler(req: Request): Promise<Response> {
     const cookieToken = cookieValue(req.headers.get("Cookie"), COOKIE_NAME); const suppliedAuth = req.headers.get("Authorization"); if (cookieToken) headers.set("Authorization", `Bearer ${cookieToken}`); else if (suppliedAuth && !PUBLIC_SERVICES.has(service)) headers.set("Authorization", suppliedAuth);
     const upstream = await fetch(upstreamUrl.toString(), { method, headers, body: requestBody, redirect: "manual" });
     return await responseFromUpstream(upstream, service, upstreamPath);
-  } catch (error) { if (error instanceof Response) return error; return jsonResponse({ error: "proxy_failed", message: error instanceof Error ? error.message : "Domain API proxy failed." }, 502); }
+  } catch (error) { if (error instanceof Response) return error; return jsonResponse({ error: "proxy_failed", message: "The domain service could not complete this request." }, 502); }
 }
