@@ -52,6 +52,30 @@ function errorText(error: unknown) {
   return error instanceof Error ? error.message : "Request failed.";
 }
 
+function validHostname(value: string): boolean {
+  const host = value.trim().toLowerCase().replace(/\.$/, "");
+  return host.length >= 3 && host.length <= 253 && host.split(".").every((label) =>
+    label.length > 0 && label.length <= 63 && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label),
+  );
+}
+
+function validIpAddress(value: string): boolean {
+  const ip = value.trim();
+  if (/^(?:\d{1,3}\.){3}\d{1,3}$/.test(ip)) {
+    return ip.split(".").every((part) => Number(part) >= 0 && Number(part) <= 255);
+  }
+  return /^[0-9a-f:]+$/i.test(ip) && ip.includes(":");
+}
+
+function validHttpUrl(value: string): boolean {
+  try {
+    const url = new URL(value.trim());
+    return url.protocol === "http:" || url.protocol === "https:";
+  } catch {
+    return false;
+  }
+}
+
 function tagType(value?: string | null): "green" | "red" | "warm-gray" | "blue" | "gray" {
   const text = String(value || "unknown").toLowerCase().replaceAll("_", "-");
   if (["active", "completed", "paid", "verified", "live", "enabled", "success"].some((item) => text.includes(item))) return "green";
@@ -103,13 +127,23 @@ function Forwarding({ domainId }: { domainId: string }) {
   const query = useQuery({ queryKey: ["forwarding", domainId], queryFn: () => customerToolsApi<{ forwarding: Row | null; provider?: Row | null }>(`/domains/${domainId}/forwarding`) });
   const save = useMutation({ mutationFn: (body: Row) => customerToolsApi(`/domains/${domainId}/forwarding`, { method: "PUT", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["forwarding", domainId] }) });
   const remove = useMutation({ mutationFn: () => customerToolsApi(`/domains/${domainId}/forwarding`, { method: "DELETE" }), onSuccess: () => client.invalidateQueries({ queryKey: ["forwarding", domainId] }) });
+  const current = query.data?.forwarding;
+  const [redirectAddress, setRedirectAddress] = useState("");
+  const [forwardingAttempted, setForwardingAttempted] = useState(false);
+
+  useEffect(() => {
+    setRedirectAddress(String(current?.redirect_address || current?.redirect_url || ""));
+    setForwardingAttempted(false);
+  }, [current?.id, current?.redirect_address, current?.redirect_url]);
+
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const values = Object.fromEntries(new FormData(event.currentTarget));
-    save.mutate({ redirectAddress: values.redirectAddress, forwardType: values.forwardType });
+    setForwardingAttempted(true);
+    if (!validHttpUrl(redirectAddress)) return;
+    save.mutate({ redirectAddress: redirectAddress.trim(), forwardType: new FormData(event.currentTarget).get("forwardType") });
   };
-  const current = query.data?.forwarding;
-  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Web forwarding</h2><p>Create or remove the registrar forwarding rule.</p></div>{current ? <Badge value={current.status} /> : null}</div>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <><p>{current ? <>Active: <strong>{current.redirect_address || current.redirect_url}</strong></> : "No active forwarding rule."}</p><form className="carbon-form-stack" onSubmit={submit}><TextInput id="forward-url" name="redirectAddress" type="url" labelText="Redirect URL" helperText="Use a complete http:// or https:// address." required defaultValue={current?.redirect_address || current?.redirect_url || ""} /><Select id="forward-type" name="forwardType" labelText="Forward type" helperText="Standard redirects visitors; Frame keeps the domain in the browser address bar." defaultValue={current?.forward_type || "Standard"}><SelectItem value="Standard" text="Standard redirect" /><SelectItem value="Frame" text="Frame redirect" /></Select><div className="heading-actions"><Button type="submit" disabled={save.isPending}>Save forwarding</Button>{current ? <Button type="button" kind="danger--ghost" disabled={remove.isPending} onClick={() => remove.mutate()}>Remove</Button> : null}</div></form>{save.isError || remove.isError ? <ErrorNotice error={save.error || remove.error} /> : null}</>}</Tile>;
+
+  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Web forwarding</h2><p>Choose where visitors should go when they use this domain.</p></div>{current ? <Badge value={current.status} /> : null}</div>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <><p>{current ? <>Active: <strong>{current.redirect_address || current.redirect_url}</strong></> : "No active forwarding rule."}</p><form className="carbon-form-stack" onSubmit={submit} noValidate key={current?.id || "new"}><TextInput id="forward-url" name="redirectAddress" type="url" labelText="Redirect URL" helperText="Use a complete http:// or https:// address." value={redirectAddress} onChange={(event) => setRedirectAddress(event.target.value)} required invalid={forwardingAttempted && !validHttpUrl(redirectAddress)} invalidText="Enter a complete http:// or https:// address." /><Select id="forward-type" name="forwardType" labelText="Forward type" helperText="Standard redirects visitors; Frame keeps the domain in the browser address bar." defaultValue={current?.forward_type || "Standard"}><SelectItem value="Standard" text="Standard redirect" /><SelectItem value="Frame" text="Frame redirect" /></Select><div className="heading-actions"><Button type="submit" disabled={save.isPending}>{save.isPending ? "Saving…" : "Save forwarding"}</Button>{current ? <Button type="button" kind="danger--ghost" disabled={remove.isPending} onClick={() => remove.mutate()}>Remove</Button> : null}</div></form>{save.isError || remove.isError ? <ErrorNotice error={save.error || remove.error} /> : null}</>}</Tile>;
 }
 
 function GlueHosts({ domainId, domainName }: { domainId: string; domainName: string }) {
@@ -121,13 +155,21 @@ function GlueHosts({ domainId, domainName }: { domainId: string; domainName: str
   const [editingHost, setEditingHost] = useState<Row | null>(null);
   const [editIps, setEditIps] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Row | null>(null);
+  const [glueHost, setGlueHost] = useState("");
+  const [glueIps, setGlueIps] = useState("");
+  const [glueAttempted, setGlueAttempted] = useState(false);
   const submit = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    const values = Object.fromEntries(new FormData(event.currentTarget));
-    add.mutate({ hostName: values.hostName, ipAddresses: String(values.ipAddresses || "").split(/[\s,]+/).filter(Boolean) });
+    setGlueAttempted(true);
+    const hostName = glueHost.trim();
+    const ipAddresses = glueIps.split(/[\s,]+/).map((value) => value.trim()).filter(Boolean);
+    if (!validHostname(hostName) || ipAddresses.length === 0 || ipAddresses.some((value) => !validIpAddress(value))) return;
+    add.mutate({ hostName, ipAddresses });
+    setGlueHost("");
+    setGlueIps("");
     event.currentTarget.reset();
   };
-  return <Tile className="carbon-dashboard-panel carbon-table-section"><div className="card-heading"><div><h2>Child nameservers / glue hosts</h2><p>Use a full child hostname under {domainName} and one or more IPv4/IPv6 addresses.</p></div></div><form className="carbon-glue-form" onSubmit={submit}><TextInput id="glue-host" name="hostName" labelText="Host name" placeholder={`ns1.${domainName}`} required /><TextInput id="glue-ips" name="ipAddresses" labelText="IP addresses" placeholder="192.0.2.10, 2001:db8::10" required /><Button type="submit" disabled={add.isPending}>Add</Button></form>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : (query.data?.glueHosts || []).length ? <Table size="lg"><TableHead><TableRow><TableHeader>Host</TableHeader><TableHeader>IP addresses</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{(query.data?.glueHosts || []).map((host) => <TableRow key={host.id}><TableCell>{host.host_name}</TableCell><TableCell>{(host.ip_addresses || []).join(", ")}</TableCell><TableCell><Badge value={host.status} /></TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => { setEditingHost(host); setEditIps((host.ip_addresses || []).join(", ")); }}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setDeleteTarget(host)}>Delete</Button></div></TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No glue hosts</h3><p>Add a child nameserver when your domain needs registrar glue records.</p></Tile>}{add.isError || edit.isError || remove.isError ? <ErrorNotice error={add.error || edit.error || remove.error} /> : null}
+  return <Tile className="carbon-dashboard-panel carbon-table-section"><div className="card-heading"><div><h2>Child nameservers / glue hosts</h2><p>Use a full child hostname under {domainName} and one or more IPv4/IPv6 addresses.</p></div></div><form className="carbon-glue-form" onSubmit={submit} noValidate><TextInput id="glue-host" name="hostName" helperText={`Use a hostname under ${domainName}.`} value={glueHost} onChange={(event) => setGlueHost(event.target.value)} placeholder={`ns1.${domainName}`} required invalid={glueAttempted && !validHostname(glueHost)} invalidText="Enter a valid host name." /><TextInput id="glue-ips" name="ipAddresses" labelText="IP addresses" helperText="Separate multiple IPv4 or IPv6 addresses with commas." value={glueIps} onChange={(event) => setGlueIps(event.target.value)} placeholder="192.0.2.10, 2001:db8::10" required invalid={glueAttempted && (glueIps.split(/[\s,]+/).filter(Boolean).length === 0 || glueIps.split(/[\s,]+/).filter(Boolean).some((value) => !validIpAddress(value)))} invalidText="Enter valid IPv4 or IPv6 addresses." /><Button type="submit" disabled={add.isPending}>Add</Button></form>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : (query.data?.glueHosts || []).length ? <Table size="lg"><TableHead><TableRow><TableHeader>Host</TableHeader><TableHeader>IP addresses</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{(query.data?.glueHosts || []).map((host) => <TableRow key={host.id}><TableCell>{host.host_name}</TableCell><TableCell>{(host.ip_addresses || []).join(", ")}</TableCell><TableCell><Badge value={host.status} /></TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => { setEditingHost(host); setEditIps((host.ip_addresses || []).join(", ")); }}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setDeleteTarget(host)}>Delete</Button></div></TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No glue hosts</h3><p>Add a child nameserver when your domain needs registrar glue records.</p></Tile>}{add.isError || edit.isError || remove.isError ? <ErrorNotice error={add.error || edit.error || remove.error} /> : null}
     <Modal
       open={Boolean(editingHost)}
       modalHeading="Edit child nameserver"
@@ -174,8 +216,9 @@ function DomainContacts({ domainId }: { domainId: string }) {
   const contacts = useQuery({ queryKey: ["contacts"], queryFn: () => api<{ contacts: Row[] }>("/contacts") });
   const save = useMutation({ mutationFn: (body: Row) => customerToolsApi(`/domains/${domainId}/contacts`, { method: "PUT", body }) });
   const [selected, setSelected] = useState("");
+  const [contactAttempted, setContactAttempted] = useState(false);
   const rows = contacts.data?.contacts || [];
-  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>WHOIS contacts</h2><p>Assign one contact to all four registry roles, or manage contacts from the Contacts page.</p></div><Button kind="tertiary" size="sm" href="/dashboard/contacts">Manage contacts</Button></div>{contacts.isPending ? <Loading /> : contacts.isError ? <ErrorNotice error={contacts.error} /> : <div className="carbon-contact-assignment"><Select id="domain-contact" labelText="Contact" value={selected} onChange={(event) => setSelected(event.target.value)}><SelectItem value="" text="Select a contact" />{rows.map((contact) => <SelectItem key={contact.id} value={contact.id} text={`${contact.label || `${contact.first_name} ${contact.last_name}`} · ${contact.email}`} />)}</Select><Button disabled={!selected || save.isPending} onClick={() => save.mutate({ contactId: selected })}>Apply to all roles</Button></div>}{save.isSuccess ? <InlineNotification kind="success" lowContrast hideCloseButton title="Registry contacts updated" subtitle="The selected contact has been applied to all registry roles." /> : null}{save.isError ? <ErrorNotice error={save.error} /> : null}</Tile>;
+  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>WHOIS contacts</h2><p>Assign one contact to all four registry roles, or manage contacts from the Contacts page.</p></div><Button kind="tertiary" size="sm" href="/dashboard/contacts">Manage contacts</Button></div>{contacts.isPending ? <Loading /> : contacts.isError ? <ErrorNotice error={contacts.error} /> : <div className="carbon-contact-assignment"><Select id="domain-contact" labelText="Contact" value={selected} required invalid={contactAttempted && !selected} invalidText="Select a contact before applying it." onChange={(event) => setSelected(event.target.value)}><SelectItem value="" text="Select a contact" />{rows.map((contact) => <SelectItem key={contact.id} value={contact.id} text={`${contact.label || `${contact.first_name} ${contact.last_name}`} · ${contact.email}`} />)}</Select><Button disabled={save.isPending} onClick={() => { setContactAttempted(true); if (selected) save.mutate({ contactId: selected }); }}>{save.isPending ? "Applying…" : "Apply to all roles"}</Button></div>}{save.isSuccess ? <InlineNotification kind="success" lowContrast hideCloseButton title="Registry contacts updated" subtitle="The selected contact has been applied to all registry roles." /> : null}{save.isError ? <ErrorNotice error={save.error} /> : null}</Tile>;
 }
 
 function DomainManagePage({ domainId }: { domainId: string }) {
