@@ -129,7 +129,7 @@ function addReadonlyWarning(domain: DomainEnvironmentRow) {
   if (!content || content.querySelector(".khd-env-warning")) return;
   const warning = document.createElement("div");
   warning.className = "khd-env-warning";
-  warning.innerHTML = `<strong>TEST / OTE domain</strong>This domain belongs to the DomainNameAPI test environment. It is shown for reference only while the platform is live. Provider actions are blocked in production.`;
+  warning.innerHTML = `<strong>TEST / OTE domain</strong>This domain is in test mode and is shown for reference only. Changes are unavailable while the platform is live.`;
   content.prepend(warning);
 
   const actionSelectors = [
