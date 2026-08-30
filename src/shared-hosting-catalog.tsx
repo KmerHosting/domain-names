@@ -143,8 +143,8 @@ export function SharedHostingCatalog() {
   return <section className="section section-soft carbon-hosting-catalog" id="hosting">
     <div className="container">
       <div className="section-heading carbon-hosting-catalog__heading">
-        <div><span className="kicker">Shared Hosting</span><h2>Put your domain on the right hosting stack.</h2></div>
-        <div><p>Live plans, prices and included features from KmerHosting Shared Hosting. Domain registration is separate from hosting.</p><Button kind="tertiary" href="https://shared.kmerhosting.com" target="_blank" rel="noreferrer">Open Shared Hosting</Button></div>
+        <div><span className="kicker">Shared Hosting</span><h2>Host your domain with the right plan.</h2></div>
+        <div><p>Current plans, prices and included features from KmerHosting Shared Hosting. Domain registration is separate from hosting.</p><Button kind="tertiary" href="https://shared.kmerhosting.com" target="_blank" rel="noreferrer">Open Shared Hosting</Button></div>
       </div>
 
       <div className="carbon-hosting-catalog__switcher" aria-label="Shared Hosting categories">
@@ -155,7 +155,7 @@ export function SharedHostingCatalog() {
 
       <div className="carbon-hosting-catalog__category-heading">
         <div><h3>{activeCategory.title}</h3><p>{activeCategory.description}</p></div>
-        <Tag type="green">Live catalog</Tag>
+        <Tag type="green">Current catalog</Tag>
       </div>
 
       {error ? <InlineNotification lowContrast hideCloseButton kind="warning" title="Hosting catalog unavailable" subtitle={error} actions={<Button kind="ghost" size="sm" href={categoryHref} target="_blank" rel="noreferrer">View on Shared Hosting</Button>} /> : null}
