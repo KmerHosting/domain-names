@@ -361,7 +361,7 @@ function managedStatus(d: Json, cfg: Json, providerConfirmed = true) {
       ? "This domain is not present in the active registrar environment. DNS operations are disabled."
       : same
       ? null
-      : "This domain is not using the managed DNS nameservers. Local/provider DNS records may not be active publicly.",
+      : "This domain is not using the managed DNS nameservers. Local DNS records may not be active publicly.",
   };
 }
 function systemRecordType(type: unknown) {
