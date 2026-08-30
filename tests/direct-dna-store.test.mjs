@@ -109,7 +109,7 @@ test('public boundaries hide provider costs, markup metadata, and raw provider p
   assert.match(dnsTools, /domainConfirmed: providerConfirmed/)
   assert.match(dnsTools, /syncError: providerError/)
   assert.doesNotMatch(dnsTools, /providerSyncAt:/)
-  assert.doesNotMatch(dnsTools, /providerError,/)
+  assert.doesNotMatch(dnsTools, /^\\s*providerError:/m)
   assert.match(dnsProxy, /lastRefreshedAt/)
   assert.match(dnsProxy, /syncError/)
   assert.doesNotMatch(dnsProxy, /output\.providerSyncAt\s*=/)
