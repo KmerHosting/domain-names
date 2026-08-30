@@ -92,7 +92,7 @@ async function pdfBuffer(kind:"invoice"|"receipt", bundle:{user:Json;order:Json;
   if(payment?.paid_at) line(doc, "Paid", date(payment.paid_at), 330);
   addTable(doc, order);
   doc.font("Helvetica-Bold").fontSize(11).fillColor("#172033").text("Payment", 54, 500);
-  doc.font("Helvetica").fontSize(10).text(`Provider: ${payment?.provider || "wallet/direct"}`, 54, 522).text(`Method: ${payment?.payment_method || order.payment_method || "—"}`, 54, 538).text(`Reference: ${payment?.provider_reference || payment?.merchant_invoice_id || "—"}`, 54, 554);
+  doc.font("Helvetica").fontSize(10).text(`Payment channel: ${payment?.payment_method || order.payment_method || "Account balance"}`, 54, 522).text(`Reference: ${payment?.merchant_invoice_id || "—"}`, 54, 538);
   doc.fontSize(8).fillColor("#667085").text("This document was generated automatically by KmerHosting Domains. For support, contact support@kmerhosting.com.", 54, 735, { width:486, align:"center" });
   doc.end();
   return await done;
