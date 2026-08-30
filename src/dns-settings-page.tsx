@@ -58,7 +58,7 @@ function errorText(error: unknown) {
 
 function validDnsHost(value: string): boolean {
   const host = value.trim().toLowerCase().replace(/\.$/, "");
-  return host.length >= 3 && host.length <= 253 && host.split(".").every((label) =>
+  return host.length >= 3 && host.length <= 253 && host.includes(".") && host.split(".").every((label) =>
     label.length > 0 && label.length <= 63 && /^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/.test(label),
   );
 }
