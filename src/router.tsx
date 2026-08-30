@@ -549,7 +549,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
     <Modal
       open={confirmOpen}
       modalHeading={type === "registration" ? "Confirm domain registration" : "Confirm domain transfer"}
-      primaryButtonText={createOrder.isPending ? "Submitting to provider…" : `${type === "registration" ? "Register" : "Start transfer"} · ${formatMoney(dueNow)}`}
+      primaryButtonText={createOrder.isPending ? "Submitting order…" : `${type === "registration" ? "Register" : "Start transfer"} · ${formatMoney(dueNow)}`}
       secondaryButtonText="Go back"
       primaryButtonDisabled={createOrder.isPending}
       onRequestClose={() => { if (!createOrder.isPending) setConfirmOpen(false); }}
