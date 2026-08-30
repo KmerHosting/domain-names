@@ -18,7 +18,7 @@ test('storefront uses synchronized prices while checkout refreshes the live DNA 
   const jobs = await read('supabase/functions/domain-jobs-v2/index.ts')
   const dnaClient = await read('supabase/functions/_shared/dna-client.ts')
   assert.match(search, /from\("domain_tld_prices"\)/)
-  assert.match(search, /synchronized DomainNameAPI catalog/)
+  assert.match(search, /Current domain catalog/)
   assert.match(search, /\/api\/v1\/domains\/bulk-search/)
   assert.doesNotMatch(search, /\/api\/v1\/products\/tlds/)
   assert.doesNotMatch(search, /\/api\/v1\/domains\/search/)
