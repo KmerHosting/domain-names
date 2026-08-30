@@ -52,6 +52,7 @@ test('customer UI exposes neither a domain wallet nor an administration route', 
   assert.doesNotMatch(router, /walletApi|WalletPage|walletRoute|Pay from balance/)
   assert.doesNotMatch(shell, /adminNavigation|href="\/admin"|\/dashboard\/wallet/)
   assert.doesNotMatch(footer, /dashboard\/wallet|label: "Wallet"/)
+  assert.match(footer, /https:\/\/status\.kmerhosting\.com/)
   assert.doesNotMatch(main, /AdminPage|AdminEnvironmentsPage|AdminOperationsPage/)
 })
 
@@ -95,6 +96,9 @@ test('public boundaries hide provider costs, markup metadata, and raw provider p
   const api = await read('supabase/functions/domain-api/index.ts')
   const customerTools = await read('supabase/functions/domain-customer-tools/index.ts')
   const orderGuard = await read('supabase/functions/domain-order-guard/index.ts')
+  const dnsTools = await read('supabase/functions/domain-dns-tools/index.ts')
+  const dnsProxy = await read('api/domain/domain-dns-tools/[...path].ts')
+  const legacy = await read('supabase/functions/domain-environment-switch/index.ts')
   assert.match(search, /function publicCatalogPrice/)
   assert.match(search, /customerPriceUsd/)
   assert.doesNotMatch(search, /markupPercent/)
@@ -102,6 +106,15 @@ test('public boundaries hide provider costs, markup metadata, and raw provider p
   assert.doesNotMatch(customerTools, /providerCostUsd|markupPercent/)
   assert.match(orderGuard, /function publicOrder/)
   assert.doesNotMatch(orderGuard, /return json\(req, \{[\s\S]{0,500}providerCostUsd/)
+  assert.match(dnsTools, /domainConfirmed: providerConfirmed/)
+  assert.match(dnsTools, /syncError: providerError/)
+  assert.doesNotMatch(dnsTools, /providerSyncAt:/)
+  assert.doesNotMatch(dnsTools, /providerError,/)
+  assert.match(dnsProxy, /lastRefreshedAt/)
+  assert.match(dnsProxy, /syncError/)
+  assert.doesNotMatch(dnsProxy, /output\.providerSyncAt\s*=/)
+  assert.doesNotMatch(dnsProxy, /output\.providerError\s*=/)
+  assert.doesNotMatch(legacy, /DomainNameAPI|provider|margin|markup|cost/i)
 })
 
 test('route loading is skeleton-only and forms expose Carbon validation controls', async () => {
