@@ -22,8 +22,68 @@ async function directCatalog() {
   return { environment, prices };
 }
 
+function publicProviderAttributes(value: unknown) {
+  if (!Array.isArray(value)) return [];
+  return value.map((attribute: any) => {
+    const options = Array.isArray(attribute.options)
+      ? attribute.options.map((option: any) => typeof option === "string" ? option : clean(option?.value)).filter(Boolean)
+      : [];
+    return {
+      key: clean(attribute.key),
+      type: clean(attribute.type) || undefined,
+      options,
+      isRequired: Boolean(attribute.isRequired),
+      description: clean(attribute.description) || undefined,
+    };
+  }).filter((attribute) => attribute.key);
+}
+
+function publicCatalogPrice(value: Json): Json {
+  return {
+    tld: clean(value.tld).toLowerCase(),
+    popular: Boolean(value.popular),
+    is_promo: Boolean(value.is_promo),
+    registration_price_usd: Number(value.registration_price_usd || 0),
+    renewal_price_usd: Number(value.renewal_price_usd || 0),
+    transfer_price_usd: Number(value.transfer_price_usd || 0),
+    restore_price_usd: value.restore_price_usd == null ? null : Number(value.restore_price_usd),
+    min_years: Number(value.min_years || value.registration_periods?.[0] || 1),
+    max_years: Number(value.max_years || value.registration_periods?.at(-1) || value.registration_periods?.[0] || 1),
+    registration_periods: Array.isArray(value.registration_periods) ? value.registration_periods.map(Number).filter((period: number) => period > 0) : [],
+    renewal_periods: Array.isArray(value.renewal_periods) ? value.renewal_periods.map(Number).filter((period: number) => period > 0) : [],
+    transfer_periods: Array.isArray(value.transfer_periods) ? value.transfer_periods.map(Number).filter((period: number) => period > 0) : [],
+    supports_privacy: value.supports_privacy !== false,
+    provider_attributes: publicProviderAttributes(value.provider_attributes),
+  };
+}
+
+function boolishPublic(value: unknown) {
+  return [true, 1, "1", "true", "yes", "available"].includes(value as any);
+}
+
+function publicRegistrarResult(domainName: string, raw: Json, price: Json | null): Json {
+  const info = (raw?.info || raw?.data?.info || raw?.data || raw) as Json;
+  const rawStatus = clean(info.status ?? raw.status ?? info.available ?? raw.available).toLowerCase().replace(/[\\s_-]+/g, "");
+  const available = ["available", "true", "1", "free"].includes(rawStatus);
+  const unavailable = ["notavailable", "unavailable", "registered", "taken", "false", "0", "reserved", "blocked"].includes(rawStatus);
+  const premium = boolishPublic(info.isPremium ?? info.premium);
+  const providerPrice = Number(info.price ?? info.premiumPrice ?? raw.price);
+  const basePrice = Number(price?.registration_price_usd || 0);
+  const customerPriceUsd = premium && Number.isFinite(providerPrice) && providerPrice > 0
+    ? Math.round(Math.max(providerPrice * 1.30, basePrice) * 100) / 100
+    : basePrice > 0 ? basePrice : null;
+  return {
+    domainName,
+    available,
+    isAvailable: available,
+    status: available ? "available" : unavailable ? "unavailable" : rawStatus || "unknown",
+    isPremium: premium,
+    customerPriceUsd,
+  };
+}
+
 function errorResponse(req: Request, error: unknown): Response {
-  if (error instanceof ApiError) return json(req, { error: error.code, message: error.message, details: error.details }, error.status);
+  if (error instanceof ApiError) return json(req, { error: error.code, message: error.message }, error.status);
   console.error(error);
   return json(req, { error: "internal_error", message: error instanceof Error ? error.message : "Unexpected server error." }, 500);
 }
@@ -550,7 +610,7 @@ async function publicRoutes(req: Request, path: string): Promise<Response | null
   }
   if (req.method === "GET" && path === "/prices") {
     const catalog = await directCatalog();
-    return json(req, { currency: "USD", prices: catalog.prices, registrarEnvironment: catalog.environment, testMode: catalog.environment === "ote", priceSource: "DomainNameAPI live catalog", markupPercent: 30 });
+    return json(req, { currency: "USD", prices: catalog.prices.map(publicCatalogPrice), registrarEnvironment: catalog.environment, testMode: catalog.environment === "ote", priceSource: "Current domain catalog" });
   }
   if (req.method === "POST" && path === "/domains/check") {
     await enforceRateLimit(`domain-check:${clientIp(req)}`, 30, 60);
@@ -564,7 +624,8 @@ async function publicRoutes(req: Request, path: string): Promise<Response | null
     for (const domainName of domains) {
       const registrar = await searchDomain(domainName);
       const tld = getTld(domainName);
-      results.push({ domainName, registrar, price: priceByTld.get(tld) || null });
+      const price = priceByTld.get(tld) || null;
+      results.push({ domainName, registrar: publicRegistrarResult(domainName, registrar, price), price: price ? publicCatalogPrice(price) : null });
     }
     return json(req, { results, registrarEnvironment: catalog.environment, testMode: catalog.environment === "ote", priceSource: "DomainNameAPI live catalog" });
   }
