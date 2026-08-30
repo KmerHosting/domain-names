@@ -1,5 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 import bcrypt from "bcryptjs";
+import { gatewayAuth } from "./gateway-auth.ts";
 
 export const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 export const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -268,6 +269,8 @@ export async function createSession(user: Json, req: Request): Promise<{ token: 
 }
 
 export async function requireAuth(req: Request): Promise<AuthContext> {
+  const gateway = await gatewayAuth(req);
+  if (gateway) return gateway;
   const header = clean(req.headers.get("authorization"));
   if (!header.toLowerCase().startsWith("bearer ")) {
     throw new ApiError(401, "authentication_required", "Authentication is required.");
