@@ -63,6 +63,14 @@ function validDnsHost(value: string): boolean {
   );
 }
 
+function validRecordName(value: string): boolean {
+  const name = value.trim().toLowerCase().replace(/\.$/, "");
+  if (name === "@") return true;
+  return name.length > 0 && name.length <= 253 && name.split(".").every((label) =>
+    /^_?[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$/.test(label),
+  );
+}
+
 function emptyRecord(): RecordFormState {
   return { name: "@", type: "A", value: "", ttl: "3600", priority: "10", weight: "0", port: "", target: "", flag: "0", tag: "issue" };
 }
@@ -185,10 +193,12 @@ export function DnsSettingsPage() {
     const priority = Number(record.priority);
     const weight = Number(record.weight);
     const port = Number(record.port);
+    const flag = Number(record.flag);
     const validNumbers = Number.isFinite(ttl) && ttl >= 60 && ttl <= 86400
       && Number.isFinite(priority) && priority >= 0 && priority <= 65535
       && Number.isFinite(weight) && weight >= 0 && weight <= 65535
-      && (!record.port.trim() || (Number.isFinite(port) && port >= 1 && port <= 65535));
+      && (!record.port.trim() || (Number.isFinite(port) && port >= 1 && port <= 65535))
+      && (recordType !== "CAA" || (Number.isFinite(flag) && flag >= 0 && flag <= 255));
     const validContents = recordType === "MX"
       ? Boolean(record.target.trim()) && Number.isFinite(priority) && priority >= 0 && priority <= 65535
       : recordType === "SRV"
@@ -196,8 +206,8 @@ export function DnsSettingsPage() {
         : recordType === "CAA"
           ? Boolean(record.value.trim())
           : Boolean(record.value.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean).length);
-    if (!record.name.trim()) {
-      setError("Enter a record name.");
+    if (!validRecordName(record.name)) {
+      setError("Enter a valid record name.");
       setSuccess(null);
       return;
     }
@@ -225,11 +235,12 @@ export function DnsSettingsPage() {
   };
 
   const type = record.type.toUpperCase();
-  const recordNameInvalid = recordAttempted && !record.name.trim();
+  const recordNameInvalid = recordAttempted && !validRecordName(record.name);
   const ttlInvalid = recordAttempted && (!Number.isFinite(Number(record.ttl)) || Number(record.ttl) < 60 || Number(record.ttl) > 86400);
   const priorityInvalid = recordAttempted && (!Number.isFinite(Number(record.priority)) || Number(record.priority) < 0 || Number(record.priority) > 65535);
   const weightInvalid = recordAttempted && (!Number.isFinite(Number(record.weight)) || Number(record.weight) < 0 || Number(record.weight) > 65535);
   const portInvalid = recordAttempted && (!Number.isFinite(Number(record.port)) || Number(record.port) < 1 || Number(record.port) > 65535);
+  const flagInvalid = recordAttempted && type === "CAA" && (!Number.isFinite(Number(record.flag)) || Number(record.flag) < 0 || Number(record.flag) > 255);
   const valueInvalid = recordAttempted && (
     type === "MX" ? !record.target.trim()
       : type === "SRV" ? !record.target.trim() || portInvalid
@@ -265,13 +276,13 @@ export function DnsSettingsPage() {
 
       <Column sm={4} md={8} lg={10}><Tile className="carbon-dns-panel"><div className="card-heading"><div><h2>{editingId ? "Edit DNS record" : "Add DNS record"}</h2><p>Records are checked before they are applied and refreshed here when the change completes.</p></div></div>
         <form className="carbon-form-stack" onSubmit={submitRecord} noValidate>
-          <Grid condensed><Column sm={4} md={3} lg={6}><TextInput id="dns-record-name" labelText="Name" helperText="Use @ for the root domain." value={record.name} onChange={(event) => setRecord({ ...record, name: event.target.value })} required invalid={recordNameInvalid} invalidText="Enter a record name." /></Column><Column sm={4} md={2} lg={4}><Select id="dns-record-type" labelText="Type" value={type} onChange={(event) => setRecord({ ...emptyRecord(), name: record.name, type: event.target.value })}>{["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"].map((item) => <SelectItem key={item} value={item} text={item} />)}</Select></Column><Column sm={4} md={3} lg={6}><TextInput id="dns-record-ttl" type="number" labelText="TTL" helperText="60 to 86400 seconds." min={60} max={86400} value={record.ttl} onChange={(event) => setRecord({ ...record, ttl: event.target.value })} required invalid={ttlInvalid} invalidText="Enter a TTL from 60 to 86400 seconds." /></Column></Grid>
+          <Grid condensed><Column sm={4} md={3} lg={6}><TextInput id="dns-record-name" labelText="Name" helperText="Use @ for the root domain." value={record.name} onChange={(event) => setRecord({ ...record, name: event.target.value })} required invalid={recordNameInvalid} invalidText="Enter a record name." /></Column><Column sm={4} md={2} lg={4}><Select id="dns-record-type" labelText="Type" value={type} onChange={(event) => { setRecord({ ...emptyRecord(), name: record.name, type: event.target.value }); setRecordAttempted(false); }}>{["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"].map((item) => <SelectItem key={item} value={item} text={item} />)}</Select></Column><Column sm={4} md={3} lg={6}><TextInput id="dns-record-ttl" type="number" labelText="TTL" helperText="60 to 86400 seconds." min={60} max={86400} value={record.ttl} onChange={(event) => setRecord({ ...record, ttl: event.target.value })} required invalid={ttlInvalid} invalidText="Enter a TTL from 60 to 86400 seconds." /></Column></Grid>
 
           {type === "MX" ? <Grid condensed><Column sm={4} md={4} lg={8}><TextInput id="dns-mx-priority" type="number" labelText="Priority" min={0} max={65535} value={record.priority} onChange={(event) => setRecord({ ...record, priority: event.target.value })} invalid={priorityInvalid} invalidText="Enter a number from 0 to 65535." /></Column><Column sm={4} md={4} lg={8}><TextInput id="dns-mx-target" labelText="Mail server" value={record.target} onChange={(event) => setRecord({ ...record, target: event.target.value })} required invalid={valueInvalid} invalidText="Enter a mail server target." /></Column></Grid> : null}
 
           {type === "SRV" ? <><Grid condensed><Column sm={4} md={2} lg={5}><TextInput id="dns-srv-priority" type="number" labelText="Priority" min={0} max={65535} value={record.priority} onChange={(event) => setRecord({ ...record, priority: event.target.value })} invalid={priorityInvalid} invalidText="Enter a number from 0 to 65535." /></Column><Column sm={4} md={2} lg={5}><TextInput id="dns-srv-weight" type="number" labelText="Weight" min={0} max={65535} value={record.weight} onChange={(event) => setRecord({ ...record, weight: event.target.value })} invalid={weightInvalid} invalidText="Enter a number from 0 to 65535." /></Column><Column sm={4} md={4} lg={6}><TextInput id="dns-srv-port" type="number" labelText="Port" helperText="1 to 65535." min={1} max={65535} value={record.port} onChange={(event) => setRecord({ ...record, port: event.target.value })} required invalid={portInvalid} invalidText="Enter a port from 1 to 65535." /></Column></Grid><TextInput id="dns-srv-target" labelText="Target" value={record.target} onChange={(event) => setRecord({ ...record, target: event.target.value })} required invalid={valueInvalid} invalidText="Enter a target hostname." /></> : null}
 
-          {type === "CAA" ? <Grid condensed><Column sm={4} md={2} lg={4}><TextInput id="dns-caa-flag" type="number" labelText="Flag" min={0} max={255} value={record.flag} onChange={(event) => setRecord({ ...record, flag: event.target.value })} /></Column><Column sm={4} md={2} lg={4}><Select id="dns-caa-tag" labelText="Tag" value={record.tag} onChange={(event) => setRecord({ ...record, tag: event.target.value })}><SelectItem value="issue" text="issue" /><SelectItem value="issuewild" text="issuewild" /><SelectItem value="iodef" text="iodef" /></Select></Column><Column sm={4} md={4} lg={8}><TextInput id="dns-caa-value" labelText="Value" value={record.value} onChange={(event) => setRecord({ ...record, value: event.target.value })} required invalid={valueInvalid} invalidText="Enter a CAA value." /></Column></Grid> : null}
+          {type === "CAA" ? <Grid condensed><Column sm={4} md={2} lg={4}><TextInput id="dns-caa-flag" type="number" labelText="Flag" helperText="0 to 255." min={0} max={255} value={record.flag} onChange={(event) => setRecord({ ...record, flag: event.target.value })} required invalid={flagInvalid} invalidText="Enter a number from 0 to 255." /></Column><Column sm={4} md={2} lg={4}><Select id="dns-caa-tag" labelText="Tag" value={record.tag} onChange={(event) => setRecord({ ...record, tag: event.target.value })}><SelectItem value="issue" text="issue" /><SelectItem value="issuewild" text="issuewild" /><SelectItem value="iodef" text="iodef" /></Select></Column><Column sm={4} md={4} lg={8}><TextInput id="dns-caa-value" labelText="Value" value={record.value} onChange={(event) => setRecord({ ...record, value: event.target.value })} required invalid={valueInvalid} invalidText="Enter a CAA value." /></Column></Grid> : null}
 
           {!['MX', 'SRV', 'CAA'].includes(type) ? <TextArea id="dns-record-value" labelText={type === "TXT" ? "Value" : "Value(s)"} value={record.value} onChange={(event) => setRecord({ ...record, value: event.target.value })} placeholder="One value per line or comma separated" required invalid={valueInvalid} invalidText="Enter at least one value." /> : null}
           <div className="heading-actions"><Button type="submit" disabled={busy === "record"}>{editingId ? "Save record" : "Add record"}</Button>{editingId ? <Button type="button" kind="secondary" onClick={() => { setEditingId(null); setRecord(emptyRecord()); }}>Cancel</Button> : null}</div>
