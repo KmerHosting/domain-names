@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.1](https://github.com/KmerHosting/domain-names/compare/v1.6.0...v1.6.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **domain:** improve mobile navigation and form recovery ([4e1f924](https://github.com/KmerHosting/domain-names/commit/4e1f92486cd05c9e6923659e5b017db15ca45f06))
+
 ## [1.6.0](https://github.com/KmerHosting/domain-names/compare/v1.5.7...v1.6.0) (2026-08-30)
 
 
