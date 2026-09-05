@@ -48,6 +48,15 @@ const dashboardNavigation: NavItem[] = [
   { href: "/dashboard/profile", label: "Profile", icon: Settings },
 ];
 
+const publicNavigation = [
+  { href: "/#search", label: "Search" },
+  { href: "/#pricing", label: "Pricing" },
+  { href: "/tlds", label: "All TLDs" },
+  { href: "/#features", label: "Features" },
+  { href: "/#hosting", label: "Shared Hosting" },
+  { href: "/transfer-domain", label: "Transfer" },
+] as const;
+
 function useDomainSession() {
   const [session, setSession] = useState<Session | null>(() => getSession());
   useEffect(() => subscribeSession(() => setSession(getSession())), []);
@@ -109,15 +118,13 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
           <>
             <Header aria-label="KmerHosting Domains">
               <SkipToContent href="#main-content" />
-              {privateShell ? (
-                <HeaderMenuButton
-                  aria-label={isSideNavExpanded ? "Close navigation" : "Open navigation"}
-                  aria-expanded={isSideNavExpanded}
-                  aria-controls="domain-side-nav"
-                  isActive={isSideNavExpanded}
-                  onClick={onClickSideNavExpand}
-                />
-              ) : null}
+              <HeaderMenuButton
+                aria-label={isSideNavExpanded ? "Close navigation" : "Open navigation"}
+                aria-expanded={isSideNavExpanded}
+                aria-controls="domain-side-nav"
+                isActive={isSideNavExpanded}
+                onClick={onClickSideNavExpand}
+              />
               <HeaderName href="/" prefix="KmerHosting">Domains</HeaderName>
 
               {!privateShell ? (
@@ -193,25 +200,25 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
               </div>
             </HeaderPanel>
 
-            {privateShell ? (
-              <SideNav
-                id="domain-side-nav"
-                isRail
-                expanded={isSideNavExpanded}
-                isChildOfHeader
-                aria-label="KmerHosting Domains navigation"
-                className="domain-carbon-sidenav"
-                onOverlayClick={isSideNavExpanded ? onClickSideNavExpand : undefined}
-              >
-                <SideNavItems>
+            <SideNav
+              id="domain-side-nav"
+              isRail={privateShell}
+              expanded={isSideNavExpanded}
+              isChildOfHeader
+              aria-label="KmerHosting Domains navigation"
+              className="domain-carbon-sidenav"
+              onOverlayClick={isSideNavExpanded ? onClickSideNavExpand : undefined}
+            >
+              <SideNavItems>
+                {privateShell ? <>
                   {dashboardNavigation.slice(0, 3).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
                   <SideNavDivider />
                   {dashboardNavigation.slice(3).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
                   <SideNavDivider />
                   <SideNavLink href="/dashboard/notifications" isActive={pathname === "/dashboard/notifications"} aria-current={pathname === "/dashboard/notifications" ? "page" : undefined} renderIcon={Notification}>Notifications</SideNavLink>
-                </SideNavItems>
-              </SideNav>
-            ) : null}
+                </> : publicNavigation.map((item) => <SideNavLink key={item.href} href={item.href} isActive={pathname === item.href} aria-current={pathname === item.href ? "page" : undefined}>{item.label}</SideNavLink>)}
+              </SideNavItems>
+            </SideNav>
           </>
         )}
       />
