@@ -85,6 +85,18 @@ a {
   flex: 0 0 auto;
 }
 
+// Public pages use the horizontal header navigation only. Keep any legacy
+// shell markup from reserving a desktop rail when a cached/older bundle still
+// mounts it during a route transition.
+.domain-app-shell--public .cds--side-nav,
+.domain-app-shell--public .cds--header__menu {
+  display: none !important;
+}
+
+.domain-app-shell--public .domain-content {
+  margin-inline-start: 0;
+}
+
 .domain-header-panel {
   inline-size: 0;
   background: var(--cds-layer-01);
