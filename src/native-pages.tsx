@@ -31,6 +31,7 @@ import {
   newIdempotencyKey,
 } from "./api";
 import { useDomainCopy } from "./domain-i18n";
+import { useDomainNativeCopy } from "./domain-native-i18n";
 
 type Row = Record<string, any>;
 type Route =
@@ -122,11 +123,12 @@ function MetricGrid({ metrics }: { metrics: Array<[string, ReactNode]> }) {
 
 function NotificationsPage() {
   const copy = useDomainCopy();
+  const nativeCopy = useDomainNativeCopy();
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["notifications"], queryFn: () => customerToolsApi<{ notifications: Row[]; unread: number }>("/notifications"), refetchInterval: 30000 });
   const readOne = useMutation({ mutationFn: (id: string) => customerToolsApi(`/notifications/${id}/read`, { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["notifications"] }) });
   const readAll = useMutation({ mutationFn: () => customerToolsApi("/notifications/read-all", { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["notifications"] }) });
-  return <Shell title={copy.notifications} subtitle="Domain, transfer, renewal and account activity." back="/dashboard"><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.notifications}</h2><p>{query.data?.unread || 0} unread.</p></div><Button kind="secondary" size="sm" onClick={() => readAll.mutate()} disabled={readAll.isPending}>Read all</Button></div>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <div className="carbon-activity-list">{(query.data?.notifications || []).map((item) => <Tile className="carbon-notification-row" key={item.id}><div><strong>{item.title}</strong><p>{item.message}</p><small>{formatDate(item.created_at)} · {item.type || "account"}</small></div>{!item.read_at ? <Button kind="ghost" size="sm" onClick={() => readOne.mutate(item.id)}>Mark as read</Button> : <Badge value="read" />}</Tile>)}</div>}</Tile></Shell>;
+  return <Shell title={copy.notifications} subtitle={nativeCopy.activitySubtitle} back="/dashboard"><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.notifications}</h2><p>{query.data?.unread || 0} {nativeCopy.unread}.</p></div><Button kind="secondary" size="sm" onClick={() => readAll.mutate()} disabled={readAll.isPending}>{nativeCopy.readAll}</Button></div>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <div className="carbon-activity-list">{(query.data?.notifications || []).map((item) => <Tile className="carbon-notification-row" key={item.id}><div><strong>{item.title}</strong><p>{item.message}</p><small>{formatDate(item.created_at)} · {item.type || "account"}</small></div>{!item.read_at ? <Button kind="ghost" size="sm" onClick={() => readOne.mutate(item.id)}>{nativeCopy.markRead}</Button> : <Badge value="read" />}</Tile>)}</div>}</Tile></Shell>;
 }
 
 function ProviderAction({ title, description, action, busy, danger = false }: { title: string; description: string; action: () => void; busy: boolean; danger?: boolean }) {
