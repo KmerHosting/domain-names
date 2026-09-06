@@ -156,13 +156,20 @@ a {
   margin-block: spacing.$spacing-03;
 }
 
+.domain-sidenav-label {
+  display: block;
+  margin: spacing.$spacing-05 spacing.$spacing-05 spacing.$spacing-02;
+  color: var(--cds-text-secondary);
+  @include type.type-style('label-01');
+}
+
 @include breakpoint.breakpoint('lg') {
   .domain-app-shell--private .domain-content {
-    margin-inline-start: 3rem;
+    margin-inline-start: 16rem;
   }
 
-  .domain-app-shell--private:has(.domain-carbon-sidenav.cds--side-nav--expanded) .domain-content {
-    margin-inline-start: 16rem;
+  .domain-app-shell--private .cds--header__menu {
+    display: none;
   }
 }
 
