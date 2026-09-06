@@ -202,6 +202,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
 
             <SideNav
               id="domain-side-nav"
+              isRail={privateShell}
               expanded={isSideNavExpanded}
               isChildOfHeader
               aria-label="KmerHosting Domains navigation"
