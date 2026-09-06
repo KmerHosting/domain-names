@@ -30,7 +30,8 @@ import { ReactNode, useEffect, useState } from "react";
 import { api, clearSession, getSession, subscribeSession, type Session, type User } from "./api";
 import { useDomainTheme } from "./carbon-experience";
 import { SiteFooter } from "./site-footer";
-import { isRtl, LOCALES, localeCookie, normalizeLocale, resolveLocale, type KmerLocale } from "@kmerhosting/i18n";
+import { domainShellCopy, type DomainShellMessages } from "./domain-i18n";
+import { isRtl, LOCALES, localeCookie, resolveLocale, type CommonMessages, type KmerLocale } from "@kmerhosting/i18n";
 
 type NavItem = {
   href: string;
@@ -39,24 +40,27 @@ type NavItem = {
   exact?: boolean;
 };
 
+type DomainCopy = DomainShellMessages & Pick<CommonMessages, "language" | "support" | "signIn" | "createAccount">;
+type DomainMessageKey = keyof DomainShellMessages;
+
 const CUSTOMER_DASHBOARD_URL = "https://domain.kmerhosting.com/dashboard";
 
-const dashboardNavigation: NavItem[] = [
-  { href: "/dashboard", label: "Overview", icon: Dashboard, exact: true },
-  { href: "/dashboard/domains", label: "Domains", icon: Application },
-  { href: "/dashboard/orders", label: "Orders", icon: Application },
-  { href: "/dashboard/contacts", label: "Contacts", icon: UserAvatar },
-  { href: "/dashboard/invoices", label: "Invoices", icon: Application },
-  { href: "/dashboard/profile", label: "Profile", icon: Settings },
-];
+const dashboardNavigation = [
+  { href: "/dashboard", key: "overview" as DomainMessageKey, icon: Dashboard, exact: true },
+  { href: "/dashboard/domains", key: "domains" as DomainMessageKey, icon: Application },
+  { href: "/dashboard/orders", key: "orders" as DomainMessageKey, icon: Application },
+  { href: "/dashboard/contacts", key: "contacts" as DomainMessageKey, icon: UserAvatar },
+  { href: "/dashboard/invoices", key: "invoices" as DomainMessageKey, icon: Application },
+  { href: "/dashboard/profile", key: "profile" as DomainMessageKey, icon: Settings },
+] as const;
 
 const publicNavigation = [
-  { href: "/#search", label: "Search" },
-  { href: "/#pricing", label: "Pricing" },
-  { href: "/tlds", label: "All TLDs" },
-  { href: "/#features", label: "Features" },
-  { href: "/#hosting", label: "Shared Hosting" },
-  { href: "/transfer-domain", label: "Transfer" },
+  { href: "/#search", key: "search" as DomainMessageKey },
+  { href: "/#pricing", key: "pricing" as DomainMessageKey },
+  { href: "/tlds", key: "allTlds" as DomainMessageKey },
+  { href: "/#features", key: "features" as DomainMessageKey },
+  { href: "/#hosting", key: "sharedHosting" as DomainMessageKey },
+  { href: "/transfer-domain", key: "transfer" as DomainMessageKey },
 ] as const;
 
 function useDomainSession() {
@@ -100,6 +104,8 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [locale, setLocale] = useState<KmerLocale>(browserLocale);
+  const copy = domainShellCopy(locale) as DomainCopy;
+  const privateNavItems: NavItem[] = dashboardNavigation.map((item) => ({ ...item, label: copy[item.key] }));
 
   useEffect(() => {
     document.documentElement.lang = locale;
@@ -135,38 +141,33 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
       <HeaderContainer
         render={({ isSideNavExpanded, onClickSideNavExpand }) => (
           <>
-            <Header aria-label="KmerHosting Domains">
+            <Header aria-label={`KmerHosting ${copy.domains}`}>
               <SkipToContent href="#main-content" />
               <HeaderMenuButton
-                aria-label={isSideNavExpanded ? "Close navigation" : "Open navigation"}
+                aria-label={isSideNavExpanded ? copy.closeNavigation : copy.openNavigation}
                 aria-expanded={isSideNavExpanded}
                 aria-controls="domain-side-nav"
                 isActive={isSideNavExpanded}
                 onClick={onClickSideNavExpand}
               />
-              <HeaderName href="/" prefix="KmerHosting">Domains</HeaderName>
+              <HeaderName href="/" prefix="KmerHosting">{copy.domains}</HeaderName>
 
               {!privateShell ? (
-                <HeaderNavigation aria-label="KmerHosting Domains">
-                  <HeaderMenuItem href="/#search">Search</HeaderMenuItem>
-                  <HeaderMenuItem href="/#pricing">Pricing</HeaderMenuItem>
-                  <HeaderMenuItem href="/tlds">All TLDs</HeaderMenuItem>
-                  <HeaderMenuItem href="/#features">Features</HeaderMenuItem>
-                  <HeaderMenuItem href="/#hosting">Shared Hosting</HeaderMenuItem>
-                  <HeaderMenuItem href="/transfer-domain">Transfer</HeaderMenuItem>
+                <HeaderNavigation aria-label={`KmerHosting ${copy.domains}`}>
+                  {publicNavigation.map((item) => <HeaderMenuItem key={item.href} href={item.href}>{copy[item.key]}</HeaderMenuItem>)}
                 </HeaderNavigation>
               ) : null}
 
               <HeaderGlobalBar>
                 <HeaderGlobalAction
-                  aria-label={isDark ? "Use light theme" : "Use dark theme"}
+                  aria-label={isDark ? copy.useLightTheme : copy.useDarkTheme}
                   tooltipAlignment="end"
                   onClick={toggleTheme}
                 >
                   <Contrast size={20} />
                 </HeaderGlobalAction>
                 <HeaderGlobalAction
-                  aria-label="Support"
+                  aria-label={copy.support}
                   tooltipAlignment="end"
                   onClick={() => { window.location.href = "mailto:support@kmerhosting.com?subject=KmerHosting%20Domains%20support"; }}
                 >
@@ -174,7 +175,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                 </HeaderGlobalAction>
                 {session ? (
                   <HeaderGlobalAction
-                    aria-label="Notifications"
+                    aria-label={copy.notifications}
                     tooltipAlignment="end"
                     onClick={() => window.location.assign("/dashboard/notifications")}
                   >
@@ -182,7 +183,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                   </HeaderGlobalAction>
                 ) : null}
                 <HeaderGlobalAction
-                  aria-label="Account menu"
+                  aria-label={copy.accountMenu}
                   aria-expanded={accountPanelOpen}
                   tooltipAlignment="end"
                   onClick={() => setAccountPanelOpen((open) => !open)}
@@ -195,32 +196,32 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
             <HeaderPanel
               className="domain-header-panel"
               expanded={accountPanelOpen}
-              aria-label="Account menu"
+              aria-label={copy.accountMenu}
             >
               <div className="domain-header-panel__content">
                 <div className="domain-header-panel__heading">
-                  <h2>{session ? "Domain account" : "KmerHosting Account"}</h2>
-                  <p>{session ? user?.email || "Your domain service session is active." : "Use your central account to access domain services."}</p>
+                  <h2>{session ? copy.domainAccount : "KmerHosting Account"}</h2>
+                  <p>{session ? user?.email || copy.sessionActive : copy.centralAccess}</p>
                 </div>
                 <div className="domain-header-panel__actions">
                   <ComboBox
                     id="domain-language"
-                    titleText="Language"
+                    titleText={copy.language}
                     items={[...LOCALES]}
                     selectedItem={LOCALES.find((item) => item.code === locale) || LOCALES[0]}
-                    itemToString={(item) => item ? `${item.flag} ${item.label}` : ""}
+                    itemToString={(item) => item ? `${item.flag} ${item.nativeLabel}` : ""}
                     onChange={({ selectedItem }) => { if (selectedItem) void changeLocale(selectedItem.code); }}
                   />
                   {session ? (
                     <>
-                      {!onCustomerDashboard ? <Button kind="ghost" size="sm" href={CUSTOMER_DASHBOARD_URL} renderIcon={Dashboard}>Customer dashboard</Button> : null}
-                      <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/?view=account" renderIcon={Settings}>Central account</Button>
-                      <Button kind="ghost" size="sm" renderIcon={Logout} onClick={() => void logOut()}>Sign out</Button>
+                      {!onCustomerDashboard ? <Button kind="ghost" size="sm" href={CUSTOMER_DASHBOARD_URL} renderIcon={Dashboard}>{copy.customerDashboard}</Button> : null}
+                      <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/?view=account" renderIcon={Settings}>{copy.centralAccount}</Button>
+                      <Button kind="ghost" size="sm" renderIcon={Logout} onClick={() => void logOut()}>{copy.signOut}</Button>
                     </>
                   ) : (
                     <>
-                      <Button kind="primary" size="sm" href="https://dashboard.kmerhosting.com/login?service=domain">Sign in</Button>
-                      <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/register">Create account</Button>
+                      <Button kind="primary" size="sm" href="https://dashboard.kmerhosting.com/login?service=domain">{copy.signIn}</Button>
+                      <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/register">{copy.createAccount}</Button>
                     </>
                   )}
                 </div>
@@ -232,22 +233,22 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
               isRail={privateShell}
               expanded={isSideNavExpanded}
               isChildOfHeader
-              aria-label="KmerHosting Domains navigation"
+              aria-label={copy.navigation}
               className="domain-carbon-sidenav"
               onOverlayClick={isSideNavExpanded ? onClickSideNavExpand : undefined}
             >
               <SideNavItems>
                 {privateShell ? <>
-                  <p className="domain-sidenav-label">Domains</p>
-                  {dashboardNavigation.slice(0, 3).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
+                  <p className="domain-sidenav-label">{copy.domains}</p>
+                  {privateNavItems.slice(0, 3).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
                   <SideNavDivider />
-                  <p className="domain-sidenav-label">Account</p>
-                  {dashboardNavigation.slice(3).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
-                  <SideNavLink href="/dashboard/notifications" isActive={pathname === "/dashboard/notifications"} aria-current={pathname === "/dashboard/notifications" ? "page" : undefined} renderIcon={Notification}>Notifications</SideNavLink>
+                  <p className="domain-sidenav-label">{copy.account}</p>
+                  {privateNavItems.slice(3).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
+                  <SideNavLink href="/dashboard/notifications" isActive={pathname === "/dashboard/notifications"} aria-current={pathname === "/dashboard/notifications" ? "page" : undefined} renderIcon={Notification}>{copy.notifications}</SideNavLink>
                   <SideNavDivider />
-                  <p className="domain-sidenav-label">Connected services</p>
-                  <SideNavLink href="https://dashboard.kmerhosting.com/" renderIcon={Dashboard}>Customer Dashboard</SideNavLink>
-                </> : publicNavigation.map((item) => <SideNavLink key={item.href} href={item.href} isActive={pathname === item.href} aria-current={pathname === item.href ? "page" : undefined}>{item.label}</SideNavLink>)}
+                  <p className="domain-sidenav-label">{copy.connectedServices}</p>
+                  <SideNavLink href="https://dashboard.kmerhosting.com/" renderIcon={Dashboard}>{copy.customerDashboard}</SideNavLink>
+                </> : publicNavigation.map((item) => <SideNavLink key={item.href} href={item.href} isActive={pathname === item.href} aria-current={pathname === item.href ? "page" : undefined}>{copy[item.key]}</SideNavLink>)}
               </SideNavItems>
             </SideNav>
           </>
