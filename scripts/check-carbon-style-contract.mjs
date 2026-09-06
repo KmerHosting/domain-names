@@ -74,7 +74,8 @@ for (const required of [
   'from "@carbon/react/icons"',
   "CUSTOMER_DASHBOARD_URL",
   "https://domain.kmerhosting.com/dashboard",
-  "Customer dashboard",
+  "domainShellCopy",
+  "copy.customerDashboard",
 ]) {
   if (!shell.includes(required)) violations.push(`Canonical Carbon shell is missing: ${required}`);
 }
