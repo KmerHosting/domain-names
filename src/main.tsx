@@ -8,6 +8,7 @@ import { DnsSettingsPage, isDnsSettingsPage } from "./dns-settings-page";
 import { PlatformStatusBanner } from "./platform-status-banner";
 import { DomainCarbonExperience } from "./carbon-experience";
 import { DomainApplicationShell } from "./domain-shell";
+import { initDomainI18n } from "./i18n";
 // Carbon's emitted component CSS must load before every product-level override.
 // The former legacy CSS layers targeted native inputs/buttons globally and were
 // overriding Carbon React's field sizing, contrast and grid behavior.
@@ -29,6 +30,8 @@ const queryClient = new QueryClient({
 
 const isAuxiliaryNativeRoute = isNativePage();
 const isDnsRoute = isDnsSettingsPage();
+
+void initDomainI18n();
 
 if (window.location.pathname.startsWith("/admin")) window.history.replaceState({}, "", "/");
 
