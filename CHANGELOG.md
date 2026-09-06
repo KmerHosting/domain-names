@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/KmerHosting/domain-names/compare/v1.9.0...v1.10.0) (2026-09-06)
+
+
+### Features
+
+* **i18n:** apply locale direction at startup ([#57](https://github.com/KmerHosting/domain-names/issues/57)) ([996d4d4](https://github.com/KmerHosting/domain-names/commit/996d4d4431183c5411fa3603d89be994d0bdeea9))
+
 ## [1.9.0](https://github.com/KmerHosting/domain-names/compare/v1.8.0...v1.9.0) (2026-09-06)
 
 
