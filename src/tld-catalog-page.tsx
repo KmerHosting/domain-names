@@ -34,7 +34,7 @@ function TldCard({ price }: { price: CatalogTld }) {
       <small>1 year</small>
     </div>
     <dl className="carbon-tld-catalog__details">
-      <div><dt>{copy.renewal || "Renewal"}</dt><dd>{formatMoney(price.renewal_price_usd)}</dd></div>
+      <div><dt>Renewal</dt><dd>{formatMoney(price.renewal_price_usd)}</dd></div>
       <div><dt>{copy.transfer}</dt><dd>{price.transfer_price_usd > 0 ? formatMoney(price.transfer_price_usd) : "—"}</dd></div>
       <div><dt>{copy.account}</dt><dd>{price.supports_privacy === false ? "—" : copy.open}</dd></div>
     </dl>
