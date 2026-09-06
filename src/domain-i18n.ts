@@ -7,6 +7,7 @@ export type DomainShellMessages = {
   notifications: string; account: string; accountMenu: string; connectedServices: string; customerDashboard: string;
   centralAccount: string; signOut: string; domainAccount: string; sessionActive: string; centralAccess: string;
   closeNavigation: string; openNavigation: string; useLightTheme: string; useDarkTheme: string; navigation: string;
+  renewal?: string;
 };
 
 const messages: Record<KmerLocale, DomainShellMessages> = {
