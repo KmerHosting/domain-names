@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.8.0](https://github.com/KmerHosting/domain-names/compare/v1.7.0...v1.8.0) (2026-09-06)
+
+
+### Features
+
+* **ui:** align domains footer with KmerHosting website ([fd75f2b](https://github.com/KmerHosting/domain-names/commit/fd75f2b948011d92f4c1a1f6cfbb2e3ec79eb62a))
+
+## [1.7.0](https://github.com/KmerHosting/domain-names/compare/v1.6.1...v1.7.0) (2026-09-06)
+
+
+### Features
+
+* **ui:** align domain dashboard shell with customer dashboard ([ba27486](https://github.com/KmerHosting/domain-names/commit/ba274869a7249b5b8dec9787732c52605d3e53ef))
+* **ui:** use persistent domain dashboard navigation ([f0ce691](https://github.com/KmerHosting/domain-names/commit/f0ce69177a71c35ceda3a97ae00944ea81dbcb8b))
+
+
+### Bug Fixes
+
+* **ui:** declare Carbon expanded navigation layout state ([afddb26](https://github.com/KmerHosting/domain-names/commit/afddb26ddfcbe05504c2d63d66e001c0b027462b))
+* **ui:** preserve canonical Carbon rail foundation ([f223560](https://github.com/KmerHosting/domain-names/commit/f223560773f3cb3f2ba45fc5e7d8e322e6855464))
+* **ui:** retain Carbon rail primitive ([e8f8a32](https://github.com/KmerHosting/domain-names/commit/e8f8a32d42e03e8f4f64179c4211a3d24f4678c2))
+
+## [1.6.1](https://github.com/KmerHosting/domain-names/compare/v1.6.0...v1.6.1) (2026-09-05)
+
+
+### Bug Fixes
+
+* **domain:** improve mobile navigation and form recovery ([4e1f924](https://github.com/KmerHosting/domain-names/commit/4e1f92486cd05c9e6923659e5b017db15ca45f06))
+
 ## [1.6.0](https://github.com/KmerHosting/domain-names/compare/v1.5.7...v1.6.0) (2026-08-30)
 
 

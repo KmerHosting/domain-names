@@ -183,3 +183,9 @@
     flex-direction: column;
   }
 }
+
+
+.domain-site-footer__brand-image { display: block; inline-size: spacing.$spacing-13; block-size: auto; }
+.domain-site-footer__status-link { display: inline-flex; align-items: center; gap: spacing.$spacing-03; }
+.domain-site-footer__status-dot { inline-size: spacing.$spacing-03; block-size: spacing.$spacing-03; flex: 0 0 auto; border-radius: 50%; background: var(--cds-support-success); }
+.domain-site-footer__currency-note { max-inline-size: 48rem; margin: 0 0 spacing.$spacing-05; color: var(--cds-text-secondary); @include type.type-style('body-compact-01'); }
