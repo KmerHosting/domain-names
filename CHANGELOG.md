@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.9.0](https://github.com/KmerHosting/domain-names/compare/v1.8.0...v1.9.0) (2026-09-06)
+
+
+### Features
+
+* **i18n:** initialize domain locale catalogues ([e0a53a2](https://github.com/KmerHosting/domain-names/commit/e0a53a2ea54cf6fa5920a99f443be3635f3389e3))
+* **i18n:** localize domain application shell ([04d37d5](https://github.com/KmerHosting/domain-names/commit/04d37d505f0ab31b07d2b7c6fe39b0f6abff79ae))
+* **i18n:** sync domain language preference ([50d4f49](https://github.com/KmerHosting/domain-names/commit/50d4f498fbc1def543349d533d84be804a21f8a1))
+
 ## [1.8.0](https://github.com/KmerHosting/domain-names/compare/v1.7.0...v1.8.0) (2026-09-06)
 
 
