@@ -1,191 +1,20 @@
-import {
-  Accordion,
-  AccordionItem,
-  Column,
-  Grid,
-  Link,
-  Theme,
-} from "@carbon/react";
-import {
-  LogoGithub,
-  LogoLinkedin,
-  LogoSlack,
-  LogoX,
-  LogoYoutube,
-} from "@carbon/react/icons";
+import { Accordion, AccordionItem, Column, Grid, Link, Theme } from "@carbon/react";
+import { LogoGithub, LogoLinkedin, LogoSlack, LogoX, LogoYoutube } from "@carbon/react/icons";
 import "./site-footer.scss";
 
-type FooterLink = { label: string; href: string };
+type FooterLink = { label: string; href: string; statusIndicator?: boolean };
 type FooterGroup = { title: string; links: FooterLink[] };
-
-function isExternalHref(href: string) {
-  return /^https?:\/\//.test(href);
-}
-
-const footerGroups: FooterGroup[] = [
-  {
-    title: "Domains",
-    links: [
-      { label: "Search domains", href: "/#search" },
-      { label: "Pricing", href: "/#pricing" },
-      { label: "Transfer a domain", href: "/transfer-domain" },
-      { label: "Customer dashboard", href: "/dashboard" },
-    ],
-  },
-  {
-    title: "Account",
-    links: [
-      { label: "Central account", href: "https://dashboard.kmerhosting.com/?view=account" },
-      { label: "WHOIS contacts", href: "/dashboard/contacts" },
-      { label: "Orders", href: "/dashboard/orders" },
-    ],
-  },
-  {
-    title: "Resources",
-    links: [
-      { label: "Documentation", href: "https://kmerhosting.com/docs" },
-      { label: "System status", href: "https://status.kmerhosting.com" },
-      { label: "KmerHosting", href: "https://kmerhosting.com" },
-    ],
-  },
-  {
-    title: "Company",
-    links: [
-      { label: "About us", href: "https://kmerhosting.com/#about" },
-      { label: "Contact", href: "mailto:hello@kmerhosting.com" },
-      { label: "Careers", href: "mailto:hello@kmerhosting.com?subject=Careers" },
-    ],
-  },
-  {
-    title: "Developers",
-    links: [
-      { label: "API reference", href: "https://kmerhosting.com/docs" },
-      { label: "SDK", href: "https://github.com/kmerhosting/kmerhosting-sdk" },
-      { label: "CLI", href: "https://github.com/kmerhosting/kmerhosting-cli" },
-      { label: "MCP", href: "https://github.com/kmerhosting/kmerhosting-mcp" },
-      { label: "GitHub", href: "https://github.com/kmerhosting" },
-    ],
-  },
-  {
-    title: "Legal",
-    links: [
-      { label: "Privacy", href: "https://kmerhosting.com/privacy" },
-      { label: "Terms", href: "https://kmerhosting.com/terms" },
-      { label: "Refund", href: "https://kmerhosting.com/refund" },
-      { label: "Cookies", href: "https://kmerhosting.com/cookies" },
-      { label: "AI usage", href: "https://kmerhosting.com/ai-usage" },
-    ],
-  },
-  {
-    title: "Support",
-    links: [
-      { label: "Technical support", href: "mailto:support@kmerhosting.com" },
-      { label: "General inquiry", href: "mailto:hello@kmerhosting.com" },
-    ],
-  },
+const groups: FooterGroup[] = [
+  { title: "Services", links: [{ label: "LXC Hosting", href: "https://lxc.kmerhosting.com" }, { label: "Shared Hosting", href: "https://shared.kmerhosting.com" }, { label: "Domain names", href: "/" }, { label: "Email Hosting", href: "https://email.kmerhosting.com" }] },
+  { title: "Products", links: [{ label: "Webcpl", href: "https://webcpl.kmerhosting.com" }, { label: "wFileManager", href: "https://wfilemanager.kmerhosting.com" }] },
+  { title: "Resources", links: [{ label: "FAQ", href: "https://kmerhosting.com/faq" }, { label: "Pricing", href: "https://kmerhosting.com/pricing" }, { label: "Help center", href: "https://kmerhosting.com/help" }, { label: "Documentation", href: "https://kmerhosting.com/docs" }, { label: "Forum", href: "https://forum.kmerhosting.com" }, { label: "Blog", href: "https://blog.kmerhosting.com" }, { label: "System status", href: "https://status.kmerhosting.com", statusIndicator: true }] },
+  { title: "Company", links: [{ label: "About us", href: "https://kmerhosting.com/about" }, { label: "Infrastructure & providers", href: "https://kmerhosting.com/infrastructure" }, { label: "SLA & availability", href: "https://kmerhosting.com/sla" }, { label: "Support", href: "https://kmerhosting.com/support" }, { label: "Roadmap", href: "https://kmerhosting.com/roadmap" }, { label: "Changelog", href: "https://kmerhosting.com/changelog" }, { label: "Contact", href: "mailto:hello@kmerhosting.com" }] },
+  { title: "Developers", links: [{ label: "MCP", href: "https://github.com/KmerHosting/mcp" }, { label: "API", href: "https://kmerhosting.com/docs/developer/rest-api" }, { label: "SDK", href: "https://kmerhosting.com/docs/developer/sdk" }, { label: "CLI", href: "https://kmerhosting.com/docs/developer/cli" }, { label: "GitHub", href: "https://github.com/KmerHosting" }] },
+  { title: "Legal", links: [{ label: "Privacy", href: "https://kmerhosting.com/privacy" }, { label: "Terms", href: "https://kmerhosting.com/terms" }, { label: "Refund", href: "https://kmerhosting.com/refund" }, { label: "Cookie", href: "https://kmerhosting.com/cookies" }, { label: "AI usage", href: "https://kmerhosting.com/ai-usage" }, { label: "Trademark guidelines", href: "https://kmerhosting.com/trademark-guidelines" }, { label: "Third-party notices", href: "https://kmerhosting.com/third-party-notices" }] },
 ];
-
-const footerColumns = [
-  [footerGroups[0], footerGroups[4]],
-  [footerGroups[1], footerGroups[5]],
-  [footerGroups[2], footerGroups[3], footerGroups[6]],
-];
-
-const socialLinks = [
-  { label: "GitHub", href: "https://github.com/kmerhosting", icon: LogoGithub },
-  { label: "YouTube", href: "https://www.youtube.com/@kmerhosting", icon: LogoYoutube },
-  { label: "Slack", href: "https://kmerhostingworkspace.slack.com", icon: LogoSlack },
-  { label: "LinkedIn", href: "https://www.linkedin.com/company/kmerhosting", icon: LogoLinkedin },
-  { label: "X", href: "https://x.com/kmerhosting", icon: LogoX },
-];
-
-function FooterLinks({ title, links }: FooterGroup) {
-  return (
-    <nav aria-label={`${title} links`}>
-      <ul className="domain-site-footer__group-list">
-        {links.map(({ label, href }) => {
-          const external = isExternalHref(href);
-          return (
-            <li key={`${title}-${label}`}>
-              <Link
-                href={href}
-                target={external ? "_blank" : undefined}
-                rel={external ? "noreferrer" : undefined}
-              >
-                {label}
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-}
-
-function FooterGroupBlock({ title, links }: FooterGroup) {
-  return (
-    <div className="domain-site-footer__group">
-      <div className="domain-site-footer__group-desktop">
-        <h2 className="domain-site-footer__group-title">{title}</h2>
-        <FooterLinks title={title} links={links} />
-      </div>
-      <Accordion className="domain-site-footer__group-mobile" size="lg">
-        <AccordionItem title={title}>
-          <FooterLinks title={title} links={links} />
-        </AccordionItem>
-      </Accordion>
-    </div>
-  );
-}
-
-export function SiteFooter() {
-  return (
-    <Theme theme="g100">
-      <footer className="domain-site-footer" aria-label="Footer">
-        <div className="domain-site-footer__groups">
-          <Grid fullWidth>
-            <Column sm={4} md={8} lg={4} className="domain-site-footer__brand-column">
-              <Link href="/" className="domain-site-footer__brand-link" aria-label="KmerHosting Domains home">
-                <span className="domain-site-footer__brand-name">KmerHosting</span>
-                <span className="domain-site-footer__brand-product">Domains</span>
-              </Link>
-              <p>Domain registration and management by KmerHosting LLC.</p>
-            </Column>
-            <Column sm={4} md={8} lg={12} className="domain-site-footer__navigation-column">
-              <div className="domain-site-footer__group-columns">
-                {footerColumns.map((groups, columnIndex) => (
-                  <div className="domain-site-footer__group-stack" key={columnIndex}>
-                    {groups.map((group) => <FooterGroupBlock key={group.title} {...group} />)}
-                  </div>
-                ))}
-              </div>
-            </Column>
-          </Grid>
-        </div>
-
-        <div className="domain-site-footer__utility">
-          <Grid fullWidth>
-            <Column sm={4} md={8} lg={16}>
-              <div className="domain-site-footer__utility-inner">
-                <div className="domain-site-footer__bottom">
-                  <span>© 2026 KmerHosting. All rights reserved.</span>
-                  <Link href="https://kmerhosting.com/cookies" target="_blank" rel="noreferrer">Cookie settings</Link>
-                </div>
-                <div className="domain-site-footer__social-inner">
-                  <span className="domain-site-footer__social-label">Follow KmerHosting</span>
-                  <div className="domain-site-footer__socials" aria-label="Social links">
-                    {socialLinks.map(({ label, href, icon: Icon }) => (
-                      <Link key={label} href={href} target="_blank" rel="noreferrer" aria-label={`KmerHosting on ${label}`}>
-                        <Icon size={20} aria-hidden="true" />
-                      </Link>
-                    ))}
-                  </div>
-                </div>
-              </div>
-            </Column>
-          </Grid>
-        </div>
-      </footer>
-    </Theme>
-  );
-}
+const columns = [[groups[0], groups[4]], [groups[1], groups[5]], [groups[2], groups[3]]];
+const socialLinks = [{ label: "GitHub", href: "https://github.com/KmerHosting", icon: LogoGithub }, { label: "YouTube", href: "https://www.youtube.com/@kmerhosting", icon: LogoYoutube }, { label: "Slack", href: "https://kmerhostingworkspace.slack.com", icon: LogoSlack }, { label: "LinkedIn", href: "https://www.linkedin.com/company/kmerhosting", icon: LogoLinkedin }, { label: "X", href: "https://x.com/kmerhosting", icon: LogoX }];
+const external = (href: string) => /^https?:\/\//.test(href);
+function FooterLinks({ title, links }: FooterGroup) { return <nav aria-label={title + " links"}><ul className="domain-site-footer__group-list">{links.map(({ label, href, statusIndicator }) => <li key={label}><Link href={href} target={external(href) ? "_blank" : undefined} rel={external(href) ? "noreferrer" : undefined}><span className={statusIndicator ? "domain-site-footer__status-link" : undefined}>{label}{statusIndicator ? <span className="domain-site-footer__status-dot" aria-hidden="true" /> : null}</span></Link></li>)}</ul></nav>; }
+function Group({ title, links }: FooterGroup) { return <div className="domain-site-footer__group"><div className="domain-site-footer__group-desktop"><h2 className="domain-site-footer__group-title">{title}</h2><FooterLinks title={title} links={links} /></div><Accordion className="domain-site-footer__group-mobile" size="lg"><AccordionItem title={title}><FooterLinks title={title} links={links} /></AccordionItem></Accordion></div>; }
+export function SiteFooter() { return <Theme theme="g100"><footer className="domain-site-footer" aria-label="KmerHosting footer"><div className="domain-site-footer__groups"><Grid fullWidth><Column sm={4} md={8} lg={4} className="domain-site-footer__brand-column"><Link href="https://kmerhosting.com" className="domain-site-footer__brand-link" aria-label="KmerHosting home"><img src="https://kmerhosting.com/brand/logo_label_transparent_white.png" alt="KmerHosting" className="domain-site-footer__brand-image" /></Link><p>Domain names is part of the KmerHosting platform.</p></Column><Column sm={4} md={8} lg={12}><div className="domain-site-footer__group-columns">{columns.map((column, index) => <div className="domain-site-footer__group-stack" key={index}>{column.map((group) => <Group key={group.title} {...group} />)}</div>)}</div></Column></Grid></div><div className="domain-site-footer__utility"><Grid fullWidth><Column sm={4} md={8} lg={16}><p className="domain-site-footer__currency-note">Currency note for Cameroonian users: 570 XAF = 1 USD is our fixed commercial rate and may differ from the current market rate.</p><div className="domain-site-footer__utility-inner"><div className="domain-site-footer__bottom"><span>© 2026 KmerHosting. All rights reserved.</span><Link href="https://kmerhosting.com/cookies" target="_blank" rel="noreferrer">Cookie settings</Link></div><div className="domain-site-footer__social-inner"><span className="domain-site-footer__social-label">Follow KmerHosting</span><div className="domain-site-footer__socials" aria-label="Social links">{socialLinks.map(({ label, href, icon: Icon }) => <Link key={label} href={href} target="_blank" rel="noreferrer" aria-label={"KmerHosting on " + label}><Icon size={20} /></Link>)}</div></div></div></Column></Grid></div></footer></Theme>; }
