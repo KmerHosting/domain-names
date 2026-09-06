@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.12.0](https://github.com/KmerHosting/domain-names/compare/v1.11.0...v1.12.0) (2026-09-06)
+
+
+### Features
+
+* **i18n:** translate domain extension catalog ([#61](https://github.com/KmerHosting/domain-names/issues/61)) ([49a2958](https://github.com/KmerHosting/domain-names/commit/49a2958ab69f4526953cbc0209966d3fa2acf013))
+
+
+### Bug Fixes
+
+* **i18n:** restore strict domain navigation types ([#62](https://github.com/KmerHosting/domain-names/issues/62)) ([de2cd5f](https://github.com/KmerHosting/domain-names/commit/de2cd5f370c456fc72e3128d73aad7ac0369234a))
+
 ## [1.11.0](https://github.com/KmerHosting/domain-names/compare/v1.10.0...v1.11.0) (2026-09-06)
 
 
