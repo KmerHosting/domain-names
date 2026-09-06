@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { domainSearchApi, formatMoney } from "./api";
 import { isFeaturedTld, supportedTlds, type CatalogTld } from "./tld-catalog";
+import { useDomainCopy } from "./domain-i18n";
 
 type TldCatalogResponse = {
   prices: CatalogTld[];
@@ -18,29 +19,31 @@ function tldSearchValue(price: CatalogTld) {
 }
 
 function TldCard({ price }: { price: CatalogTld }) {
+  const copy = useDomainCopy();
   return <Tile className="carbon-tld-catalog__card">
     <div className="carbon-tld-catalog__card-heading">
       <h2>{price.tld}</h2>
       <div className="carbon-tld-catalog__tags">
-        {isFeaturedTld(price.tld) ? <Tag type="blue">Popular</Tag> : null}
-        {price.is_promo ? <Tag type="green">Promo</Tag> : null}
+        {isFeaturedTld(price.tld) ? <Tag type="blue">{copy.features}</Tag> : null}
+        {price.is_promo ? <Tag type="green">{copy.pricing}</Tag> : null}
       </div>
     </div>
     <div className="carbon-tld-catalog__price">
-      <span>Registration</span>
+      <span>{copy.domains}</span>
       <strong>{formatMoney(price.registration_price_usd)}</strong>
-      <small>for one year</small>
+      <small>1 year</small>
     </div>
     <dl className="carbon-tld-catalog__details">
-      <div><dt>Renewal</dt><dd>{formatMoney(price.renewal_price_usd)}</dd></div>
-      <div><dt>Transfer</dt><dd>{price.transfer_price_usd > 0 ? formatMoney(price.transfer_price_usd) : "Not available"}</dd></div>
-      <div><dt>Privacy</dt><dd>{price.supports_privacy === false ? "Not available" : "Available"}</dd></div>
+      <div><dt>{copy.renewal || "Renewal"}</dt><dd>{formatMoney(price.renewal_price_usd)}</dd></div>
+      <div><dt>{copy.transfer}</dt><dd>{price.transfer_price_usd > 0 ? formatMoney(price.transfer_price_usd) : "—"}</dd></div>
+      <div><dt>{copy.account}</dt><dd>{price.supports_privacy === false ? "—" : copy.open}</dd></div>
     </dl>
-    <Button kind="secondary" href={`/register-domain?domain=${encodeURIComponent(`yourbrand${price.tld}`)}`}>Search {price.tld}</Button>
+    <Button kind="secondary" href={`/register-domain?domain=${encodeURIComponent(`yourbrand${price.tld}`)}`}>{copy.search} {price.tld}</Button>
   </Tile>;
 }
 
 export function TldCatalogPage() {
+  const copy = useDomainCopy();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -66,7 +69,7 @@ export function TldCatalogPage() {
     <section className="carbon-tld-catalog-page__hero">
       <Grid fullWidth>
         <Column sm={4} md={8} lg={12}>
-          <h1>Domain extensions</h1>
+          <h1>{copy.domains}</h1>
           <p>Browse the domain extensions currently available through KmerHosting. Prices and availability are updated regularly.</p>
         </Column>
       </Grid>
@@ -77,10 +80,10 @@ export function TldCatalogPage() {
         <Column sm={4} md={8} lg={16}>
           <div className="carbon-tld-catalog__toolbar">
             <div>
-              <h2 id="supported-tlds-heading">Find a domain extension</h2>
-              <p>{query.isSuccess ? `${catalog.length} extensions available` : "Loading available extensions…"}</p>
+              <h2 id="supported-tlds-heading">{copy.search}</h2>
+              <p>{query.isSuccess ? `${catalog.length} ${copy.allTlds}` : `${copy.loading}…`}</p>
             </div>
-            <Search id="supported-tld-search" labelText="Search extensions" placeholder="Search .com, .shop, .dev" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Search id="supported-tld-search" labelText={copy.search} placeholder="Search .com, .shop, .dev" value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
         </Column>
       </Grid>
