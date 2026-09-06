@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/KmerHosting/domain-names/compare/v1.7.0...v1.8.0) (2026-09-06)
+
+
+### Features
+
+* **ui:** align domains footer with KmerHosting website ([fd75f2b](https://github.com/KmerHosting/domain-names/commit/fd75f2b948011d92f4c1a1f6cfbb2e3ec79eb62a))
+
 ## [1.7.0](https://github.com/KmerHosting/domain-names/compare/v1.6.1...v1.7.0) (2026-09-06)
 
 
