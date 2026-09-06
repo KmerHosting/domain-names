@@ -20,7 +20,7 @@
     "check": "bun run test && bun run check:styles && bun run audit:shell && bun run audit:auth && bun run typecheck && vite build"
   },
   "dependencies": {
-    "@kmerhosting/i18n": "https://codeload.github.com/KmerHosting/i18n/tar.gz/refs/tags/v0.1.0",
+    "@kmerhosting/i18n": "https://codeload.github.com/KmerHosting/i18n/tar.gz/refs/tags/v0.1.1",
     "@carbon/react": "^1.115.0",
     "@tanstack/react-query": "^5.83.0",
     "@tanstack/react-router": "^1.126.3",
