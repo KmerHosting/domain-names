@@ -26,6 +26,10 @@ const copies: Record<KmerLocale, NativeCopy> = {
   fa: { activitySubtitle: "فعالیت دامنه، انتقال، تمدید و حساب.", unread: "خوانده‌نشده", readAll: "خواندن همه", markRead: "علامت‌گذاری به‌عنوان خوانده‌شده" },
 };
 
+export function domainNativeCopy(locale: string): NativeCopy {
+  return copies[normalizeLocale(locale) || "en"] || en;
+}
+
 export function useDomainNativeCopy() {
   const [locale, setLocale] = useState<KmerLocale>(() => normalizeLocale(typeof document === "undefined" ? "en" : document.documentElement.lang) || "en");
   useEffect(() => {
@@ -33,5 +37,5 @@ export function useDomainNativeCopy() {
     window.addEventListener("kmerhosting:language-change", onChange);
     return () => window.removeEventListener("kmerhosting:language-change", onChange);
   }, []);
-  return copies[locale] || en;
+  return domainNativeCopy(locale);
 }
