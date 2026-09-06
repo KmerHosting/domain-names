@@ -1,4 +1,5 @@
 import { COMMON_MESSAGES, normalizeLocale, type KmerLocale } from "@kmerhosting/i18n";
+import { useEffect, useState } from "react";
 
 export type DomainShellMessages = {
   overview: string; domains: string; orders: string; contacts: string; invoices: string; profile: string;
@@ -34,4 +35,14 @@ const messages: Record<KmerLocale, DomainShellMessages> = {
 export function domainShellCopy(locale: unknown) {
   const normalized = normalizeLocale(locale) || "en";
   return { ...COMMON_MESSAGES[normalized], ...messages[normalized] };
+}
+
+export function useDomainCopy() {
+  const [locale, setLocale] = useState<KmerLocale>(() => normalizeLocale(typeof document === "undefined" ? "en" : document.documentElement.lang) || "en");
+  useEffect(() => {
+    const onChange = (event: Event) => setLocale(normalizeLocale(event instanceof CustomEvent ? event.detail : document.documentElement.lang) || "en");
+    window.addEventListener("kmerhosting:language-change", onChange);
+    return () => window.removeEventListener("kmerhosting:language-change", onChange);
+  }, []);
+  return domainShellCopy(locale);
 }

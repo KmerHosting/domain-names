@@ -30,6 +30,7 @@ import {
   getSession,
   newIdempotencyKey,
 } from "./api";
+import { useDomainCopy } from "./domain-i18n";
 
 type Row = Record<string, any>;
 type Route =
@@ -97,7 +98,9 @@ function Badge({ value }: { value?: string | null }) {
 }
 
 function Loading({ description = "Loading…" }: { description?: string }) {
-  return <Tile className="carbon-loading-block" aria-label={description} aria-busy="true"><SkeletonText heading width="42%" /><SkeletonText paragraph lineCount={3} width="82%" /></Tile>;
+  const copy = useDomainCopy();
+  const label = description === "Loading…" ? copy.loading : description;
+  return <Tile className="carbon-loading-block" aria-label={label} aria-busy="true"><SkeletonText heading width="42%" /><SkeletonText paragraph lineCount={3} width="82%" /></Tile>;
 }
 
 function ErrorNotice({ error, title = "Request failed" }: { error: unknown; title?: string }) {
