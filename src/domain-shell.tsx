@@ -202,7 +202,6 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
 
             <SideNav
               id="domain-side-nav"
-              isRail={privateShell}
               expanded={isSideNavExpanded}
               isChildOfHeader
               aria-label="KmerHosting Domains navigation"
@@ -211,11 +210,15 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
             >
               <SideNavItems>
                 {privateShell ? <>
+                  <p className="domain-sidenav-label">Domains</p>
                   {dashboardNavigation.slice(0, 3).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
                   <SideNavDivider />
+                  <p className="domain-sidenav-label">Account</p>
                   {dashboardNavigation.slice(3).map((item) => <NavigationLink key={item.href} item={item} pathname={pathname} />)}
-                  <SideNavDivider />
                   <SideNavLink href="/dashboard/notifications" isActive={pathname === "/dashboard/notifications"} aria-current={pathname === "/dashboard/notifications" ? "page" : undefined} renderIcon={Notification}>Notifications</SideNavLink>
+                  <SideNavDivider />
+                  <p className="domain-sidenav-label">Connected services</p>
+                  <SideNavLink href="https://dashboard.kmerhosting.com/" renderIcon={Dashboard}>Customer Dashboard</SideNavLink>
                 </> : publicNavigation.map((item) => <SideNavLink key={item.href} href={item.href} isActive={pathname === item.href} aria-current={pathname === item.href ? "page" : undefined}>{item.label}</SideNavLink>)}
               </SideNavItems>
             </SideNav>
