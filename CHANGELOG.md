@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.11.0](https://github.com/KmerHosting/domain-names/compare/v1.10.0...v1.11.0) (2026-09-06)
+
+
+### Features
+
+* **i18n:** use domain catalog for loading states ([#59](https://github.com/KmerHosting/domain-names/issues/59)) ([920f98f](https://github.com/KmerHosting/domain-names/commit/920f98f81e7191b4805956418d78581b716a467b))
+
 ## [1.10.0](https://github.com/KmerHosting/domain-names/compare/v1.9.0...v1.10.0) (2026-09-06)
 
 
