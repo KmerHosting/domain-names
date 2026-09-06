@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.0](https://github.com/KmerHosting/domain-names/compare/v1.13.0...v1.14.0) (2026-09-06)
+
+
+### Features
+
+* **i18n:** localize domain notifications catalogue ([#66](https://github.com/KmerHosting/domain-names/issues/66)) ([f12f58f](https://github.com/KmerHosting/domain-names/commit/f12f58f981baabe88bdbedc3f339813b8668c222))
+
 ## [1.13.0](https://github.com/KmerHosting/domain-names/compare/v1.12.0...v1.13.0) (2026-09-06)
 
 
