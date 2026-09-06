@@ -170,7 +170,8 @@ a {
     margin-inline-start: 3rem;
   }
 
-  .domain-app-shell--private:has(.domain-carbon-sidenav) .domain-content {
+  .domain-app-shell--private:has(.domain-carbon-sidenav) .domain-content,
+  .domain-app-shell--private:has(.domain-carbon-sidenav.cds--side-nav--expanded) .domain-content {
     margin-inline-start: 16rem;
   }
 
