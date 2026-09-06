@@ -551,6 +551,18 @@ async function protectedRoutes(req: Request, path: string): Promise<Response> {
   if (req.method === "PATCH" && path === "/me") {
     throw new ApiError(403, "central_profile_only", "Profile changes are managed from your central KmerHosting Account.");
   }
+  if (req.method === "PATCH" && path === "/me/language") {
+    const body = await bodyJson(req);
+    const locale = clean(body.locale);
+    const supported = new Set(["en", "fr", "es", "pt", "de", "zh-Hans", "ar", "hi", "bn", "id", "ja", "ru", "it", "ko", "tr", "vi", "ur", "nl", "pl", "fa"]);
+    if (!supported.has(locale)) throw new ApiError(400, "invalid_language", "Choose a supported language.");
+    const { data: identity, error: identityError } = await db.from("dashboard_product_identities")
+      .select("user_id").eq("product", "domain").eq("external_user_id", auth.user.id).maybeSingle();
+    if (identityError || !identity?.user_id) throw new ApiError(403, "central_account_unavailable", "Your central KmerHosting account is unavailable.");
+    const { error } = await db.from("dashboard_users").update({ preferred_language: locale, updated_at: new Date().toISOString() }).eq("id", identity.user_id);
+    if (error) throw new ApiError(500, "language_update_failed", "Unable to save your language preference.");
+    return json(req, { locale });
+  }
   if (req.method === "GET" && path === "/dashboard") {
     const cfg = await getConfig();
     const checkoutEnvironment = clean(cfg.registrar_environment).toLowerCase() === "ote" ? "ote" : "production";

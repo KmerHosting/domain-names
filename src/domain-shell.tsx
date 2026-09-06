@@ -1,5 +1,6 @@
 import {
   Button,
+  ComboBox,
   Header,
   HeaderContainer,
   HeaderGlobalAction,
@@ -29,6 +30,7 @@ import { ReactNode, useEffect, useState } from "react";
 import { api, clearSession, getSession, subscribeSession, type Session, type User } from "./api";
 import { useDomainTheme } from "./carbon-experience";
 import { SiteFooter } from "./site-footer";
+import { isRtl, LOCALES, localeCookie, normalizeLocale, resolveLocale, type KmerLocale } from "@kmerhosting/i18n";
 
 type NavItem = {
   href: string;
@@ -69,6 +71,11 @@ function isActivePath(item: NavItem, pathname: string) {
 
 function isPrivateShell(pathname: string) { return pathname.startsWith("/dashboard"); }
 
+function browserLocale(): KmerLocale {
+  const cookie = document.cookie.split("; ").find((value) => value.startsWith("kh_locale="))?.split("=")[1];
+  return resolveLocale(cookie && decodeURIComponent(cookie), navigator.languages);
+}
+
 function NavigationLink({ item, pathname }: { item: NavItem; pathname: string }) {
   const Icon = item.icon;
   const active = isActivePath(item, pathname);
@@ -92,6 +99,18 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
   const onCustomerDashboard = pathname.startsWith("/dashboard");
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [locale, setLocale] = useState<KmerLocale>(browserLocale);
+
+  useEffect(() => {
+    document.documentElement.lang = locale;
+    document.documentElement.dir = isRtl(locale) ? "rtl" : "ltr";
+  }, [locale]);
+
+  const changeLocale = async (next: KmerLocale) => {
+    setLocale(next);
+    document.cookie = localeCookie(next, ".kmerhosting.com");
+    if (session) await api("/me/language", { method: "PATCH", body: { locale: next } });
+  };
 
   useEffect(() => {
     if (!session) {
@@ -184,6 +203,14 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                   <p>{session ? user?.email || "Your domain service session is active." : "Use your central account to access domain services."}</p>
                 </div>
                 <div className="domain-header-panel__actions">
+                  <ComboBox
+                    id="domain-language"
+                    titleText="Language"
+                    items={[...LOCALES]}
+                    selectedItem={LOCALES.find((item) => item.code === locale) || LOCALES[0]}
+                    itemToString={(item) => item ? `${item.flag} ${item.label}` : ""}
+                    onChange={({ selectedItem }) => { if (selectedItem) void changeLocale(selectedItem.code); }}
+                  />
                   {session ? (
                     <>
                       {!onCustomerDashboard ? <Button kind="ghost" size="sm" href={CUSTOMER_DASHBOARD_URL} renderIcon={Dashboard}>Customer dashboard</Button> : null}
