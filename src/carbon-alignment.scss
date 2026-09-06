@@ -164,8 +164,23 @@ a {
 }
 
 @include breakpoint.breakpoint('lg') {
+  // Retain the canonical rail foundation. The product shell below widens it
+  // deliberately for the same legible navigation density as Customer Dashboard.
   .domain-app-shell--private .domain-content {
+    margin-inline-start: 3rem;
+  }
+
+  .domain-app-shell--private:has(.domain-carbon-sidenav) .domain-content {
     margin-inline-start: 16rem;
+  }
+
+  .domain-app-shell--private .domain-carbon-sidenav {
+    inline-size: 16rem;
+  }
+
+  .domain-app-shell--private .domain-carbon-sidenav .cds--side-nav__link-text {
+    display: inline;
+    opacity: 1;
   }
 
   .domain-app-shell--private .cds--header__menu {
