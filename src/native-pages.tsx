@@ -108,7 +108,8 @@ function ErrorNotice({ error, title = "Request failed" }: { error: unknown; titl
 }
 
 function Shell({ title, subtitle, back, children }: { title: string; subtitle: string; back: string; children: ReactNode }) {
-  return <main className="dashboard-content carbon-native-page"><div className="page-heading carbon-page-heading"><div><a className="back-link" href={back}>Back to domains</a><span className="kicker">KmerHosting Domains</span><h1>{title}</h1><p>{subtitle}</p></div></div>{children}</main>;
+  const copy = useDomainCopy();
+  return <main className="dashboard-content carbon-native-page"><div className="page-heading carbon-page-heading"><div><a className="back-link" href={back}>{copy.domains}</a><span className="kicker">KmerHosting Domains</span><h1>{title}</h1><p>{subtitle}</p></div></div>{children}</main>;
 }
 
 function AdminShell({ title, subtitle, children }: { title: string; subtitle: string; children: ReactNode }) {
@@ -120,11 +121,12 @@ function MetricGrid({ metrics }: { metrics: Array<[string, ReactNode]> }) {
 }
 
 function NotificationsPage() {
+  const copy = useDomainCopy();
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["notifications"], queryFn: () => customerToolsApi<{ notifications: Row[]; unread: number }>("/notifications"), refetchInterval: 30000 });
   const readOne = useMutation({ mutationFn: (id: string) => customerToolsApi(`/notifications/${id}/read`, { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["notifications"] }) });
   const readAll = useMutation({ mutationFn: () => customerToolsApi("/notifications/read-all", { method: "POST" }), onSuccess: () => client.invalidateQueries({ queryKey: ["notifications"] }) });
-  return <Shell title="Notifications" subtitle="Domain, transfer, renewal and account activity." back="/dashboard"><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Inbox</h2><p>{query.data?.unread || 0} unread.</p></div><Button kind="secondary" size="sm" onClick={() => readAll.mutate()} disabled={readAll.isPending}>Read all</Button></div>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <div className="carbon-activity-list">{(query.data?.notifications || []).map((item) => <Tile className="carbon-notification-row" key={item.id}><div><strong>{item.title}</strong><p>{item.message}</p><small>{formatDate(item.created_at)} · {item.type || "account"}</small></div>{!item.read_at ? <Button kind="ghost" size="sm" onClick={() => readOne.mutate(item.id)}>Mark as read</Button> : <Badge value="read" />}</Tile>)}</div>}</Tile></Shell>;
+  return <Shell title={copy.notifications} subtitle="Domain, transfer, renewal and account activity." back="/dashboard"><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.notifications}</h2><p>{query.data?.unread || 0} unread.</p></div><Button kind="secondary" size="sm" onClick={() => readAll.mutate()} disabled={readAll.isPending}>Read all</Button></div>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <div className="carbon-activity-list">{(query.data?.notifications || []).map((item) => <Tile className="carbon-notification-row" key={item.id}><div><strong>{item.title}</strong><p>{item.message}</p><small>{formatDate(item.created_at)} · {item.type || "account"}</small></div>{!item.read_at ? <Button kind="ghost" size="sm" onClick={() => readOne.mutate(item.id)}>Mark as read</Button> : <Badge value="read" />}</Tile>)}</div>}</Tile></Shell>;
 }
 
 function ProviderAction({ title, description, action, busy, danger = false }: { title: string; description: string; action: () => void; busy: boolean; danger?: boolean }) {
