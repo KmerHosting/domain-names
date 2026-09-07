@@ -18,7 +18,9 @@ import {
 } from "@carbon/react";
 import {
   Application,
+  Checkmark,
   Contrast,
+  Copy,
   Dashboard,
   Help,
   Logout,
@@ -44,6 +46,15 @@ type DomainCopy = DomainShellMessages & Pick<CommonMessages, "language" | "suppo
 type DomainMessageKey = keyof DomainShellMessages;
 
 const CUSTOMER_DASHBOARD_URL = "https://domain.kmerhosting.com/dashboard";
+const copyEmailLabels: Record<KmerLocale, string> = {
+  en: "Copy email", fr: "Copier l’e-mail", es: "Copiar correo", pt: "Copiar e-mail", de: "E-Mail kopieren",
+  "zh-Hans": "复制邮箱", ar: "نسخ البريد الإلكتروني", hi: "ईमेल कॉपी करें", bn: "ইমেল কপি করুন", id: "Salin email",
+  ja: "メールをコピー", ru: "Копировать почту", it: "Copia email", ko: "이메일 복사", tr: "E-postayı kopyala",
+  vi: "Sao chép email", ur: "ای میل کاپی کریں", nl: "E-mail kopiëren", pl: "Kopiuj e-mail", fa: "کپی ایمیل",
+};
+const copiedLabels: Record<KmerLocale, string> = {
+  en: "Copied", fr: "Copié", es: "Copiado", pt: "Copiado", de: "Kopiert", "zh-Hans": "已复制", ar: "تم النسخ", hi: "कॉपी किया गया", bn: "কপি হয়েছে", id: "Disalin", ja: "コピーしました", ru: "Скопировано", it: "Copiato", ko: "복사됨", tr: "Kopyalandı", vi: "Đã sao chép", ur: "کاپی ہو گیا", nl: "Gekopieerd", pl: "Skopiowano", fa: "کپی شد",
+};
 
 const dashboardNavigation = [
   { href: "/dashboard", key: "overview" as DomainMessageKey, icon: Dashboard, exact: true },
@@ -103,6 +114,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
   const onCustomerDashboard = pathname.startsWith("/dashboard");
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [emailCopied, setEmailCopied] = useState(false);
   const [locale, setLocale] = useState<KmerLocale>(browserLocale);
   const explicitLanguage = useRef(false);
   const copy = domainShellCopy(locale) as DomainCopy;
@@ -144,6 +156,15 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
     clearSession();
     window.location.assign("/");
   };
+
+  const copyEmail = async () => {
+    if (!user?.email) return;
+    await navigator.clipboard?.writeText(user.email);
+    setEmailCopied(true);
+    window.setTimeout(() => setEmailCopied(false), 1600);
+  };
+
+  const initials = (user?.fullName || user?.email || "K").split(/\s+/).map((part) => part[0]).join("").slice(0, 2).toUpperCase();
 
   return (
     <div className={privateShell ? "domain-app-shell domain-app-shell--private" : "domain-app-shell domain-app-shell--public"}>
@@ -209,8 +230,11 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
             >
               <div className="domain-header-panel__content">
                 <div className="domain-header-panel__heading">
-                  <h2>{session ? copy.domainAccount : "KmerHosting Account"}</h2>
-                  <p>{session ? user?.email || copy.sessionActive : copy.centralAccess}</p>
+                  <div className="domain-header-panel__identity">
+                    <span className="domain-header-panel__avatar" aria-hidden="true">{session ? initials : "K"}</span>
+                    <div><h2>{session ? copy.domainAccount : "KmerHosting Account"}</h2><p>{session ? user?.email || copy.sessionActive : copy.centralAccess}</p></div>
+                  </div>
+                  {session && user?.email ? <Button kind="ghost" size="sm" renderIcon={emailCopied ? Checkmark : Copy} onClick={() => void copyEmail()}>{emailCopied ? copiedLabels[locale] : copyEmailLabels[locale]}</Button> : null}
                 </div>
                 <div className="domain-header-panel__actions">
                   <ComboBox
