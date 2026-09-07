@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.17.0](https://github.com/KmerHosting/domain-names/compare/v1.16.0...v1.17.0) (2026-09-07)
+
+
+### Features
+
+* **i18n:** localize domain catalog loading states ([40e16fa](https://github.com/KmerHosting/domain-names/commit/40e16fab0ba15443e13c3e91abbb02e1db886d31))
+
 ## [1.16.0](https://github.com/KmerHosting/domain-names/compare/v1.15.0...v1.16.0) (2026-09-07)
 
 
