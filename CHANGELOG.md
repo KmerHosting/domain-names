@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.0](https://github.com/KmerHosting/domain-names/compare/v1.19.0...v1.20.0) (2026-09-07)
+
+
+### Features
+
+* **i18n:** complete customer coverage ([f2bf6c4](https://github.com/KmerHosting/domain-names/commit/f2bf6c4fc9568f3ecaffef132d07f967e511858e))
+
 ## [1.19.0](https://github.com/KmerHosting/domain-names/compare/v1.18.0...v1.19.0) (2026-09-07)
 
 
