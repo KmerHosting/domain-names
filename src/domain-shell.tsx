@@ -46,6 +46,16 @@ type DomainCopy = DomainShellMessages & Pick<CommonMessages, "language" | "suppo
 type DomainMessageKey = keyof DomainShellMessages;
 
 const CUSTOMER_DASHBOARD_URL = "https://domain.kmerhosting.com/dashboard";
+const KMERHOSTING_LOGO_LIGHT = "https://kmerhosting.com/brand/logo_label_transparent_resized.png";
+const KMERHOSTING_LOGO_DARK = "https://kmerhosting.com/brand/logo_label_transparent_white.png";
+
+function KmerHostingBrand({ isDark }: { isDark: boolean }) {
+  return <img
+    className="domain-header-brand-image"
+    src={isDark ? KMERHOSTING_LOGO_DARK : KMERHOSTING_LOGO_LIGHT}
+    alt="KmerHosting"
+  />;
+}
 const copyEmailLabels: Record<KmerLocale, string> = {
   en: "Copy email", fr: "Copier l’e-mail", es: "Copiar correo", pt: "Copiar e-mail", de: "E-Mail kopieren",
   "zh-Hans": "复制邮箱", ar: "نسخ البريد الإلكتروني", hi: "ईमेल कॉपी करें", bn: "ইমেল কপি করুন", id: "Salin email",
@@ -180,7 +190,9 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                 isActive={isSideNavExpanded}
                 onClick={onClickSideNavExpand}
               />
-              <HeaderName href="/" prefix="KmerHosting">{copy.domains}</HeaderName>
+              <HeaderName href="/" prefix="" className="domain-header-brand" aria-label={`KmerHosting ${copy.domains}`}>
+                <KmerHostingBrand isDark={isDark} />
+              </HeaderName>
 
               {!privateShell ? (
                 <HeaderNavigation aria-label={`KmerHosting ${copy.domains}`}>

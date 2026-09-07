@@ -80,6 +80,18 @@ a {
   transition-timing-function: motion.motion(standard, productive);
 }
 
+.domain-header-brand {
+  min-inline-size: 9rem;
+}
+
+.domain-header-brand-image {
+  display: block;
+  inline-size: 8.5rem;
+  block-size: auto;
+  max-block-size: 2rem;
+  object-fit: contain;
+}
+
 .domain-app-shell .cds--header__global {
   margin-inline-start: auto;
   flex: 0 0 auto;
