@@ -206,19 +206,38 @@ a {
 }
 
 @include breakpoint.breakpoint('lg') {
-  // Retain the canonical rail foundation. The product shell below widens it
-  // deliberately for the same legible navigation density as Customer Dashboard.
+  // Keep the same icon-only rail contract as Customer Dashboard. The full
+  // navigation opens only after an explicit expand action.
   .domain-app-shell--private .domain-content {
     margin-inline-start: 3rem;
   }
 
-  .domain-app-shell--private:has(.domain-carbon-sidenav) .domain-content,
   .domain-app-shell--private:has(.domain-carbon-sidenav.cds--side-nav--expanded) .domain-content {
     margin-inline-start: 16rem;
   }
 
   .domain-app-shell--private .domain-carbon-sidenav {
+    width: 3rem;
+    inline-size: 3rem;
+  }
+
+  .domain-app-shell--private .domain-carbon-sidenav.cds--side-nav--expanded {
+    width: 16rem;
     inline-size: 16rem;
+  }
+
+  .domain-app-shell--private .domain-carbon-sidenav:not(.cds--side-nav--expanded) .domain-sidenav-label,
+  .domain-app-shell--private .domain-carbon-sidenav:not(.cds--side-nav--expanded) .cds--side-nav__link-text {
+    display: none;
+  }
+
+  .domain-app-shell--private .domain-carbon-sidenav:not(.cds--side-nav--expanded) .cds--side-nav__link {
+    justify-content: center;
+    padding-inline: 0;
+  }
+
+  .domain-app-shell--private .domain-carbon-sidenav:not(.cds--side-nav--expanded) .cds--side-nav__icon {
+    margin-inline: 0;
   }
 
   .domain-app-shell--private .domain-carbon-sidenav .cds--side-nav__link-text {
