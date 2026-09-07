@@ -33,6 +33,7 @@ import {
 import { useDomainCopy } from "./domain-i18n";
 import { useDomainNativeCopy } from "./domain-native-i18n";
 import { useDomainOpsCopy } from "./domain-ops-i18n";
+import { useDomainManageCopy } from "./domain-manage-i18n";
 
 type Row = Record<string, any>;
 type Route =
@@ -246,6 +247,7 @@ function DomainContacts({ domainId }: { domainId: string }) {
 }
 
 function DomainManagePage({ domainId }: { domainId: string }) {
+  const copy = useDomainManageCopy();
   const client = useQueryClient();
   const domainQuery = useQuery({ queryKey: ["domain-manage", domainId], queryFn: () => api<{ domain: Row }>(`/domains/${domainId}`) });
   const domain = domainQuery.data?.domain;
@@ -263,38 +265,38 @@ function DomainManagePage({ domainId }: { domainId: string }) {
   const getQuote = useMutation({ mutationFn: () => customerToolsApi<{ quote: Row }>(`/domains/${domainId}/quote?operation=renewal&years=1`), onSuccess: (data) => setQuote(data.quote) });
   const createOrder = useMutation({ mutationFn: () => customerToolsApi<{ order: Row }>(`/domains/${domainId}/orders/renewal`, { method: "POST", body: { years: 1, expectedPriceUsd: quote?.customerPriceUsd }, idempotencyKey: renewalOrderKey }), onSuccess: (data) => { setOrderMessage(`Order ${data.order?.order_number || "created"} was queued for processing.`); setQuote(null); setRenewalOrderKey(newIdempotencyKey("renewal")); } });
 
-  if (domainQuery.isPending) return <Shell title="Domain management" subtitle="Loading domain data." back="/dashboard/domains"><Loading /></Shell>;
-  if (domainQuery.isError || !domain) return <Shell title="Domain management" subtitle="Unable to load this domain." back="/dashboard/domains"><ErrorNotice error={domainQuery.error} /></Shell>;
+  if (domainQuery.isPending) return <Shell title={copy.management} subtitle={copy.loading} back="/dashboard/domains"><Loading /></Shell>;
+  if (domainQuery.isError || !domain) return <Shell title={copy.management} subtitle={copy.unable} back="/dashboard/domains"><ErrorNotice error={domainQuery.error} /></Shell>;
   const test = domain.registrar_environment === "ote";
   const busy = sync.isPending || lock.isPending || privacy.isPending;
 
-  return <Shell title={domain.domain_name} subtitle="Manage DNS, security, contacts and renewal." back={`/dashboard/domains/${domainId}`}>
-    {test ? <InlineNotification kind="warning" lowContrast hideCloseButton title="Test domain" subtitle="Changes in this environment do not affect a live domain or your KmerHosting account balance." /> : null}
-    <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Domain status</h2><p>Last synchronized {formatDate(domain.last_synced_at)}.</p></div><div className="heading-actions"><Badge value={domain.status} />{test ? <Tag type="blue">TEST / OTE</Tag> : null}</div></div><MetricGrid metrics={[["Expires", formatDate(domain.expires_at)], ["Lock", domain.locked ? "Enabled" : "Disabled"], ["Privacy", domain.privacy_enabled ? "Enabled" : "Disabled"], ["Auto-renew", domain.auto_renew ? "Enabled" : "Disabled"]]} /><div className="heading-actions"><Button kind="tertiary" disabled={busy} onClick={() => sync.mutate()}>Refresh domain status</Button><Button kind="ghost" href={`/dashboard/domains/${domainId}/dns`}>DNS and nameservers</Button></div>{sync.isError ? <ErrorNotice error={sync.error} /> : null}</Tile>
+  return <Shell title={domain.domain_name} subtitle={copy.manageIntro} back={`/dashboard/domains/${domainId}`}>
+    {test ? <InlineNotification kind="warning" lowContrast hideCloseButton title={copy.testDomain} subtitle={copy.testDomainIntro} /> : null}
+    <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.status}</h2><p>{copy.lastSynchronized} {formatDate(domain.last_synced_at)}.</p></div><div className="heading-actions"><Badge value={domain.status} />{test ? <Tag type="blue">TEST / OTE</Tag> : null}</div></div><MetricGrid metrics={[[copy.expires, formatDate(domain.expires_at)], [copy.lock, domain.locked ? copy.enabled : copy.disabled], [copy.privacy, domain.privacy_enabled ? copy.enabled : copy.disabled], [copy.autoRenew, domain.auto_renew ? copy.enabled : copy.disabled]]} /><div className="heading-actions"><Button kind="tertiary" disabled={busy} onClick={() => sync.mutate()}>{copy.refreshStatus}</Button><Button kind="ghost" href={`/dashboard/domains/${domainId}/dns`}>{copy.dnsNameservers}</Button></div>{sync.isError ? <ErrorNotice error={sync.error} /> : null}</Tile>
 
-    <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Security and transfer code</h2><p>Changes may take a moment to appear.</p></div></div><Grid fullWidth className="carbon-action-grid"><Column sm={4} md={4} lg={5}><Tile className="carbon-action-tile"><Toggle id="domain-lock" labelText="Registrar lock" labelA="Unlocked" labelB="Locked" toggled={Boolean(domain.locked)} disabled={lock.isPending} onToggle={(enabled) => lock.mutate(enabled)} /><p>Protect the domain from unauthorized transfers.</p></Tile></Column><Column sm={4} md={4} lg={5}><Tile className="carbon-action-tile"><Toggle id="domain-privacy" labelText="WHOIS privacy" labelA="Disabled" labelB="Enabled" toggled={Boolean(domain.privacy_enabled)} disabled={privacy.isPending} onToggle={(enabled) => privacy.mutate(enabled)} /><p>Hide contact details where supported.</p></Tile></Column><Column sm={4} md={8} lg={6}><ProviderAction title="Reveal transfer code" description="Show the transfer authorization code. Keep it private." busy={epp.isPending} action={() => setRevealTransfer(true)} /></Column></Grid>{transferCode ? <InlineNotification kind="warning" lowContrast hideCloseButton title="Transfer code" subtitle={transferCode} /> : null}{lock.isError || privacy.isError || epp.isError ? <ErrorNotice error={lock.error || privacy.error || epp.error} /> : null}
+    <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.securityTransfer}</h2><p>{copy.changesDelay}</p></div></div><Grid fullWidth className="carbon-action-grid"><Column sm={4} md={4} lg={5}><Tile className="carbon-action-tile"><Toggle id="domain-lock" labelText={copy.registrarLock} labelA={copy.unlocked} labelB={copy.locked} toggled={Boolean(domain.locked)} disabled={lock.isPending} onToggle={(enabled) => lock.mutate(enabled)} /><p>{copy.protectTransfers}</p></Tile></Column><Column sm={4} md={4} lg={5}><Tile className="carbon-action-tile"><Toggle id="domain-privacy" labelText={copy.whoisPrivacy} labelA={copy.disabled} labelB={copy.enabled} toggled={Boolean(domain.privacy_enabled)} disabled={privacy.isPending} onToggle={(enabled) => privacy.mutate(enabled)} /><p>{copy.hideContacts}</p></Tile></Column><Column sm={4} md={8} lg={6}><ProviderAction title={copy.revealTransfer} description={copy.keepPrivate} busy={epp.isPending} action={() => setRevealTransfer(true)} /></Column></Grid>{transferCode ? <InlineNotification kind="warning" lowContrast hideCloseButton title={copy.revealTransfer} subtitle={transferCode} /> : null}{lock.isError || privacy.isError || epp.isError ? <ErrorNotice error={lock.error || privacy.error || epp.error} /> : null}
       <Modal
         open={revealTransfer}
-        modalHeading="Reveal transfer code"
-        primaryButtonText={epp.isPending ? "Loading…" : "Reveal code"}
-        secondaryButtonText="Cancel"
+        modalHeading={copy.revealTransfer}
+        primaryButtonText={epp.isPending ? copy.loading : copy.revealCode}
+        secondaryButtonText={copy.cancel}
         primaryButtonDisabled={epp.isPending}
         onRequestClose={() => setRevealTransfer(false)}
         onRequestSubmit={() => epp.mutate(undefined, { onSettled: () => setRevealTransfer(false) })}
       >
-        <p>Anyone with this code may be able to transfer the domain. Keep it private.</p>
+        <p>{copy.keepPrivate}</p>
       </Modal>
     </Tile>
 
-    <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Renewal and restoration</h2><p>Check the current renewal price before confirming.</p></div></div><Grid fullWidth className="carbon-action-grid"><Column sm={4} md={4} lg={8}><ProviderAction title="Check renewal quote" description="Check whether renewal is available and see the current price." busy={getQuote.isPending} action={() => getQuote.mutate()} /></Column><Column sm={4} md={4} lg={8}><Tile className="carbon-action-tile"><strong>Domain restoration</strong><p>Restoration is not currently available for this domain.</p><Tag type="cool-gray">Currently unavailable</Tag></Tile></Column></Grid>{quote ? <Tile className="carbon-quote"><strong>{String(quote.operation).toUpperCase()}</strong><span>{formatMoney(quote.customerPriceUsd, quote.currency || "USD")}</span><small>{quote.periodYears} year renewal</small><Button disabled={createOrder.isPending} onClick={() => createOrder.mutate()}>{test ? "Queue OTE test order" : "Charge central balance and confirm"}</Button></Tile> : null}{orderMessage ? <InlineNotification kind="success" lowContrast hideCloseButton title="Order queued" subtitle={orderMessage} actions={<Button kind="ghost" size="sm" href="/dashboard/orders">Open orders</Button>} /> : null}{getQuote.isError || createOrder.isError ? <ErrorNotice error={getQuote.error || createOrder.error} /> : null}</Tile>
+    {/* Restoration is not currently available for this domain. */}<Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.renewalRestoration}</h2><p>{copy.quoteIntro}</p></div></div><Grid fullWidth className="carbon-action-grid"><Column sm={4} md={4} lg={8}><ProviderAction title={copy.checkQuote} description={copy.quoteIntro} busy={getQuote.isPending} action={() => getQuote.mutate()} /></Column><Column sm={4} md={4} lg={8}><Tile className="carbon-action-tile"><strong>{copy.restoration}</strong><p>{copy.restorationUnavailable}</p><Tag type="cool-gray">{copy.unavailable}</Tag></Tile></Column></Grid>{quote ? <Tile className="carbon-quote"><strong>{String(quote.operation).toUpperCase()}</strong><span>{formatMoney(quote.customerPriceUsd, quote.currency || "USD")}</span><small>{quote.periodYears} {copy.renewal}</small><Button disabled={createOrder.isPending} onClick={() => createOrder.mutate()}>{test ? copy.queueTest : copy.chargeBalance}</Button></Tile> : null}{orderMessage ? <InlineNotification kind="success" lowContrast hideCloseButton title={copy.orderQueued} subtitle={orderMessage} actions={<Button kind="ghost" size="sm" href="/dashboard/orders">{copy.openOrders}</Button>} /> : null}{getQuote.isError || createOrder.isError ? <ErrorNotice error={getQuote.error || createOrder.error} /> : null}</Tile>
 
-    {domain.status === "transfer_pending" ? <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Transfer status</h2><p>Query or act on a pending incoming/outgoing transfer.</p></div></div><div className="heading-actions">{["query", "approve", "reject", "cancel"].map((action) => <Button key={action} kind={action === "reject" || action === "cancel" ? "danger--ghost" : "secondary"} disabled={transferAction.isPending} onClick={() => setTransferConfirm(action)}>{action}</Button>)}</div>{transferAction.isError ? <ErrorNotice error={transferAction.error} /> : null}
+    {domain.status === "transfer_pending" ? <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.transferStatus}</h2><p>{copy.transferIntro}</p></div></div><div className="heading-actions">{["query", "approve", "reject", "cancel"].map((action) => <Button key={action} kind={action === "reject" || action === "cancel" ? "danger--ghost" : "secondary"} disabled={transferAction.isPending} onClick={() => setTransferConfirm(action)}>{action === "query" ? copy.query : action === "approve" ? copy.approve : action === "reject" ? copy.reject : copy.transferCancel}</Button>)}</div>{transferAction.isError ? <ErrorNotice error={transferAction.error} /> : null}
       <Modal
         open={Boolean(transferConfirm)}
         danger={transferConfirm === "reject" || transferConfirm === "cancel"}
-        modalHeading={transferConfirm ? `${transferConfirm} transfer` : "Transfer action"}
-        primaryButtonText={transferAction.isPending ? "Working…" : "Continue"}
-        secondaryButtonText="Cancel"
+        modalHeading={transferConfirm ? `${transferConfirm} ${copy.transferAction}` : copy.transferAction}
+        primaryButtonText={transferAction.isPending ? copy.working : copy.continueLabel}
+        secondaryButtonText={copy.cancel}
         primaryButtonDisabled={transferAction.isPending}
         onRequestClose={() => setTransferConfirm(null)}
         onRequestSubmit={() => {
@@ -302,7 +304,7 @@ function DomainManagePage({ domainId }: { domainId: string }) {
           transferAction.mutate(transferConfirm, { onSettled: () => setTransferConfirm(null) });
         }}
       >
-        <p>Confirm <strong>{transferConfirm}</strong> for <strong>{domain.domain_name}</strong>.</p>
+        <p>{copy.confirmAction} <strong>{transferConfirm}</strong> for <strong>{domain.domain_name}</strong>.</p>
       </Modal>
     </Tile> : null}
 
