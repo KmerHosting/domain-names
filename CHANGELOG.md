@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.7](https://github.com/KmerHosting/domain-names/compare/v1.21.6...v1.21.7) (2026-09-07)
+
+
+### Bug Fixes
+
+* **ui:** neutralize domain account avatar ([b1e004d](https://github.com/KmerHosting/domain-names/commit/b1e004d19b6722334a9b7ecffddeac2039cd8ec7))
+
 ## [1.21.6](https://github.com/KmerHosting/domain-names/compare/v1.21.5...v1.21.6) (2026-09-07)
 
 
