@@ -88,9 +88,9 @@ export function TldCatalogPage() {
         </Column>
       </Grid>
 
-      {query.isPending ? <div className="carbon-tld-catalog__status"><InlineLoading description="Loading supported extensions…" /></div> : null}
-      {query.isError ? <InlineNotification kind="error" lowContrast hideCloseButton title="Extensions unavailable" subtitle="We couldn't load the extension list. Try again shortly." /> : null}
-      {query.isSuccess && filtered.length === 0 ? <InlineNotification kind="info" lowContrast hideCloseButton title="No extension found" subtitle="Try another extension name, such as com, store or dev." /> : null}
+      {query.isPending ? <div className="carbon-tld-catalog__status"><InlineLoading description={`${copy.loading}…`} /></div> : null}
+      {query.isError ? <InlineNotification kind="error" lowContrast hideCloseButton title={`${copy.domains} unavailable`} subtitle={`${copy.loading}…`} /> : null}
+      {query.isSuccess && filtered.length === 0 ? <InlineNotification kind="info" lowContrast hideCloseButton title={`${copy.search}: 0`} subtitle={`${copy.search} .com, .shop, .dev`} /> : null}
       {query.isSuccess && visible.length > 0 ? <>
         <Grid fullWidth className="carbon-tld-catalog__grid">
           {visible.map((price) => <Column sm={4} md={4} lg={4} key={price.tld}><TldCard price={price} /></Column>)}
