@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/KmerHosting/domain-names/compare/v1.14.0...v1.15.0) (2026-09-07)
+
+
+### Features
+
+* **i18n:** localize domain customer operations ([#69](https://github.com/KmerHosting/domain-names/issues/69)) ([14318a6](https://github.com/KmerHosting/domain-names/commit/14318a60fe7ed7726de9faba40ab6858a8d3e454))
+
 ## [1.14.0](https://github.com/KmerHosting/domain-names/compare/v1.13.0...v1.14.0) (2026-09-06)
 
 
