@@ -32,6 +32,7 @@ import {
 } from "./api";
 import { useDomainCopy } from "./domain-i18n";
 import { useDomainNativeCopy } from "./domain-native-i18n";
+import { useDomainOpsCopy } from "./domain-ops-i18n";
 
 type Row = Record<string, any>;
 type Route =
@@ -136,6 +137,7 @@ function ProviderAction({ title, description, action, busy, danger = false }: { 
 }
 
 function Forwarding({ domainId }: { domainId: string }) {
+  const copy = useDomainOpsCopy();
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["forwarding", domainId], queryFn: () => customerToolsApi<{ forwarding: Row | null; provider?: Row | null }>(`/domains/${domainId}/forwarding`) });
   const save = useMutation({ mutationFn: (body: Row) => customerToolsApi(`/domains/${domainId}/forwarding`, { method: "PUT", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["forwarding", domainId] }) });
@@ -156,10 +158,11 @@ function Forwarding({ domainId }: { domainId: string }) {
     save.mutate({ redirectAddress: redirectAddress.trim(), forwardType: new FormData(event.currentTarget).get("forwardType") });
   };
 
-  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Web forwarding</h2><p>Choose where visitors should go when they use this domain.</p></div>{current ? <Badge value={current.status} /> : null}</div>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <><p>{current ? <>Active: <strong>{current.redirect_address || current.redirect_url}</strong></> : "No active forwarding rule."}</p><form className="carbon-form-stack" onSubmit={submit} noValidate key={current?.id || "new"}><TextInput id="forward-url" name="redirectAddress" type="url" labelText="Redirect URL" helperText="Use a complete http:// or https:// address." value={redirectAddress} onChange={(event) => setRedirectAddress(event.target.value)} required invalid={forwardingAttempted && !validHttpUrl(redirectAddress)} invalidText="Enter a complete http:// or https:// address." /><Select id="forward-type" name="forwardType" labelText="Forward type" helperText="Standard redirects visitors; Frame keeps the domain in the browser address bar." defaultValue={current?.forward_type || "Standard"}><SelectItem value="Standard" text="Standard redirect" /><SelectItem value="Frame" text="Frame redirect" /></Select><div className="heading-actions"><Button type="submit" disabled={save.isPending}>{save.isPending ? "Saving…" : "Save forwarding"}</Button>{current ? <Button type="button" kind="danger--ghost" disabled={remove.isPending} onClick={() => remove.mutate()}>Remove</Button> : null}</div></form>{save.isError || remove.isError ? <ErrorNotice error={save.error || remove.error} /> : null}</>}</Tile>;
+  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.forwarding}</h2><p>{copy.forwardingIntro}</p></div>{current ? <Badge value={current.status} /> : null}</div>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <><p>{current ? <>{copy.active}: <strong>{current.redirect_address || current.redirect_url}</strong></> : copy.noRule}</p><form className="carbon-form-stack" onSubmit={submit} noValidate key={current?.id || "new"}><TextInput id="forward-url" name="redirectAddress" type="url" labelText={copy.redirectUrl} helperText={copy.redirectHelper} value={redirectAddress} onChange={(event) => setRedirectAddress(event.target.value)} required invalid={forwardingAttempted && !validHttpUrl(redirectAddress)} invalidText={copy.redirectHelper} /><Select id="forward-type" name="forwardType" labelText={copy.forwardType} helperText={copy.forwardingIntro} defaultValue={current?.forward_type || "Standard"}><SelectItem value="Standard" text={copy.standard} /><SelectItem value="Frame" text={copy.frame} /></Select><div className="heading-actions"><Button type="submit" disabled={save.isPending}>{save.isPending ? "Saving…" : copy.save}</Button>{current ? <Button type="button" kind="danger--ghost" disabled={remove.isPending} onClick={() => remove.mutate()}>{copy.remove}</Button> : null}</div></form>{save.isError || remove.isError ? <ErrorNotice error={save.error || remove.error} /> : null}</>}</Tile>;
 }
 
 function GlueHosts({ domainId, domainName }: { domainId: string; domainName: string }) {
+  const copy = useDomainOpsCopy();
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["glue-hosts", domainId], queryFn: () => customerToolsApi<{ glueHosts: Row[] }>(`/domains/${domainId}/glue-hosts`) });
   const add = useMutation({ mutationFn: (body: Row) => customerToolsApi(`/domains/${domainId}/glue-hosts`, { method: "POST", body }), onSuccess: () => client.invalidateQueries({ queryKey: ["glue-hosts", domainId] }) });
@@ -184,12 +187,12 @@ function GlueHosts({ domainId, domainName }: { domainId: string; domainName: str
       event.currentTarget.reset();
     } });
   };
-  return <Tile className="carbon-dashboard-panel carbon-table-section"><div className="card-heading"><div><h2>Child nameservers / glue hosts</h2><p>Use a full child hostname under {domainName} and one or more IPv4/IPv6 addresses.</p></div></div><form className="carbon-glue-form" onSubmit={submit} noValidate><TextInput id="glue-host" name="hostName" labelText="Host name" helperText={`Use a hostname under ${domainName}.`} value={glueHost} onChange={(event) => setGlueHost(event.target.value)} placeholder={`ns1.${domainName}`} required invalid={glueAttempted && !validChildHostname(glueHost, domainName)} invalidText={`Enter a valid child host under ${domainName}.`} /><TextInput id="glue-ips" name="ipAddresses" labelText="IP addresses" helperText="Separate multiple IPv4 or IPv6 addresses with commas." value={glueIps} onChange={(event) => setGlueIps(event.target.value)} placeholder="192.0.2.10, 2001:db8::10" required invalid={glueAttempted && (glueIps.split(/[\s,]+/).filter(Boolean).length === 0 || glueIps.split(/[\s,]+/).filter(Boolean).some((value) => !validIpAddress(value)))} invalidText="Enter valid IPv4 or IPv6 addresses." /><Button type="submit" disabled={add.isPending}>Add</Button></form>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : (query.data?.glueHosts || []).length ? <Table size="lg"><TableHead><TableRow><TableHeader>Host</TableHeader><TableHeader>IP addresses</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{(query.data?.glueHosts || []).map((host) => <TableRow key={host.id}><TableCell>{host.host_name}</TableCell><TableCell>{(host.ip_addresses || []).join(", ")}</TableCell><TableCell><Badge value={host.status} /></TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => { setEditingHost(host); setEditIps((host.ip_addresses || []).join(", ")); setEditIpsAttempted(false); }}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setDeleteTarget(host)}>Delete</Button></div></TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No glue hosts</h3><p>Add a child nameserver when your domain needs registrar glue records.</p></Tile>}{add.isError || edit.isError || remove.isError ? <ErrorNotice error={add.error || edit.error || remove.error} /> : null}
+  return <Tile className="carbon-dashboard-panel carbon-table-section"><div className="card-heading"><div><h2>{copy.glueHosts}</h2><p>{copy.glueIntro}</p></div></div><form className="carbon-glue-form" onSubmit={submit} noValidate><TextInput id="glue-host" name="hostName" labelText={copy.hostName} helperText={`${copy.hostName} · ${domainName}`} value={glueHost} onChange={(event) => setGlueHost(event.target.value)} placeholder={`ns1.${domainName}`} required invalid={glueAttempted && !validChildHostname(glueHost, domainName)} invalidText={copy.hostName} /><TextInput id="glue-ips" name="ipAddresses" labelText={copy.ipAddresses} helperText={copy.ipAddresses} value={glueIps} onChange={(event) => setGlueIps(event.target.value)} placeholder="192.0.2.10, 2001:db8::10" required invalid={glueAttempted && (glueIps.split(/[\s,]+/).filter(Boolean).length === 0 || glueIps.split(/[\s,]+/).filter(Boolean).some((value) => !validIpAddress(value)))} invalidText={copy.ipAddresses} /><Button type="submit" disabled={add.isPending}>{copy.add}</Button></form>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : (query.data?.glueHosts || []).length ? <Table size="lg"><TableHead><TableRow><TableHeader>{copy.hostName}</TableHeader><TableHeader>{copy.ipAddresses}</TableHeader><TableHeader>Status</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{(query.data?.glueHosts || []).map((host) => <TableRow key={host.id}><TableCell>{host.host_name}</TableCell><TableCell>{(host.ip_addresses || []).join(", ")}</TableCell><TableCell><Badge value={host.status} /></TableCell><TableCell><div className="heading-actions"><Button kind="ghost" size="sm" onClick={() => { setEditingHost(host); setEditIps((host.ip_addresses || []).join(", ")); setEditIpsAttempted(false); }}>{copy.edit}</Button><Button kind="danger--ghost" size="sm" onClick={() => setDeleteTarget(host)}>{copy.deleteLabel}</Button></div></TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>{copy.noGlue}</h3><p>{copy.glueIntro}</p></Tile>}{add.isError || edit.isError || remove.isError ? <ErrorNotice error={add.error || edit.error || remove.error} /> : null}
     <Modal
       open={Boolean(editingHost)}
-      modalHeading="Edit child nameserver"
-      primaryButtonText={edit.isPending ? "Saving…" : "Save"}
-      secondaryButtonText="Cancel"
+      modalHeading={copy.edit}
+      primaryButtonText={edit.isPending ? "Saving…" : copy.save}
+      secondaryButtonText={copy.remove}
       primaryButtonDisabled={edit.isPending || !editIps.trim()}
       onRequestClose={() => setEditingHost(null)}
       onRequestSubmit={() => {
@@ -203,23 +206,23 @@ function GlueHosts({ domainId, domainName }: { domainId: string; domainName: str
         );
       }}
     >
-      <p>Update the IPv4 or IPv6 addresses for <strong>{editingHost?.host_name}</strong>.</p>
+      <p>{copy.ipAddresses}: <strong>{editingHost?.host_name}</strong>.</p>
       <TextInput
         id="edit-glue-ips"
-        labelText="IP addresses"
-        helperText="Separate multiple addresses with spaces or commas."
+        labelText={copy.ipAddresses}
+        helperText={copy.ipAddresses}
         value={editIps}
         onChange={(event) => setEditIps(event.target.value)}
         invalid={editIpsAttempted && (!editIps.trim() || editIps.split(/[\s,]+/).filter(Boolean).some((value) => !validIpAddress(value)))}
-        invalidText="Enter valid IPv4 or IPv6 addresses."
+        invalidText={copy.ipAddresses}
       />
     </Modal>
     <Modal
       open={Boolean(deleteTarget)}
       danger
-      modalHeading="Delete child nameserver"
-      primaryButtonText={remove.isPending ? "Deleting…" : "Delete"}
-      secondaryButtonText="Cancel"
+      modalHeading={copy.deleteLabel}
+      primaryButtonText={remove.isPending ? "Deleting…" : copy.deleteLabel}
+      secondaryButtonText={copy.remove}
       primaryButtonDisabled={remove.isPending}
       onRequestClose={() => setDeleteTarget(null)}
       onRequestSubmit={() => {
@@ -227,18 +230,19 @@ function GlueHosts({ domainId, domainName }: { domainId: string; domainName: str
         remove.mutate(deleteTarget.id, { onSuccess: () => setDeleteTarget(null) });
       }}
     >
-      <p>Delete <strong>{deleteTarget?.host_name}</strong> and its glue addresses from the registrar.</p>
+      <p>{copy.deleteLabel} <strong>{deleteTarget?.host_name}</strong>.</p>
     </Modal>
   </Tile>;
 }
 
 function DomainContacts({ domainId }: { domainId: string }) {
+  const copy = useDomainOpsCopy();
   const contacts = useQuery({ queryKey: ["contacts"], queryFn: () => api<{ contacts: Row[] }>("/contacts") });
   const save = useMutation({ mutationFn: (body: Row) => customerToolsApi(`/domains/${domainId}/contacts`, { method: "PUT", body }) });
   const [selected, setSelected] = useState("");
   const [contactAttempted, setContactAttempted] = useState(false);
   const rows = contacts.data?.contacts || [];
-  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>WHOIS contacts</h2><p>Assign one contact to all four registry roles, or manage contacts from the Contacts page.</p></div><Button kind="tertiary" size="sm" href="/dashboard/contacts">Manage contacts</Button></div>{contacts.isPending ? <Loading /> : contacts.isError ? <ErrorNotice error={contacts.error} /> : <div className="carbon-contact-assignment"><Select id="domain-contact" labelText="Contact" value={selected} required invalid={contactAttempted && !selected} invalidText="Select a contact before applying it." onChange={(event) => setSelected(event.target.value)}><SelectItem value="" text="Select a contact" />{rows.map((contact) => <SelectItem key={contact.id} value={contact.id} text={`${contact.label || `${contact.first_name} ${contact.last_name}`} · ${contact.email}`} />)}</Select><Button disabled={save.isPending} onClick={() => { setContactAttempted(true); if (selected) save.mutate({ contactId: selected }); }}>{save.isPending ? "Applying…" : "Apply to all roles"}</Button></div>}{save.isSuccess ? <InlineNotification kind="success" lowContrast hideCloseButton title="Registry contacts updated" subtitle="The selected contact has been applied to all registry roles." /> : null}{save.isError ? <ErrorNotice error={save.error} /> : null}</Tile>;
+  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.contacts}</h2><p>{copy.applyRoles}</p></div><Button kind="tertiary" size="sm" href="/dashboard/contacts">{copy.manageContacts}</Button></div>{contacts.isPending ? <Loading /> : contacts.isError ? <ErrorNotice error={contacts.error} /> : <div className="carbon-contact-assignment"><Select id="domain-contact" labelText={copy.contacts} value={selected} required invalid={contactAttempted && !selected} invalidText={copy.contacts} onChange={(event) => setSelected(event.target.value)}><SelectItem value="" text={copy.contacts} />{rows.map((contact) => <SelectItem key={contact.id} value={contact.id} text={`${contact.label || `${contact.first_name} ${contact.last_name}`} · ${contact.email}`} />)}</Select><Button disabled={save.isPending} onClick={() => { setContactAttempted(true); if (selected) save.mutate({ contactId: selected }); }}>{save.isPending ? "Applying…" : copy.applyRoles}</Button></div>}{save.isSuccess ? <InlineNotification kind="success" lowContrast hideCloseButton title={copy.applyRoles} subtitle={copy.applyRoles} /> : null}{save.isError ? <ErrorNotice error={save.error} /> : null}</Tile>;
 }
 
 function DomainManagePage({ domainId }: { domainId: string }) {
