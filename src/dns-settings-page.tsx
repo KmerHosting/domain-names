@@ -20,6 +20,7 @@ import {
 } from "@carbon/react";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { dnsToolsApi, formatDate } from "./api";
+import { useDomainDnsCopy } from "./domain-dns-i18n";
 
 type Row = Record<string, any>;
 type DnsState = {
@@ -52,8 +53,8 @@ export function isDnsSettingsPage(pathname = window.location.pathname) {
   return /^\/dashboard\/domains\/[0-9a-f-]+\/dns$/i.test(pathname);
 }
 
-function errorText(error: unknown) {
-  return error instanceof Error ? error.message : "Request failed.";
+function errorText(error: unknown, fallback = "Request failed.") {
+  return error instanceof Error ? error.message : fallback;
 }
 
 function validDnsHost(value: string): boolean {
@@ -134,6 +135,7 @@ function isSystemRecord(record: Row) {
 }
 
 export function DnsSettingsPage() {
+  const copy = useDomainDnsCopy();
   const domainId = useMemo(domainIdFromPath, []);
   const [state, setState] = useState<DnsState | null>(null);
   const [record, setRecord] = useState<RecordFormState>(emptyRecord());
@@ -153,7 +155,7 @@ export function DnsSettingsPage() {
   };
 
   useEffect(() => {
-    load().catch((caught) => setError(errorText(caught)));
+    load().catch((caught) => setError(errorText(caught, copy.operationFailed)));
   }, [domainId]);
 
   const refreshProvider = async () => {
@@ -162,9 +164,9 @@ export function DnsSettingsPage() {
     setSuccess(null);
     try {
       await load(true);
-      setSuccess("Nameservers and DNS records are up to date.");
+      setSuccess(copy.nameserversSaved);
     } catch (caught) {
-      setError(errorText(caught));
+      setError(errorText(caught, copy.operationFailed));
     } finally {
       setBusy(null);
     }
@@ -179,7 +181,7 @@ export function DnsSettingsPage() {
       await load();
       if (successMessage) setSuccess(successMessage);
     } catch (caught) {
-      setError(errorText(caught));
+      setError(errorText(caught, copy.operationFailed));
     } finally {
       setBusy(null);
     }
@@ -207,17 +209,17 @@ export function DnsSettingsPage() {
           ? Boolean(record.value.trim())
           : Boolean(record.value.split(/[\n,]+/).map((item) => item.trim()).filter(Boolean).length);
     if (!validRecordName(record.name)) {
-      setError("Enter a valid record name.");
+      setError(copy.recordNameError);
       setSuccess(null);
       return;
     }
     if (!validNumbers) {
-      setError("Check the numeric values and TTL.");
+      setError(copy.ttlError);
       setSuccess(null);
       return;
     }
     if (!validContents) {
-      setError(recordType === "MX" ? "Enter a mail server target." : recordType === "SRV" ? "Enter a target, port and priority for the SRV record." : recordType === "CAA" ? "Enter a CAA value." : "Enter at least one DNS value.");
+      setError(recordType === "MX" ? copy.mailTargetError : recordType === "SRV" ? copy.srvTargetError : recordType === "CAA" ? copy.caaValueError : copy.valueRequiredError);
       setSuccess(null);
       return;
     }
@@ -230,7 +232,7 @@ export function DnsSettingsPage() {
         setEditingId(null);
         setRecord(emptyRecord());
       },
-      editingId ? "DNS record updated." : "DNS record added.",
+      editingId ? copy.recordUpdated : copy.recordAdded,
     );
   };
 
@@ -251,64 +253,64 @@ export function DnsSettingsPage() {
 
   return <main className="dashboard-content carbon-dns-page">
     <div className="page-heading carbon-page-heading">
-      <div><a className="back-link" href={`/dashboard/domains/${domainId}`}>← Domain</a><div className="title-with-status"><h1>DNS settings</h1><Tag type={env === "ote" ? "blue" : "green"}>{env === "ote" ? "TEST / OTE" : "LIVE"}</Tag></div><p>{state?.domain.domainName || "Domain DNS management"}</p></div>
-      <div className="heading-actions"><Button kind="tertiary" disabled={Boolean(busy)} aria-busy={busy === "sync"} onClick={() => void refreshProvider()}>{busy === "sync" ? "Refreshing…" : "Refresh DNS data"}</Button></div>
+      <div><a className="back-link" href={`/dashboard/domains/${domainId}`}>{copy.backDomain}</a><div className="title-with-status"><h1>{copy.title}</h1><Tag type={env === "ote" ? "blue" : "green"}>{env === "ote" ? "TEST / OTE" : "LIVE"}</Tag></div><p>{state?.domain.domainName || copy.management}</p></div>
+      <div className="heading-actions"><Button kind="tertiary" disabled={Boolean(busy)} aria-busy={busy === "sync"} onClick={() => void refreshProvider()}>{busy === "sync" ? copy.refreshing : copy.refresh}</Button></div>
     </div>
 
-    {env === "ote" ? <InlineNotification kind="warning" lowContrast hideCloseButton title="Test domain" subtitle="Changes in this test environment do not affect live DNS or your KmerHosting balance." /> : null}
-    {state?.syncError ? <InlineNotification kind="warning" lowContrast hideCloseButton title="DNS refresh failed" subtitle={`${state.syncError}. Your current records remain visible and were not deleted.`} /> : null}
-    {state?.warning ? <InlineNotification kind="warning" lowContrast hideCloseButton title="Nameserver warning" subtitle={state.warning} /> : null}
-    {success ? <InlineNotification kind="success" lowContrast hideCloseButton title="Done" subtitle={success} /> : null}
-    {error ? <InlineNotification kind="error" lowContrast hideCloseButton title="DNS operation failed" subtitle={error} /> : null}
+    {env === "ote" ? <InlineNotification kind="warning" lowContrast hideCloseButton title={copy.testDomain} subtitle={copy.testDomainBody} /> : null}
+    {state?.syncError ? <InlineNotification kind="warning" lowContrast hideCloseButton title={copy.refreshFailed} subtitle={`${state.syncError}. Your current records remain visible and were not deleted.`} /> : null}
+    {state?.warning ? <InlineNotification kind="warning" lowContrast hideCloseButton title={copy.nameserverWarning} subtitle={state.warning} /> : null}
+    {success ? <InlineNotification kind="success" lowContrast hideCloseButton title={copy.done} subtitle={success} /> : null}
+    {error ? <InlineNotification kind="error" lowContrast hideCloseButton title={copy.operationFailed} subtitle={error} /> : null}
 
-    {!state ? <Grid fullWidth className="carbon-dns-grid" aria-label="Loading DNS settings" aria-busy="true"><Column sm={4} md={8} lg={6}><Tile className="carbon-dns-panel carbon-loading-block"><SkeletonText heading width="45%" /><SkeletonText paragraph lineCount={4} width="88%" /></Tile></Column><Column sm={4} md={8} lg={10}><Tile className="carbon-dns-panel carbon-loading-block"><SkeletonText heading width="36%" /><SkeletonText paragraph lineCount={5} width="92%" /></Tile></Column></Grid> : <Grid fullWidth className="carbon-dns-grid">
-      <Column sm={4} md={8} lg={6}><Tile className="carbon-dns-panel"><div className="card-heading"><div><h2>Nameservers</h2><p>Use 2 to 13 unique nameservers.</p></div><Badge value={state.managedDns ? "managed_dns_active" : "external_dns"} /></div>
-        <div className="carbon-form-stack">{nameservers.map((value, index) => <div className="carbon-inline-field" key={index}><TextInput id={`dns-ns-${index}`} labelText={`Nameserver ${index + 1}`} value={value} onChange={(event) => setNameservers(nameservers.map((item, position) => position === index ? event.target.value : item))} placeholder={`ns${index + 1}.example.com`} required invalid={nameserverAttempted && (!validDnsHost(value) || nameservers.length < 2)} invalidText="Enter a valid nameserver, for example ns1.example.com." /><Button type="button" kind="danger--ghost" size="sm" disabled={nameservers.length <= 2} onClick={() => setNameservers(nameservers.filter((_, position) => position !== index))}>Remove</Button></div>)}
-          <div className="heading-actions"><Button type="button" kind="tertiary" size="sm" disabled={nameservers.length >= 13} onClick={() => setNameservers([...nameservers, ""])}>Add nameserver</Button><Button type="button" disabled={Boolean(busy)} onClick={() => {
+    {!state ? <Grid fullWidth className="carbon-dns-grid" aria-label={copy.loading} aria-busy="true"><Column sm={4} md={8} lg={6}><Tile className="carbon-dns-panel carbon-loading-block"><SkeletonText heading width="45%" /><SkeletonText paragraph lineCount={4} width="88%" /></Tile></Column><Column sm={4} md={8} lg={10}><Tile className="carbon-dns-panel carbon-loading-block"><SkeletonText heading width="36%" /><SkeletonText paragraph lineCount={5} width="92%" /></Tile></Column></Grid> : <Grid fullWidth className="carbon-dns-grid">
+      <Column sm={4} md={8} lg={6}><Tile className="carbon-dns-panel"><div className="card-heading"><div><h2>{copy.nameservers}</h2><p>{copy.nameserversHelp}</p></div><Badge value={state.managedDns ? "managed_dns_active" : "external_dns"} /></div>
+        <div className="carbon-form-stack">{nameservers.map((value, index) => <div className="carbon-inline-field" key={index}><TextInput id={`dns-ns-${index}`} labelText={`${copy.nameserver} ${index + 1}`} value={value} onChange={(event) => setNameservers(nameservers.map((item, position) => position === index ? event.target.value : item))} placeholder={`ns${index + 1}.example.com`} required invalid={nameserverAttempted && (!validDnsHost(value) || nameservers.length < 2)} invalidText={copy.invalidNameserver} /><Button type="button" kind="danger--ghost" size="sm" disabled={nameservers.length <= 2} onClick={() => setNameservers(nameservers.filter((_, position) => position !== index))}>{copy.remove}</Button></div>)}
+          <div className="heading-actions"><Button type="button" kind="tertiary" size="sm" disabled={nameservers.length >= 13} onClick={() => setNameservers([...nameservers, ""])}>{copy.addNameserver}</Button><Button type="button" disabled={Boolean(busy)} onClick={() => {
             const normalized = nameservers.map((item) => item.trim().replace(/\.$/, "").toLowerCase()).filter(Boolean);
             setNameserverAttempted(true);
-            if (nameservers.length < 2 || nameservers.length > 13 || nameservers.some((item) => !validDnsHost(item))) { setError("Enter 2 to 13 valid nameservers."); setSuccess(null); return; }
-            if (new Set(normalized).size !== normalized.length) { setError("Nameservers must be unique."); setSuccess(null); return; }
-            void run("nameservers", () => dnsToolsApi(`/domains/${domainId}/nameservers`, { method: "PUT", body: { nameServers: normalized } }), "Nameservers saved.");
-          }}>Save nameservers</Button></div>
+            if (nameservers.length < 2 || nameservers.length > 13 || nameservers.some((item) => !validDnsHost(item))) { setError(copy.nameserversCountError); setSuccess(null); return; }
+            if (new Set(normalized).size !== normalized.length) { setError(copy.nameserversUniqueError); setSuccess(null); return; }
+            void run("nameservers", () => dnsToolsApi(`/domains/${domainId}/nameservers`, { method: "PUT", body: { nameServers: normalized } }), copy.nameserversSaved);
+          }}>{copy.saveNameservers}</Button></div>
         </div>
       </Tile></Column>
 
-      <Column sm={4} md={8} lg={10}><Tile className="carbon-dns-panel"><div className="card-heading"><div><h2>{editingId ? "Edit DNS record" : "Add DNS record"}</h2><p>Records are checked before they are applied and refreshed here when the change completes.</p></div></div>
+      <Column sm={4} md={8} lg={10}><Tile className="carbon-dns-panel"><div className="card-heading"><div><h2>{editingId ? copy.editRecord : copy.addRecord}</h2><p>{copy.recordsHelp}</p></div></div>
         <form className="carbon-form-stack" onSubmit={submitRecord} noValidate>
-          <Grid condensed><Column sm={4} md={3} lg={6}><TextInput id="dns-record-name" labelText="Name" helperText="Use @ for the root domain." value={record.name} onChange={(event) => setRecord({ ...record, name: event.target.value })} required invalid={recordNameInvalid} invalidText="Enter a record name." /></Column><Column sm={4} md={2} lg={4}><Select id="dns-record-type" labelText="Type" value={type} onChange={(event) => { setRecord({ ...emptyRecord(), name: record.name, type: event.target.value }); setRecordAttempted(false); }}>{["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"].map((item) => <SelectItem key={item} value={item} text={item} />)}</Select></Column><Column sm={4} md={3} lg={6}><TextInput id="dns-record-ttl" type="number" labelText="TTL" helperText="60 to 86400 seconds." min={60} max={86400} value={record.ttl} onChange={(event) => setRecord({ ...record, ttl: event.target.value })} required invalid={ttlInvalid} invalidText="Enter a TTL from 60 to 86400 seconds." /></Column></Grid>
+          <Grid condensed><Column sm={4} md={3} lg={6}><TextInput id="dns-record-name" labelText={copy.name} helperText={copy.rootNameHelp} value={record.name} onChange={(event) => setRecord({ ...record, name: event.target.value })} required invalid={recordNameInvalid} invalidText={copy.recordNameError} /></Column><Column sm={4} md={2} lg={4}><Select id="dns-record-type" labelText={copy.type} value={type} onChange={(event) => { setRecord({ ...emptyRecord(), name: record.name, type: event.target.value }); setRecordAttempted(false); }}>{["A", "AAAA", "CNAME", "MX", "TXT", "NS", "SRV", "CAA"].map((item) => <SelectItem key={item} value={item} text={item} />)}</Select></Column><Column sm={4} md={3} lg={6}><TextInput id="dns-record-ttl" type="number" labelText={copy.ttl} helperText={copy.ttlHelp} min={60} max={86400} value={record.ttl} onChange={(event) => setRecord({ ...record, ttl: event.target.value })} required invalid={ttlInvalid} invalidText={copy.ttlError} /></Column></Grid>
 
-          {type === "MX" ? <Grid condensed><Column sm={4} md={4} lg={8}><TextInput id="dns-mx-priority" type="number" labelText="Priority" min={0} max={65535} value={record.priority} onChange={(event) => setRecord({ ...record, priority: event.target.value })} invalid={priorityInvalid} invalidText="Enter a number from 0 to 65535." /></Column><Column sm={4} md={4} lg={8}><TextInput id="dns-mx-target" labelText="Mail server" value={record.target} onChange={(event) => setRecord({ ...record, target: event.target.value })} required invalid={valueInvalid} invalidText="Enter a mail server target." /></Column></Grid> : null}
+          {type === "MX" ? <Grid condensed><Column sm={4} md={4} lg={8}><TextInput id="dns-mx-priority" type="number" labelText={copy.priority} min={0} max={65535} value={record.priority} onChange={(event) => setRecord({ ...record, priority: event.target.value })} invalid={priorityInvalid} invalidText={copy.numberError} /></Column><Column sm={4} md={4} lg={8}><TextInput id="dns-mx-target" labelText={copy.mailServer} value={record.target} onChange={(event) => setRecord({ ...record, target: event.target.value })} required invalid={valueInvalid} invalidText={copy.mailTargetError} /></Column></Grid> : null}
 
-          {type === "SRV" ? <><Grid condensed><Column sm={4} md={2} lg={5}><TextInput id="dns-srv-priority" type="number" labelText="Priority" min={0} max={65535} value={record.priority} onChange={(event) => setRecord({ ...record, priority: event.target.value })} invalid={priorityInvalid} invalidText="Enter a number from 0 to 65535." /></Column><Column sm={4} md={2} lg={5}><TextInput id="dns-srv-weight" type="number" labelText="Weight" min={0} max={65535} value={record.weight} onChange={(event) => setRecord({ ...record, weight: event.target.value })} invalid={weightInvalid} invalidText="Enter a number from 0 to 65535." /></Column><Column sm={4} md={4} lg={6}><TextInput id="dns-srv-port" type="number" labelText="Port" helperText="1 to 65535." min={1} max={65535} value={record.port} onChange={(event) => setRecord({ ...record, port: event.target.value })} required invalid={portInvalid} invalidText="Enter a port from 1 to 65535." /></Column></Grid><TextInput id="dns-srv-target" labelText="Target" value={record.target} onChange={(event) => setRecord({ ...record, target: event.target.value })} required invalid={valueInvalid} invalidText="Enter a target hostname." /></> : null}
+          {type === "SRV" ? <><Grid condensed><Column sm={4} md={2} lg={5}><TextInput id="dns-srv-priority" type="number" labelText={copy.priority} min={0} max={65535} value={record.priority} onChange={(event) => setRecord({ ...record, priority: event.target.value })} invalid={priorityInvalid} invalidText={copy.numberError} /></Column><Column sm={4} md={2} lg={5}><TextInput id="dns-srv-weight" type="number" labelText={copy.weight} min={0} max={65535} value={record.weight} onChange={(event) => setRecord({ ...record, weight: event.target.value })} invalid={weightInvalid} invalidText={copy.numberError} /></Column><Column sm={4} md={4} lg={6}><TextInput id="dns-srv-port" type="number" labelText={copy.port} helperText="1 to 65535." min={1} max={65535} value={record.port} onChange={(event) => setRecord({ ...record, port: event.target.value })} required invalid={portInvalid} invalidText={copy.portError} /></Column></Grid><TextInput id="dns-srv-target" labelText={copy.target} value={record.target} onChange={(event) => setRecord({ ...record, target: event.target.value })} required invalid={valueInvalid} invalidText={copy.srvTargetError} /></> : null}
 
-          {type === "CAA" ? <Grid condensed><Column sm={4} md={2} lg={4}><TextInput id="dns-caa-flag" type="number" labelText="Flag" helperText="0 to 255." min={0} max={255} value={record.flag} onChange={(event) => setRecord({ ...record, flag: event.target.value })} required invalid={flagInvalid} invalidText="Enter a number from 0 to 255." /></Column><Column sm={4} md={2} lg={4}><Select id="dns-caa-tag" labelText="Tag" value={record.tag} onChange={(event) => setRecord({ ...record, tag: event.target.value })}><SelectItem value="issue" text="issue" /><SelectItem value="issuewild" text="issuewild" /><SelectItem value="iodef" text="iodef" /></Select></Column><Column sm={4} md={4} lg={8}><TextInput id="dns-caa-value" labelText="Value" value={record.value} onChange={(event) => setRecord({ ...record, value: event.target.value })} required invalid={valueInvalid} invalidText="Enter a CAA value." /></Column></Grid> : null}
+          {type === "CAA" ? <Grid condensed><Column sm={4} md={2} lg={4}><TextInput id="dns-caa-flag" type="number" labelText={copy.flag} helperText="0 to 255." min={0} max={255} value={record.flag} onChange={(event) => setRecord({ ...record, flag: event.target.value })} required invalid={flagInvalid} invalidText={copy.numberError} /></Column><Column sm={4} md={2} lg={4}><Select id="dns-caa-tag" labelText={copy.tag} value={record.tag} onChange={(event) => setRecord({ ...record, tag: event.target.value })}><SelectItem value="issue" text="issue" /><SelectItem value="issuewild" text="issuewild" /><SelectItem value="iodef" text="iodef" /></Select></Column><Column sm={4} md={4} lg={8}><TextInput id="dns-caa-value" labelText={copy.value} value={record.value} onChange={(event) => setRecord({ ...record, value: event.target.value })} required invalid={valueInvalid} invalidText={copy.caaValueError} /></Column></Grid> : null}
 
-          {!['MX', 'SRV', 'CAA'].includes(type) ? <TextArea id="dns-record-value" labelText={type === "TXT" ? "Value" : "Value(s)"} value={record.value} onChange={(event) => setRecord({ ...record, value: event.target.value })} placeholder="One value per line or comma separated" required invalid={valueInvalid} invalidText="Enter at least one value." /> : null}
-          <div className="heading-actions"><Button type="submit" disabled={busy === "record"}>{editingId ? "Save record" : "Add record"}</Button>{editingId ? <Button type="button" kind="secondary" onClick={() => { setEditingId(null); setRecord(emptyRecord()); }}>Cancel</Button> : null}</div>
+          {!['MX', 'SRV', 'CAA'].includes(type) ? <TextArea id="dns-record-value" labelText={type === "TXT" ? copy.value : copy.values} placeholder="One value per line or comma separated" value={record.value} onChange={(event) => setRecord({ ...record, value: event.target.value })} required invalid={valueInvalid} invalidText={copy.valueRequiredError} /> : null}
+          <div className="heading-actions"><Button type="submit" disabled={busy === "record"}>{editingId ? copy.saveRecord : copy.addRecordButton}</Button>{editingId ? <Button type="button" kind="secondary" onClick={() => { setEditingId(null); setRecord(emptyRecord()); }}>{copy.cancel}</Button> : null}</div>
         </form>
       </Tile></Column>
 
-      <Column sm={4} md={8} lg={16}><Tile className="carbon-dns-panel carbon-table-section"><div className="card-heading"><div><h2>DNS records</h2><p>{state.records.length} DNS record(s).{state.lastRefreshedAt ? ` Last refreshed ${formatDate(state.lastRefreshedAt)}.` : " Refresh runs automatically when this page opens."}</p></div>{state.synced ? <Badge value="synced" /> : null}</div>
-        {state.records.length ? <Table size="lg"><TableHead><TableRow><TableHeader>Name</TableHeader><TableHeader>Type</TableHeader><TableHeader>Value</TableHeader><TableHeader>TTL</TableHeader><TableHeader>Status</TableHeader><TableHeader>Source</TableHeader><TableHeader>Synced</TableHeader><TableHeader>Actions</TableHeader></TableRow></TableHead><TableBody>{state.records.map((item) => <TableRow key={item.id}><TableCell>{item.name}</TableCell><TableCell><Tag type="cool-gray">{item.type}</Tag></TableCell><TableCell>{Array.isArray(item.contents) ? item.contents.join(", ") : "—"}</TableCell><TableCell>{item.ttl}</TableCell><TableCell><Badge value={item.status} /></TableCell><TableCell>{item.source || "local"}</TableCell><TableCell>{formatDate(item.synced_at || item.updated_at)}</TableCell><TableCell>{isSystemRecord(item) ? <Tag type="cool-gray">Read only</Tag> : <div className="heading-actions">{["failed", "pending", "deleting"].includes(String(item.status)) ? <Button kind="tertiary" size="sm" disabled={Boolean(busy)} onClick={() => void run(`retry-${item.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${item.id}/retry`, { method: "POST" }), "Pending DNS change applied.")}>Retry apply</Button> : <Button kind="ghost" size="sm" onClick={() => { setEditingId(item.id); setRecord(formFromRecord(item)); }}>Edit</Button>}<Button kind="danger--ghost" size="sm" disabled={Boolean(busy)} onClick={() => setDeleteTarget(item)}>Delete</Button></div>}</TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>No DNS records</h3><p>Add a record or refresh DNS data.</p></Tile>}
+      <Column sm={4} md={8} lg={16}><Tile className="carbon-dns-panel carbon-table-section"><div className="card-heading"><div><h2>{copy.records}</h2><p>{state.records.length} {copy.recordsCount}{state.lastRefreshedAt ? ` ${copy.lastRefreshed} ${formatDate(state.lastRefreshedAt)}.` : ` ${copy.refreshAutomatic}`}</p></div>{state.synced ? <Badge value={copy.synced} /> : null}</div>
+        {state.records.length ? <Table size="lg"><TableHead><TableRow><TableHeader>{copy.recordName}</TableHeader><TableHeader>{copy.type}</TableHeader><TableHeader>{copy.value}</TableHeader><TableHeader>{copy.ttl}</TableHeader><TableHeader>{copy.status}</TableHeader><TableHeader>{copy.source}</TableHeader><TableHeader>{copy.synced}</TableHeader><TableHeader>{copy.actions}</TableHeader></TableRow></TableHead><TableBody>{state.records.map((item) => <TableRow key={item.id}><TableCell>{item.name}</TableCell><TableCell><Tag type="cool-gray">{item.type}</Tag></TableCell><TableCell>{Array.isArray(item.contents) ? item.contents.join(", ") : "—"}</TableCell><TableCell>{item.ttl}</TableCell><TableCell><Badge value={item.status} /></TableCell><TableCell>{item.source || "local"}</TableCell><TableCell>{formatDate(item.synced_at || item.updated_at)}</TableCell><TableCell>{isSystemRecord(item) ? <Tag type="cool-gray">{copy.readOnly}</Tag> : <div className="heading-actions">{["failed", "pending", "deleting"].includes(String(item.status)) ? <Button kind="tertiary" size="sm" disabled={Boolean(busy)} onClick={() => void run(`retry-${item.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${item.id}/retry`, { method: "POST" }), "Pending DNS change applied.")}>{copy.retryApply}</Button> : <Button kind="ghost" size="sm" onClick={() => { setEditingId(item.id); setRecord(formFromRecord(item)); }}>{copy.edit}</Button>}<Button kind="danger--ghost" size="sm" disabled={Boolean(busy)} onClick={() => setDeleteTarget(item)}>{copy.delete}</Button></div>}</TableCell></TableRow>)}</TableBody></Table> : <Tile className="carbon-empty-state"><h3>{copy.noRecords}</h3><p>{copy.noRecordsBody}</p></Tile>}
       </Tile></Column>
     </Grid>}
 
     <Modal
       open={Boolean(deleteTarget)}
       danger
-      modalHeading="Delete DNS record"
-      primaryButtonText={busy?.startsWith("delete-") ? "Deleting…" : "Delete"}
-      secondaryButtonText="Cancel"
+      modalHeading={copy.deleteTitle}
+      primaryButtonText={busy?.startsWith("delete-") ? copy.deleting : copy.delete}
+      secondaryButtonText={copy.cancel}
       primaryButtonDisabled={Boolean(busy)}
       onRequestClose={() => { if (!busy) setDeleteTarget(null); }}
       onRequestSubmit={() => {
         if (!deleteTarget || busy) return;
-        void run(`delete-${deleteTarget.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${deleteTarget.id}`, { method: "DELETE" }), "DNS record deleted.")
+        void run(`delete-${deleteTarget.id}`, () => dnsToolsApi(`/domains/${domainId}/records/${deleteTarget.id}`, { method: "DELETE" }), copy.recordDeleted)
           .finally(() => setDeleteTarget(null));
       }}
     >
-      <p className="khd-modal-copy">Delete <strong>{deleteTarget?.type} {deleteTarget?.name}</strong> from this domain's DNS zone?</p>
+      <p className="khd-modal-copy">{copy.deleteConfirm} <strong>{deleteTarget?.type} {deleteTarget?.name}</strong></p>
     </Modal>
   </main>;
 }
