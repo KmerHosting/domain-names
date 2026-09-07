@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.2](https://github.com/KmerHosting/domain-names/compare/v1.21.1...v1.21.2) (2026-09-07)
+
+
+### Bug Fixes
+
+* **ui:** add domain account avatar and copy action ([#88](https://github.com/KmerHosting/domain-names/issues/88)) ([667b142](https://github.com/KmerHosting/domain-names/commit/667b142728750cb28d6435e6fb1f0aeb01a0b24b))
+
 ## [1.21.1](https://github.com/KmerHosting/domain-names/compare/v1.21.0...v1.21.1) (2026-09-07)
 
 
