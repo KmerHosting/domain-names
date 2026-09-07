@@ -10,6 +10,7 @@ import {
   Tile,
 } from "@carbon/react";
 import { useEffect, useMemo, useState } from "react";
+import { interpolateDomain, useDomainWorkflowCopy } from "./domain-workflow-i18n";
 
 type HostingPlan = {
   code: string;
@@ -83,16 +84,17 @@ function previewFeatures(plan: HostingPlan) {
 }
 
 function HostingPlanCard({ plan, category }: { plan: HostingPlan; category: CategoryId }) {
+  const copy = useDomainWorkflowCopy();
   const features = previewFeatures(plan);
   const unavailable = plan.available === false || plan.active === false;
-  const availabilityLabel = plan.available === false ? "Out of stock" : plan.active === false ? "Not active" : "Available";
+  const availabilityLabel = plan.available === false ? copy.unavailable : plan.active === false ? copy.unavailable : copy.availableRegister;
   const href = catalogHref(plan, category);
 
   return <Tile className="carbon-hosting-plan-card">
     <div className="carbon-hosting-plan-card__top">
       <div className="carbon-hosting-plan-card__tags">
         <Tag type={plan.panel === "directadmin" ? "cyan" : "purple"}>{panelLabel(plan.panel)}</Tag>
-        {planTier(plan) === "pro" ? <Tag type="blue">Most popular</Tag> : null}
+        {planTier(plan) === "pro" ? <Tag type="blue">{copy.premium}</Tag> : null}
         <Tag type={unavailable ? "red" : "green"}>{availabilityLabel}</Tag>
       </div>
       <h3>{plan.name}</h3>
@@ -108,12 +110,13 @@ function HostingPlanCard({ plan, category }: { plan: HostingPlan; category: Cate
       {features.map((feature) => <li key={feature}>{feature}</li>)}
     </ul>
     <Button kind={unavailable ? "secondary" : "primary"} href={href} target="_blank" rel="noreferrer">
-      {unavailable ? "Check availability" : "Choose this plan"}
+      {unavailable ? copy.searchDomain : copy.purchase}
     </Button>
   </Tile>;
 }
 
 export function SharedHostingCatalog() {
+  const copy = useDomainWorkflowCopy();
   const [category, setCategory] = useState<CategoryId>("standard");
   const [catalog, setCatalog] = useState<HostingCatalogResponse | null>(null);
   const [error, setError] = useState("");
@@ -143,11 +146,11 @@ export function SharedHostingCatalog() {
   return <section className="section section-soft carbon-hosting-catalog" id="hosting">
     <div className="container">
       <div className="section-heading carbon-hosting-catalog__heading">
-        <div><span className="kicker">Shared Hosting</span><h2>Host your domain with the right plan.</h2></div>
-        <div><p>Current plans, prices and included features from KmerHosting Shared Hosting. Domain registration is separate from hosting.</p><Button kind="tertiary" href="https://shared.kmerhosting.com" target="_blank" rel="noreferrer">Open Shared Hosting</Button></div>
+        <div><span className="kicker">{copy.sharedHosting}</span><h2>{copy.manageDomain}</h2></div>
+        <div><p>{copy.servicesDescription}</p><Button kind="tertiary" href="https://shared.kmerhosting.com" target="_blank" rel="noreferrer">{copy.open}</Button></div>
       </div>
 
-      <div className="carbon-hosting-catalog__switcher" aria-label="Shared Hosting categories">
+      <div className="carbon-hosting-catalog__switcher" aria-label={copy.sharedHosting}>
         <ContentSwitcher selectedIndex={categories.findIndex((item) => item.id === category)} onChange={({ name }) => setCategory(name as CategoryId)}>
           {categories.map((item) => <Switch key={item.id} name={item.id} text={item.label} />)}
         </ContentSwitcher>
@@ -155,12 +158,12 @@ export function SharedHostingCatalog() {
 
       <div className="carbon-hosting-catalog__category-heading">
         <div><h3>{activeCategory.title}</h3><p>{activeCategory.description}</p></div>
-        <Tag type="green">Current catalog</Tag>
+        <Tag type="green">{copy.livePricing}</Tag>
       </div>
 
-      {error ? <InlineNotification lowContrast hideCloseButton kind="warning" title="Hosting catalog unavailable" subtitle={error} actions={<Button kind="ghost" size="sm" href={categoryHref} target="_blank" rel="noreferrer">View on Shared Hosting</Button>} /> : null}
-      {!catalog && !error ? <InlineLoading description="Loading live hosting plans…" /> : null}
-      {catalog && !plans.length ? <InlineNotification lowContrast hideCloseButton kind="info" title="No published plans in this category" subtitle="Open Shared Hosting to see the latest availability." actions={<Button kind="ghost" size="sm" href={categoryHref} target="_blank" rel="noreferrer">Open Shared Hosting</Button>} /> : null}
+      {error ? <InlineNotification lowContrast hideCloseButton kind="warning" title={copy.unavailablePrice} subtitle={error} actions={<Button kind="ghost" size="sm" href={categoryHref} target="_blank" rel="noreferrer">{copy.open}</Button>} /> : null}
+      {!catalog && !error ? <InlineLoading description={copy.checking} /> : null}
+      {catalog && !plans.length ? <InlineNotification lowContrast hideCloseButton kind="info" title={copy.noOrders} subtitle={copy.servicesDescription} actions={<Button kind="ghost" size="sm" href={categoryHref} target="_blank" rel="noreferrer">{copy.open}</Button>} /> : null}
       {plans.length ? <Grid fullWidth className="carbon-hosting-plan-grid">
         {plans.map((plan) => <Column sm={4} md={4} lg={4} key={plan.code}><HostingPlanCard plan={plan} category={category} /></Column>)}
       </Grid> : null}

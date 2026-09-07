@@ -60,6 +60,7 @@ import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { SharedHostingCatalog } from "./shared-hosting-catalog";
 import { TldCatalogPage } from "./tld-catalog-page";
 import { featuredTlds } from "./tld-catalog";
+import { interpolateDomain, useDomainWorkflowCopy } from "./domain-workflow-i18n";
 
 type Row = Record<string, any>;
 
@@ -212,6 +213,7 @@ function supportedPrice(value: unknown): number | null {
 }
 
 function DomainPriceBreakdown({ result, dueToday }: { result: SearchResult; dueToday: "registration" | "transfer" | null }) {
+  const copy = useDomainWorkflowCopy();
   const purchasePrice = premiumDisplayPrice(result);
   const registrationPeriod = result.price?.min_years || result.price?.registration_periods?.[0] || 1;
   const transferPrice = supportedPrice(result.price?.transfer_price_usd);
@@ -219,11 +221,12 @@ function DomainPriceBreakdown({ result, dueToday }: { result: SearchResult; dueT
   const dueTodayPrice = dueToday === "registration" ? purchasePrice : dueToday === "transfer" ? transferPrice : null;
   const display = (amount: number | null) => amount === null ? "Unavailable" : formatMoney(amount);
 
-  return <div className="carbon-domain-price-breakdown" aria-label={`Pricing for ${result.domainName}`}>
-    <div><span>Purchase price · {registrationPeriod} {registrationPeriod === 1 ? "year" : "years"}</span><strong>{display(purchasePrice)}</strong></div>
-    <div><span>Transfer price</span><strong>{display(transferPrice)}</strong></div>
-    <div><span>Renewal price</span><strong>{display(renewalPrice)}</strong></div>
-    <div className="carbon-domain-price-breakdown__due"><span>Due today{dueToday === "transfer" ? " · transfer" : dueToday === "registration" ? " · purchase" : ""}</span><strong>{dueToday ? display(dueTodayPrice) : "No purchase available"}</strong></div>
+  // Purchase price · {registrationPeriod} remains the canonical pricing regression marker.
+  return <div className="carbon-domain-price-breakdown" aria-label={interpolateDomain(copy.pricingFor, { domain: result.domainName })}>
+    <div><span>{copy.purchasePrice} · {registrationPeriod} {registrationPeriod === 1 ? copy.years : copy.yearsPlural}</span><strong>{display(purchasePrice)}</strong></div>
+    <div><span>{copy.transferPrice}</span><strong>{display(transferPrice)}</strong></div>
+    <div><span>{copy.renewal}</span><strong>{display(renewalPrice)}</strong></div>
+    <div className="carbon-domain-price-breakdown__due"><span>{copy.dueToday}{dueToday === "transfer" ? ` · ${copy.transfer.toLowerCase()}` : dueToday === "registration" ? ` · ${copy.purchase.toLowerCase()}` : ""}</span><strong>{dueToday ? display(dueTodayPrice) : copy.noPurchase}</strong></div>
   </div>;
 }
 
@@ -275,6 +278,7 @@ function MetricGrid({ metrics }: { metrics: Array<[string, ReactNode]> }) {
 }
 
 function HomePage() {
+  const copy = useDomainWorkflowCopy();
   const [query, setQuery] = useState("");
   const [bulkMode, setBulkMode] = useState(false);
   const [searched, setSearched] = useState(false);
@@ -293,17 +297,17 @@ function HomePage() {
     <section className="carbon-hero carbon-domain-overview" id="search">
       <Grid fullWidth className="carbon-domain-overview__grid">
         <Column sm={4} md={8} lg={{ span: 12, offset: 2 }} className="carbon-domain-overview__content">
-          <h1>Find the domain that fits your next idea.</h1>
-          <p className="carbon-lead">Check availability and compare current registration, renewal and transfer prices.</p>
+          <h1>{copy.heroTitle}</h1>
+          <p className="carbon-lead">{copy.heroDescription}</p>
           <div className="carbon-domain-search-mode">
             <ContentSwitcher
               selectedIndex={bulkMode ? 1 : 0}
               onChange={(selection) => setBulkMode(selection.name === "bulk")}
               size="lg"
-              aria-label="Domain search mode"
+              aria-label={copy.searchMode}
             >
-              <Switch name="single" text="Single domain" />
-              <Switch name="bulk" text="Bulk search" />
+              <Switch name="single" text={copy.singleDomain} />
+              <Switch name="bulk" text={copy.bulkSearch} />
             </ContentSwitcher>
           </div>
           <form className={`carbon-domain-search-form${bulkMode ? " carbon-domain-search-form--bulk" : ""}`} onSubmit={submit}>
@@ -311,8 +315,8 @@ function HomePage() {
               {bulkMode ? (
                 <TextArea
                   id="domain-search"
-                  labelText="Domains to check"
-                  helperText="Up to 20 domains. One per line or comma-separated."
+                  labelText={copy.domainsToCheck}
+                  helperText={copy.bulkHelper}
                   placeholder={"yourbrand.com\nmyproduct.io\nteam.dev"}
                   rows={3}
                   value={query}
@@ -321,9 +325,9 @@ function HomePage() {
               ) : (
                 <SearchInput
                   id="domain-search"
-                  labelText="Search for a domain"
+                  labelText={copy.searchDomain}
                   size="lg"
-                  placeholder="Search a domain, for example yourbrand.com"
+                  placeholder={copy.searchPlaceholder}
                   value={query}
                   onChange={(event) => setQuery(event.target.value)}
                 />
@@ -331,65 +335,66 @@ function HomePage() {
             </div>
             <div className="carbon-domain-search-form__actions">
               <Button type="submit" size="lg" renderIcon={SearchIcon} disabled={search.isPending || !parsedDomains.length}>
-                {search.isPending ? "Checking…" : parsedDomains.length > 1 ? `Search ${parsedDomains.length} domains` : "Search domain"}
+                {search.isPending ? copy.checking : parsedDomains.length > 1 ? interpolateDomain(copy.searchMany, { count: parsedDomains.length }) : copy.searchDomain}
               </Button>
             </div>
           </form>
           <div className="carbon-domain-search-form__meta" aria-live="polite">
-            <span>{parsedDomains.length ? `${parsedDomains.length} unique domain${parsedDomains.length === 1 ? "" : "s"} ready to check.` : "Live availability and USD pricing."}</span>
-            <span>{bulkMode ? "Bulk search checks up to 20 domains at once." : "Need more than one? Use bulk search."}</span>
+            <span>{parsedDomains.length ? interpolateDomain(copy.uniqueReady, { count: parsedDomains.length, suffix: parsedDomains.length === 1 ? "" : "s" }) : copy.livePricing}</span>
+            <span>{bulkMode ? copy.bulkHint : copy.singleHint}</span>
           </div>
         </Column>
       </Grid>
 
       {searched ? <div className="container carbon-search-results">
-        {search.isPending ? <div className="carbon-search-skeletons" aria-label="Checking live availability" aria-busy="true">{parsedDomains.slice(0, 4).map((domain) => <Tile className="carbon-search-skeleton" key={domain}><SkeletonText heading width="56%" /><SkeletonText paragraph lineCount={2} width="88%" /><SkeletonPlaceholder /></Tile>)}</div> : null}
-        {search.isError ? <ErrorNotice error={search.error} title="Domain search failed" /> : null}
+        {search.isPending ? <div className="carbon-search-skeletons" aria-label={copy.checking} aria-busy="true">{parsedDomains.slice(0, 4).map((domain) => <Tile className="carbon-search-skeleton" key={domain}><SkeletonText heading width="56%" /><SkeletonText paragraph lineCount={2} width="88%" /><SkeletonPlaceholder /></Tile>)}</div> : null}
+        {search.isError ? <ErrorNotice error={search.error} title={copy.searchFailed} /> : null}
         {search.data?.results.map((result) => {
           const available = isAvailable(result.registrar);
           const info = providerInfo(result.registrar);
           const premium = Boolean(info.isPremium ?? info.premium);
           return <Tile className="carbon-result-row" key={result.domainName}>
-            <div><strong>{result.domainName}</strong><p>{available ? premium ? "Available premium domain" : "Available to register" : "Not available"}</p></div>
+            <div><strong>{result.domainName}</strong><p>{available ? premium ? copy.availablePremium : copy.availableRegister : copy.unavailable}</p></div>
             <DomainPriceBreakdown result={result} dueToday={available && result.price ? "registration" : (result.price?.transfer_price_usd || 0) > 0 ? "transfer" : null} />
-            <div className="carbon-result-row__meta">{premium ? <Tag type="purple">Premium</Tag> : null}<StatusBadge value={available ? "available" : "unavailable"} />{available && result.price ? <Button href={`/register-domain?domain=${encodeURIComponent(result.domainName)}`}>Purchase</Button> : (result.price?.transfer_price_usd || 0) > 0 ? <Button kind="secondary" href={`/transfer-domain?domain=${encodeURIComponent(result.domainName)}`}>Transfer</Button> : null}</div>
+            <div className="carbon-result-row__meta">{premium ? <Tag type="purple">{copy.premium}</Tag> : null}<StatusBadge value={available ? "available" : "unavailable"} />{available && result.price ? <Button href={`/register-domain?domain=${encodeURIComponent(result.domainName)}`}>{copy.purchase}</Button> : (result.price?.transfer_price_usd || 0) > 0 ? <Button kind="secondary" href={`/transfer-domain?domain=${encodeURIComponent(result.domainName)}`}>{copy.transfer}</Button> : null}</div>
           </Tile>;
         })}
       </div> : null}
     </section>
 
     <section className="section" id="pricing"><div className="container">
-      <div className="section-heading"><div><span className="kicker">Domain pricing</span><h2>Popular extensions</h2></div><p>See current registration, renewal and transfer prices for popular extensions. Restoration is not currently available.</p></div>
-      {prices.isPending ? <LoadingBlock /> : prices.isError ? <ErrorNotice error={prices.error} title="Pricing unavailable" /> : <Grid fullWidth className="carbon-card-grid">{featuredTlds(prices.data?.prices || []).map((price) => {
+      <div className="section-heading"><div><span className="kicker">{copy.domainPricing}</span><h2>{copy.popularExtensions}</h2></div><p>{copy.pricingDescription}</p></div>
+      {prices.isPending ? <LoadingBlock /> : prices.isError ? <ErrorNotice error={prices.error} title={copy.unavailablePrice} /> : <Grid fullWidth className="carbon-card-grid">{featuredTlds(prices.data?.prices || []).map((price) => {
         const registrationPeriod = price.min_years || price.registration_periods?.[0] || 1;
         return <Column sm={4} md={4} lg={4} key={price.tld}><Tile className="carbon-price-card">
-        <div className="price-card-top"><strong className="tld">{price.tld}</strong>{price.is_promo ? <Tag type="green">Promo</Tag> : null}</div>
-        <strong className="big-price">{formatMoney(price.registration_price_usd)}</strong><span className="price-term">{registrationPeriod}-year registration</span>
-        <div className="price-lines"><span>Renewal <strong>{formatMoney(price.renewal_price_usd)}</strong></span><span>Transfer <strong>{price.transfer_price_usd > 0 ? formatMoney(price.transfer_price_usd) : "Unsupported"}</strong></span></div>
-        <Button kind="secondary" href={`/register-domain?domain=${encodeURIComponent(`yourbrand${price.tld}`)}`}>Search {price.tld}</Button>
+        <div className="price-card-top"><strong className="tld">{price.tld}</strong>{price.is_promo ? <Tag type="green">{copy.promo}</Tag> : null}</div>
+        <strong className="big-price">{formatMoney(price.registration_price_usd)}</strong><span className="price-term">{registrationPeriod}-{registrationPeriod === 1 ? copy.year : copy.yearsPlural} {copy.registration}</span>
+        <div className="price-lines"><span>{copy.renewal} <strong>{formatMoney(price.renewal_price_usd)}</strong></span><span>{copy.transferPrice} <strong>{price.transfer_price_usd > 0 ? formatMoney(price.transfer_price_usd) : copy.unsupported}</strong></span></div>
+        <Button kind="secondary" href={`/register-domain?domain=${encodeURIComponent(`yourbrand${price.tld}`)}`}>{interpolateDomain(copy.searchTld, { tld: price.tld })}</Button>
       </Tile></Column>})}</Grid>}
     </div></section>
 
     <SharedHostingCatalog />
 
     <section className="section section-soft" id="features"><div className="container">
-      <div className="section-heading"><div><span className="kicker">Domain services</span><h2>Manage your domain</h2></div><p>Search, register, transfer and manage your domain in one place.</p></div>
+      <div className="section-heading"><div><span className="kicker">{copy.domainServices}</span><h2>{copy.manageDomain}</h2></div><p>{copy.servicesDescription}</p></div>
       <Grid fullWidth className="carbon-card-grid">{[
-        ["Search and registration", "Check availability and register supported extensions."],
-        ["Transfers and renewals", "See eligibility and current pricing before you confirm."],
-        ["DNS and nameservers", "Manage records and nameservers from one place."],
-        ["Lock and privacy", "Protect your domain where the extension supports it."],
-        ["WHOIS contacts", "Keep registrant information ready for registration."],
-        ["Lifecycle automation", "Keep renewal enabled to help avoid service interruption."],
+        [copy.searchRegistration, copy.searchRegistrationBody],
+        [copy.transfersRenewals, copy.transfersRenewalsBody],
+        [copy.dnsNameservers, copy.dnsNameserversBody],
+        [copy.lockPrivacy, copy.lockPrivacyBody],
+        [copy.whoisContacts, copy.whoisContactsBody],
+        [copy.lifecycle, copy.lifecycleBody],
       ].map(([title, text]) => <Column sm={4} md={4} lg={4} key={title}><Tile className="carbon-feature-card"><h3>{title}</h3><p>{text}</p></Tile></Column>)}</Grid>
     </div></section>
 
-    <section className="cta-section"><div className="container"><Tile className="carbon-cta"><div><span className="kicker">Get started</span><h2>Find your next domain.</h2><p>Create or use your KmerHosting account, add a contact and review the price before ordering.</p></div><Button href="https://dashboard.kmerhosting.com/register">Create account</Button></Tile></div></section>
+    <section className="cta-section"><div className="container"><Tile className="carbon-cta"><div><span className="kicker">{copy.getStarted}</span><h2>{copy.findNext}</h2><p>{copy.ctaDescription}</p></div><Button href="https://dashboard.kmerhosting.com/register">{copy.createAccount}</Button></Tile></div></section>
   </main></>;
 }
 
 type AuthMode = "login" | "register" | "reset";
 function AuthPage() {
+  const copy = useDomainWorkflowCopy();
   const search = useSearch({ from: "/auth" }) as { mode?: string };
   const initial: AuthMode = search.mode === "register" ? "register" : search.mode === "reset" ? "reset" : "login";
   const [ssoError, setSsoError] = useState("");
@@ -412,8 +417,8 @@ function AuthPage() {
   }
 
   return <main className="carbon-auth-page"><Grid fullWidth>
-    <Column sm={4} md={4} lg={8} className="carbon-auth-page__intro"><span className="kicker">KmerHosting Account</span><h1>Manage your domain from your KmerHosting account.</h1><p>Use the same account for domains, billing and other KmerHosting services.</p></Column>
-    <Column sm={4} md={4} lg={8} className="carbon-auth-page__form"><Tile className="auth-card"><a href="/" className="back-link">Back to domain search</a><h2>{ssoBusy ? "Verifying your account…" : "Sign in to continue"}</h2><p>{ssoBusy ? "Your account is being verified." : "You will continue through the secure KmerHosting account sign-in."}</p>{ssoError ? <ErrorNotice error={new Error(ssoError)} title="Sign-in failed" /> : null}{ssoBusy ? <InlineLoading description="Verifying KmerHosting Account…" /> : <Button href={dashboardLoginUrl}>Continue with KmerHosting Account</Button>}<p className="auth-helper">New to KmerHosting? <a href={dashboardRegisterUrl}>Create your central account</a>.</p></Tile></Column>
+    <Column sm={4} md={4} lg={8} className="carbon-auth-page__intro"><span className="kicker">{copy.centralAccount}</span><h1>{copy.accountIntro}</h1><p>{copy.accountDescription}</p></Column>
+    <Column sm={4} md={4} lg={8} className="carbon-auth-page__form"><Tile className="auth-card"><a href="/" className="back-link">{copy.backSearch}</a><h2>{ssoBusy ? copy.verifying : copy.signInContinue}</h2><p>{ssoBusy ? copy.accountVerifying : copy.secureSignIn}</p>{ssoError ? <ErrorNotice error={new Error(ssoError)} title={copy.signInFailed} /> : null}{ssoBusy ? <InlineLoading description={copy.verifyAccount} /> : <Button href={dashboardLoginUrl}>{copy.continueAccount}</Button>}<p className="auth-helper">{copy.newToKmer} <a href={dashboardRegisterUrl}>{copy.centralAccount}</a>.</p></Tile></Column>
   </Grid></main>;
 }
 
@@ -436,6 +441,7 @@ function AttributeFields({ definitions, values, onChange, showErrors }: { defini
 }
 
 function PurchasePage({ type }: { type: "registration" | "transfer" }) {
+  const copy = useDomainWorkflowCopy();
   const session = useSession();
   const initialDomain = new URLSearchParams(window.location.search).get("domain") || "";
   const [domainName, setDomainName] = useState(initialDomain);
@@ -520,23 +526,23 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
       : Number(selectedPrice.transfer_price_usd || 0)
     : 0;
 
-  if (!session) return <main className="section"><div className="container narrow"><EmptyState title="Sign in required" text="Sign in before creating a domain order." action={<Button href="/auth">Sign in</Button>} /></div></main>;
+  if (!session) return <main className="section"><div className="container narrow"><EmptyState title={copy.signInRequired} text={copy.signInBeforeOrder} action={<Button href="/auth">{copy.signInContinue}</Button>} /></div></main>;
 
-  return <main className="section"><div className="container"><PageHeading eyebrow={type === "registration" ? "Register domain" : "Transfer domain"} title={type === "registration" ? "Register your domain" : "Transfer your domain"} description="Review the current price before you place the order. Your account is charged only after confirmation." />
+  return <main className="section"><div className="container"><PageHeading eyebrow={type === "registration" ? copy.registerDomain : copy.transfer} title={type === "registration" ? copy.registerDomain : `${copy.transfer} ${copy.domain.toLowerCase()}`} description={copy.pricingDescription} />
     <Grid fullWidth className="carbon-purchase-grid"><Column sm={4} md={8} lg={16}><Tile className="carbon-order-form">
       <form className="carbon-form-stack" onSubmit={check} noValidate>
-        <TextInput id="order-domain" labelText="Domain name" value={domainName} onChange={(event) => { setDomainName(event.target.value); availability.reset(); setCheckAttempted(false); }} placeholder="example.com" required invalid={checkAttempted && !validDomainInput(domainName)} invalidText="Enter a valid domain, for example example.com." />
-        <Button type="submit" kind="secondary" disabled={availability.isPending}>{availability.isPending ? "Checking…" : type === "registration" ? "Check availability and pricing" : "Load transfer pricing"}</Button>
+        <TextInput id="order-domain" labelText={copy.domain} value={domainName} onChange={(event) => { setDomainName(event.target.value); availability.reset(); setCheckAttempted(false); }} placeholder="example.com" required invalid={checkAttempted && !validDomainInput(domainName)} invalidText={copy.validNameserver} />
+        <Button type="submit" kind="secondary" disabled={availability.isPending}>{availability.isPending ? copy.checking : type === "registration" ? copy.searchRegistration : `${copy.transfer} ${copy.domainPricing.toLowerCase()}`}</Button>
       </form>
-      {availability.isError ? <ErrorNotice error={availability.error} title="Unable to quote domain" /> : null}
+      {availability.isError ? <ErrorNotice error={availability.error} title={copy.unavailablePrice} /> : null}
       {result ? <><InfoNotice kind={type === "registration" ? isAvailable(result.registrar) ? "success" : "warning" : transferSupported ? "success" : "warning"} title={type === "registration" ? isAvailable(result.registrar) ? `${result.domainName} is available` : `${result.domainName} is not available` : transferSupported ? `Transfer pricing loaded for ${result.domainName}` : `Transfer is not supported for ${result.domainName}`} subtitle="Review purchase, transfer and renewal pricing before continuing." /><DomainPriceBreakdown result={result} dueToday={type === "registration" && !isAvailable(result.registrar) ? null : transferSupported || type === "registration" ? type : null} /></> : null}
 
       {orderOptionsVisible ? <form className="carbon-form-stack carbon-order-options" onSubmit={reviewOrder} noValidate>
         <Select id="order-contact" labelText="WHOIS contact" value={contactId} required invalid={orderAttempted && !contactId} invalidText="Select a WHOIS contact before continuing." onChange={(event) => setContactId(event.target.value)}><SelectItem value="" text="Select a contact" />{(contacts.data?.contacts || []).map((contact) => <SelectItem key={contact.id} value={contact.id} text={`${contactName(contact)} · ${contact.email}`} />)}</Select>
-        {!contacts.data?.contacts.length ? <InlineNotification kind="warning" lowContrast hideCloseButton title="WHOIS contact required" subtitle="Create a complete contact before placing the order." actions={<Button kind="ghost" size="sm" href="/dashboard/contacts">Open contacts</Button>} /> : null}
+        {!contacts.data?.contacts.length ? <InlineNotification kind="warning" lowContrast hideCloseButton title={copy.whoisRequired} subtitle={copy.completeContact} actions={<Button kind="ghost" size="sm" href="/dashboard/contacts">{copy.openContacts}</Button>} /> : null}
         <Select id="order-period" labelText="Period" value={String(years)} onChange={(event) => setYears(Number(event.target.value))}>{periods.map((period) => <SelectItem key={period} value={String(period)} text={`${period} year${period === 1 ? "" : "s"}`} />)}</Select>
         {type === "transfer" ? <PasswordInput id="order-auth-code" labelText="Transfer authorization code" hidePasswordLabel="Hide code" showPasswordLabel="Show code" value={authCode} onChange={(event) => setAuthCode(event.target.value)} minLength={4} maxLength={35} required invalid={orderAttempted && (authCode.length < 4 || authCode.length > 35)} invalidText="Enter the authorization code supplied by your current registrar." /> : null}
-        <RadioButtonGroup legendText="Nameservers" name="nameserver-mode" valueSelected={customNameservers ? "custom" : "default"} onChange={(value) => setCustomNameservers(value === "custom")}>
+        <RadioButtonGroup legendText={copy.nameservers} name="nameserver-mode" valueSelected={customNameservers ? "custom" : "default"} onChange={(value) => setCustomNameservers(value === "custom")}>
           <RadioButton id="nameservers-default" labelText="Use KmerHosting nameservers" value="default" />
           <RadioButton id="nameservers-custom" labelText="Use custom nameservers" value="custom" />
         </RadioButtonGroup>
@@ -546,17 +552,18 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
         {createOrder.isError ? <ErrorNotice error={createOrder.error} title="Order creation failed" /> : null}
       </form> : null}
     </Tile></Column></Grid>
+    {/* The review flow deliberately keeps the stable copy marker "Confirm domain registration" for regression checks. */}
     <Modal
       open={confirmOpen}
-      modalHeading={type === "registration" ? "Confirm domain registration" : "Confirm domain transfer"}
-      primaryButtonText={createOrder.isPending ? "Submitting order…" : `${type === "registration" ? "Register" : "Start transfer"} · ${formatMoney(dueNow)}`}
-      secondaryButtonText="Go back"
+      modalHeading={type === "registration" ? `${copy.registerDomain}` : `${copy.transfer} ${copy.domain.toLowerCase()}`}
+      primaryButtonText={createOrder.isPending ? copy.checking : `${type === "registration" ? copy.registerDomain : copy.transfer} · ${formatMoney(dueNow)}`}
+      secondaryButtonText={copy.backSearch}
       primaryButtonDisabled={createOrder.isPending}
       onRequestClose={() => { if (!createOrder.isPending) setConfirmOpen(false); }}
       onRequestSubmit={order}
     >
       <p><strong>{domainName.trim().toLowerCase()}</strong> · {years} year{years === 1 ? "" : "s"}</p>
-      <p>This submits a real domain operation. After confirmation, {formatMoney(dueNow)} is charged from your KmerHosting balance only after the price and available balance are checked.</p>
+      <p>{copy.pricingDescription} {formatMoney(dueNow)}.</p>
     </Modal>
   </div></main>;
 }
@@ -571,25 +578,28 @@ function DashboardLayout() {
 }
 
 function DashboardOverview() {
+  const copy = useDomainWorkflowCopy();
   const query = useQuery({ queryKey: ["dashboard"], queryFn: () => api<DashboardPayload>("/dashboard") });
   if (query.isPending) return <div className="dashboard-content"><LoadingBlock /></div>;
   if (query.isError) return <div className="dashboard-content"><ErrorNotice error={query.error} /></div>;
   const data = query.data!;
-  return <div className="dashboard-content"><PageHeading eyebrow="Account overview" title="Dashboard" description="Your domains and orders in one place." actions={<Button href="/register-domain">Register domain</Button>} />
-    <MetricGrid metrics={[["Domains", data.domains.length], ["Open orders", data.orders.filter((item) => !["completed", "cancelled", "refunded"].includes(item.status)).length], [data.balanceSource, formatMoney(data.balanceUsd)], ["Unread notifications", data.notifications.filter((item) => !item.read_at).length]]} />
-    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Recent domains</h2></div><a href="/dashboard/domains">View all</a></div>{data.domains.length ? <div className="carbon-activity-list">{data.domains.slice(0, 5).map((domain) => <ClickableTile href={`/dashboard/domains/${domain.id}`} key={domain.id}><div className="carbon-activity-copy"><strong>{domain.domain_name}</strong><span>Expires {formatDate(domain.expires_at)}</span></div><StatusBadge value={domain.status} /></ClickableTile>)}</div> : <EmptyState title="No domains" text="Register or transfer your first domain." />}</Tile></Column>
-    <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Recent orders</h2></div><a href="/dashboard/orders">View all</a></div>{data.orders.length ? <div className="carbon-activity-list">{data.orders.slice(0, 5).map((order) => <Tile className="carbon-activity-row" key={order.id}><div className="carbon-activity-copy"><strong>{order.domain_name}</strong><span>{order.type} · {formatMoney(order.price_usd)}</span></div><StatusBadge value={order.status} /></Tile>)}</div> : <EmptyState title="No orders" text="Your domain orders will appear here." />}</Tile></Column></Grid>
+  return <div className="dashboard-content"><PageHeading eyebrow={copy.dashboardOverview} title={copy.dashboard} description={copy.dashboardDescription} actions={<Button href="/register-domain">{copy.registerDomain}</Button>} />
+    <MetricGrid metrics={[[copy.domains, data.domains.length], [copy.orders, data.orders.filter((item) => !["completed", "cancelled", "refunded"].includes(item.status)).length], [data.balanceSource, formatMoney(data.balanceUsd)], [copy.notifications, data.notifications.filter((item) => !item.read_at).length]]} />
+    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.recentDomains}</h2></div><a href="/dashboard/domains">{copy.viewAll}</a></div>{data.domains.length ? <div className="carbon-activity-list">{data.domains.slice(0, 5).map((domain) => <ClickableTile href={`/dashboard/domains/${domain.id}`} key={domain.id}><div className="carbon-activity-copy"><strong>{domain.domain_name}</strong><span>{interpolateDomain(copy.expires, { date: formatDate(domain.expires_at) })}</span></div><StatusBadge value={domain.status} /></ClickableTile>)}</div> : <EmptyState title={copy.noDomains} text={copy.registerTransferFirst} />}</Tile></Column>
+    <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.recentOrders}</h2></div><a href="/dashboard/orders">{copy.viewAll}</a></div>{data.orders.length ? <div className="carbon-activity-list">{data.orders.slice(0, 5).map((order) => <Tile className="carbon-activity-row" key={order.id}><div className="carbon-activity-copy"><strong>{order.domain_name}</strong><span>{order.type} · {formatMoney(order.price_usd)}</span></div><StatusBadge value={order.status} /></Tile>)}</div> : <EmptyState title={copy.noOrders} text={copy.ordersAppear} />}</Tile></Column></Grid>
   </div>;
 }
 
 function DomainsPage() {
+  const copy = useDomainWorkflowCopy();
   const query = useQuery({ queryKey: ["domains"], queryFn: () => api<{ domains: Domain[] }>("/domains") });
-  return <div className="dashboard-content"><PageHeading eyebrow="Portfolio" title="Domains" description="Live and test-environment domains are clearly separated." actions={<><Button kind="secondary" href="/transfer-domain">Transfer domain</Button><Button href="/register-domain">Register domain</Button></>} />
-    {query.isPending ? <LoadingBlock /> : query.isError ? <ErrorNotice error={query.error} /> : query.data?.domains.length ? <div className="carbon-domain-list">{query.data.domains.map((domain) => <Tile className="carbon-domain-row" key={domain.id}><div><strong>{domain.domain_name}</strong><span>Expires {formatDate(domain.expires_at)}</span></div><div className="heading-actions">{domain.registrar_environment === "ote" ? <StatusBadge value="test_ote" /> : null}<StatusBadge value={domain.status} /><Button kind="ghost" href={`/dashboard/domains/${domain.id}`}>Open</Button></div></Tile>)}</div> : <EmptyState title="No domains" text="Register or transfer a domain to begin." />}
+  return <div className="dashboard-content"><PageHeading eyebrow={copy.portfolio} title={copy.domainsTitle} description={copy.portfolioDescription} actions={<><Button kind="secondary" href="/transfer-domain">{copy.transfer} {copy.domain.toLowerCase()}</Button><Button href="/register-domain">{copy.registerDomain}</Button></>} />
+    {query.isPending ? <LoadingBlock /> : query.isError ? <ErrorNotice error={query.error} /> : query.data?.domains.length ? <div className="carbon-domain-list">{query.data.domains.map((domain) => <Tile className="carbon-domain-row" key={domain.id}><div><strong>{domain.domain_name}</strong><span>{interpolateDomain(copy.expires, { date: formatDate(domain.expires_at) })}</span></div><div className="heading-actions">{domain.registrar_environment === "ote" ? <StatusBadge value="test_ote" /> : null}<StatusBadge value={domain.status} /><Button kind="ghost" href={`/dashboard/domains/${domain.id}`}>{copy.open}</Button></div></Tile>)}</div> : <EmptyState title={copy.noDomains} text={copy.registerTransferFirst} />}
   </div>;
 }
 
 function DomainDetailPage() {
+  const copy = useDomainWorkflowCopy();
   const { domainId } = useParams({ from: "/dashboard/domains/$domainId" });
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["domain", domainId], queryFn: () => api<{ domain: Domain }>(`/domains/${domainId}`) });
@@ -597,17 +607,18 @@ function DomainDetailPage() {
   if (query.isPending) return <div className="dashboard-content"><LoadingBlock /></div>;
   if (query.isError || !query.data?.domain) return <div className="dashboard-content"><ErrorNotice error={query.error} /></div>;
   const domain = query.data.domain;
-  return <div className="dashboard-content"><PageHeading eyebrow="Domain" title={domain.domain_name} description={`Last synchronized ${formatDate(domain.last_synced_at)}.`} actions={<><Button href={`/dashboard/domains/${domain.id}/manage`}>Manage domain</Button><Button kind="secondary" href={`/dashboard/domains/${domain.id}/dns`}>DNS settings</Button></>} />
+  return <div className="dashboard-content"><PageHeading eyebrow={copy.domain} title={domain.domain_name} description={interpolateDomain(copy.lastSynced, { date: formatDate(domain.last_synced_at) })} actions={<><Button href={`/dashboard/domains/${domain.id}/manage`}>{copy.manage}</Button><Button kind="secondary" href={`/dashboard/domains/${domain.id}/dns`}>{copy.dnsSettings}</Button></>} />
     <div className="heading-actions carbon-heading-tags">{domain.registrar_environment === "ote" ? <StatusBadge value="test_ote" /> : null}<StatusBadge value={domain.status} /></div>
     {domain.registrar_environment === "ote" ? <InfoNotice kind="warning" title="Test domain" subtitle="Changes in this test environment never debit your KmerHosting balance." /> : null}
-    <MetricGrid metrics={[["Registered", formatDate(domain.registered_at)], ["Expires", formatDate(domain.expires_at)], ["Lock", domain.locked ? "Enabled" : "Disabled"], ["Privacy", domain.privacy_enabled ? "Enabled" : "Disabled"]]} />
-    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><h2>Automatic renewal</h2><p>Uses your USD balance after the renewal price and available balance are checked.</p><Toggle id="domain-auto-renew" labelText="Automatic renewal" labelA="Disabled" labelB="Enabled" toggled={domain.auto_renew} disabled={autoRenew.isPending} onToggle={(enabled) => autoRenew.mutate(enabled)} />{autoRenew.isError ? <ErrorNotice error={autoRenew.error} /> : null}</Tile></Column>
-    <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>Nameservers</h2></div><a href={`/dashboard/domains/${domain.id}/dns`}>Edit</a></div><div className="carbon-activity-list">{(domain.nameservers || []).map((nameserver) => <Tile className="carbon-activity-row" key={nameserver}><strong>{nameserver}</strong></Tile>)}</div></Tile></Column></Grid>
-    {domain.epp_statuses?.length ? <Tile className="carbon-dashboard-panel"><h2>EPP statuses</h2><div className="heading-actions">{domain.epp_statuses.map((status) => <StatusBadge key={status} value={status} />)}</div></Tile> : null}
+    <MetricGrid metrics={[[copy.registration, formatDate(domain.registered_at)], [copy.expires.split(" ")[0], formatDate(domain.expires_at)], [copy.lockPrivacy, domain.locked ? copy.enabled : copy.disabled], [copy.lockPrivacy, domain.privacy_enabled ? copy.enabled : copy.disabled]]} />
+    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><h2>{copy.automaticRenewal}</h2><p>{copy.renewalDescription}</p><Toggle id="domain-auto-renew" labelText={copy.automaticRenewal} labelA={copy.disabled} labelB={copy.enabled} toggled={domain.auto_renew} disabled={autoRenew.isPending} onToggle={(enabled) => autoRenew.mutate(enabled)} />{autoRenew.isError ? <ErrorNotice error={autoRenew.error} /> : null}</Tile></Column>
+    <Column sm={4} md={4} lg={8}><Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.nameservers}</h2></div><a href={`/dashboard/domains/${domain.id}/dns`}>{copy.edit}</a></div><div className="carbon-activity-list">{(domain.nameservers || []).map((nameserver) => <Tile className="carbon-activity-row" key={nameserver}><strong>{nameserver}</strong></Tile>)}</div></Tile></Column></Grid>
+    {domain.epp_statuses?.length ? <Tile className="carbon-dashboard-panel"><h2>{copy.eppStatuses}</h2><div className="heading-actions">{domain.epp_statuses.map((status) => <StatusBadge key={status} value={status} />)}</div></Tile> : null}
   </div>;
 }
 
 function OrdersPage() {
+  const copy = useDomainWorkflowCopy();
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["orders"], queryFn: () => api<{ orders: Order[] }>("/orders"), refetchInterval: 20000 });
   const retry = useMutation({
@@ -617,17 +628,19 @@ function OrdersPage() {
       client.invalidateQueries({ queryKey: ["dashboard"] });
     },
   });
-  return <div className="dashboard-content"><PageHeading eyebrow="Orders" title="Domain orders" description="Track each order by its real lifecycle status. Only completed registrations create an active domain." />
+  return <div className="dashboard-content"><PageHeading eyebrow={copy.orders} title={copy.ordersTitle} description={copy.ordersDescription} />
     {query.isError || retry.isError ? <ErrorNotice error={query.error || retry.error} /> : null}
-    {retry.isSuccess ? <InfoNotice kind="success" title="Retry queued" subtitle="The order was re-queued after the registrar confirmed that the domain is not registered." /> : null}
+    {retry.isSuccess ? <InfoNotice kind="success" title={copy.retryQueued} subtitle={copy.retryQueuedBody} /> : null}
     {query.isPending ? <LoadingBlock /> : query.data?.orders.length ? <div className="carbon-order-list">{query.data.orders.map((order) => {
       const canRetry = order.registrar_environment === "ote" && ["processing", "failed"].includes(order.status);
-      return <Tile className="carbon-order-row" key={order.id}><div><strong>{order.domain_name}</strong><span>{order.order_number} · {order.type} · {formatDate(order.created_at)}</span><small>{order.registrar_environment === "ote" ? "Test order · no account charge" : "Charged to the central KmerHosting balance"}</small>{order.failure_message ? <small>{order.failure_message}</small> : null}</div><div className="heading-actions"><strong>{formatMoney(order.price_usd)}</strong>{order.registrar_environment === "ote" ? <StatusBadge value="test_ote" /> : null}<StatusBadge value={order.status} />{canRetry ? <Button kind="ghost" size="sm" disabled={retry.isPending} onClick={() => retry.mutate(order.id)}>{retry.isPending ? "Retrying…" : "Retry operation"}</Button> : null}</div></Tile>;
-    })}</div> : <EmptyState title="No orders" text="Registration, transfer, renewal and restore orders appear here." />}
+      // Retry operation is intentionally guarded to OTE orders only.
+      return <Tile className="carbon-order-row" key={order.id}><div><strong>{order.domain_name}</strong><span>{order.order_number} · {order.type} · {formatDate(order.created_at)}</span><small>{order.registrar_environment === "ote" ? copy.testOrder : copy.centralCharge}</small>{order.failure_message ? <small>{order.failure_message}</small> : null}</div><div className="heading-actions"><strong>{formatMoney(order.price_usd)}</strong>{order.registrar_environment === "ote" ? <StatusBadge value="test_ote" /> : null}<StatusBadge value={order.status} />{canRetry ? <Button kind="ghost" size="sm" disabled={retry.isPending} onClick={() => retry.mutate(order.id)}>{retry.isPending ? copy.retrying : copy.retryOperation}</Button> : null}</div></Tile>;
+    })}</div> : <EmptyState title={copy.noOrders} text={copy.ordersEmpty} />}
   </div>;
 }
 
 function ContactsPage() {
+  const copy = useDomainWorkflowCopy();
   const client = useQueryClient();
   const query = useQuery({ queryKey: ["contacts"], queryFn: () => api<{ contacts: Contact[] }>("/contacts") });
   const [editing, setEditing] = useState<Contact | null>(null);
@@ -658,21 +671,21 @@ function ContactsPage() {
     if (!editing) event.currentTarget.reset();
   };
 
-  return <div className="dashboard-content"><PageHeading eyebrow="WHOIS contacts" title="Contacts" description="Complete contact data is required for registration and transfer." />
+  return <div className="dashboard-content"><PageHeading eyebrow={copy.whoisTitle} title={copy.contactsTitle} description={copy.contactsDescription} />
     {query.isError || save.isError || remove.isError || verify.isError ? <ErrorNotice error={query.error || save.error || remove.error || verify.error} /> : null}
-    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={8} lg={7}><Tile className="carbon-contact-form"><h2>{editing ? "Edit contact" : "Create contact"}</h2><p>Use the registrant's real contact details. Required fields are checked before you continue.</p><form className="carbon-form-stack" onSubmit={submit} noValidate key={editing?.id || "new"}>
-      <TextInput id="contact-label" name="label" labelText="Label" helperText="A name you will recognize in your account." autoComplete="off" defaultValue={editing?.label || "Default"} invalid={invalid("label")} invalidText="Enter a label." required />
+    <Grid fullWidth className="carbon-dashboard-grid"><Column sm={4} md={8} lg={7}><Tile className="carbon-contact-form"><h2>{editing ? copy.editContact : copy.createContact}</h2><p>{copy.contactDescription}</p><form className="carbon-form-stack" onSubmit={submit} noValidate key={editing?.id || "new"}>
+      <TextInput id="contact-label" name="label" labelText={copy.label} helperText={copy.labelHelper} autoComplete="off" defaultValue={editing?.label || "Default"} invalid={invalid("label")} invalidText={copy.label} required />
       <div className="carbon-form-grid carbon-form-grid--two">
-        <TextInput id="contact-first-name" name="firstName" labelText="First name" autoComplete="given-name" defaultValue={editing?.first_name || ""} invalid={invalid("firstName")} invalidText="Enter a first name." required />
-        <TextInput id="contact-last-name" name="lastName" labelText="Last name" autoComplete="family-name" defaultValue={editing?.last_name || ""} invalid={invalid("lastName")} invalidText="Enter a last name." required />
+        <TextInput id="contact-first-name" name="firstName" labelText={copy.firstName} autoComplete="given-name" defaultValue={editing?.first_name || ""} invalid={invalid("firstName")} invalidText={copy.firstName} required />
+        <TextInput id="contact-last-name" name="lastName" labelText={copy.lastName} autoComplete="family-name" defaultValue={editing?.last_name || ""} invalid={invalid("lastName")} invalidText={copy.lastName} required />
       </div>
-      <TextInput id="contact-company" name="companyName" labelText="Company" autoComplete="organization" defaultValue={editing?.company_name || ""} />
-      <TextInput id="contact-email" name="email" type="email" labelText="Email" autoComplete="email" defaultValue={editing?.email || ""} invalid={invalid("email")} invalidText="Enter a valid email address." required />
+      <TextInput id="contact-company" name="companyName" labelText={copy.company} autoComplete="organization" defaultValue={editing?.company_name || ""} />
+      <TextInput id="contact-email" name="email" type="email" labelText={copy.email} autoComplete="email" defaultValue={editing?.email || ""} invalid={invalid("email")} invalidText={copy.email} required />
       <div className="carbon-form-grid carbon-form-grid--two">
-        <TextInput id="contact-dial-code" name="phoneCountryCode" labelText="Country calling code" helperText="Digits only, without the + sign." inputMode="numeric" pattern="[0-9]{1,3}" maxLength={3} autoComplete="tel-country-code" placeholder="237" defaultValue={editing?.phone_country_code || "237"} invalid={invalid("phoneCountryCode")} invalidText="Enter one to three digits." required />
-        <TextInput id="contact-phone" name="phone" type="tel" labelText="Phone number" helperText="Local number only." autoComplete="tel" placeholder="670000000" defaultValue={editing?.phone || ""} invalid={invalid("phone")} invalidText="Enter a phone number." required />
+        <TextInput id="contact-dial-code" name="phoneCountryCode" labelText={copy.callingCode} helperText={copy.callingHelper} inputMode="numeric" pattern="[0-9]{1,3}" maxLength={3} autoComplete="tel-country-code" placeholder="237" defaultValue={editing?.phone_country_code || "237"} invalid={invalid("phoneCountryCode")} invalidText={copy.callingCode} required />
+        <TextInput id="contact-phone" name="phone" type="tel" labelText={copy.phone} helperText={copy.phoneHelper} autoComplete="tel" placeholder="670000000" defaultValue={editing?.phone || ""} invalid={invalid("phone")} invalidText={copy.phone} required />
       </div>
-      <TextInput id="contact-address" name="address" labelText="Address" autoComplete="street-address" defaultValue={editing?.address || ""} invalid={invalid("address")} invalidText="Enter an address." required />
+      <TextInput id="contact-address" name="address" labelText={copy.address} autoComplete="street-address" defaultValue={editing?.address || ""} invalid={invalid("address")} invalidText={copy.address} required />
       <div className="carbon-form-grid carbon-form-grid--two">
         <TextInput id="contact-city" name="city" labelText="City" autoComplete="address-level2" defaultValue={editing?.city || ""} invalid={invalid("city")} invalidText="Enter a city." required />
         <TextInput id="contact-state" name="state" labelText="State or region" autoComplete="address-level1" defaultValue={editing?.state || ""} invalid={invalid("state")} invalidText="Enter a state or region." required />
