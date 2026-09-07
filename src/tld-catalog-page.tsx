@@ -4,6 +4,7 @@ import { useDeferredValue, useEffect, useMemo, useState } from "react";
 import { domainSearchApi, formatMoney } from "./api";
 import { isFeaturedTld, supportedTlds, type CatalogTld } from "./tld-catalog";
 import { useDomainCopy } from "./domain-i18n";
+import { useDomainWorkflowCopy } from "./domain-workflow-i18n";
 
 type TldCatalogResponse = {
   prices: CatalogTld[];
@@ -20,6 +21,7 @@ function tldSearchValue(price: CatalogTld) {
 
 function TldCard({ price }: { price: CatalogTld }) {
   const copy = useDomainCopy();
+  const workflow = useDomainWorkflowCopy();
   return <Tile className="carbon-tld-catalog__card">
     <div className="carbon-tld-catalog__card-heading">
       <h2>{price.tld}</h2>
@@ -31,10 +33,10 @@ function TldCard({ price }: { price: CatalogTld }) {
     <div className="carbon-tld-catalog__price">
       <span>{copy.domains}</span>
       <strong>{formatMoney(price.registration_price_usd)}</strong>
-      <small>1 year</small>
+      <small>1 {workflow.years}</small>
     </div>
     <dl className="carbon-tld-catalog__details">
-      <div><dt>Renewal</dt><dd>{formatMoney(price.renewal_price_usd)}</dd></div>
+      <div><dt>{workflow.renewal}</dt><dd>{formatMoney(price.renewal_price_usd)}</dd></div>
       <div><dt>{copy.transfer}</dt><dd>{price.transfer_price_usd > 0 ? formatMoney(price.transfer_price_usd) : "—"}</dd></div>
       <div><dt>{copy.account}</dt><dd>{price.supports_privacy === false ? "—" : copy.open}</dd></div>
     </dl>
@@ -44,6 +46,7 @@ function TldCard({ price }: { price: CatalogTld }) {
 
 export function TldCatalogPage() {
   const copy = useDomainCopy();
+  const workflow = useDomainWorkflowCopy();
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -70,7 +73,7 @@ export function TldCatalogPage() {
       <Grid fullWidth>
         <Column sm={4} md={8} lg={12}>
           <h1>{copy.domains}</h1>
-          <p>Browse the domain extensions currently available through KmerHosting. Prices and availability are updated regularly.</p>
+          <p>{workflow.tldCatalogDescription}</p>
         </Column>
       </Grid>
     </section>
@@ -83,7 +86,7 @@ export function TldCatalogPage() {
               <h2 id="supported-tlds-heading">{copy.search}</h2>
               <p>{query.isSuccess ? `${catalog.length} ${copy.allTlds}` : `${copy.loading}…`}</p>
             </div>
-            <Search id="supported-tld-search" labelText={copy.search} placeholder="Search .com, .shop, .dev" value={search} onChange={(event) => setSearch(event.target.value)} />
+            <Search id="supported-tld-search" labelText={copy.search} placeholder={workflow.searchPlaceholder} value={search} onChange={(event) => setSearch(event.target.value)} />
           </div>
         </Column>
       </Grid>
@@ -97,10 +100,10 @@ export function TldCatalogPage() {
         </Grid>
         <Pagination
           className="carbon-tld-catalog__pagination"
-          backwardText="Previous page"
-          forwardText="Next page"
-          itemsPerPageText="Extensions per page"
-          itemRangeText={(min, max, total) => `${min}–${max} of ${total} supported extensions`}
+          backwardText={workflow.backSearch}
+          forwardText={copy.search}
+          itemsPerPageText={copy.allTlds}
+          itemRangeText={(min, max, total) => `${min}–${max} ${copy.allTlds.toLowerCase()}`}
           page={page}
           pageSize={pageSize}
           pageSizes={PAGE_SIZES}
