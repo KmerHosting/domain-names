@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.0](https://github.com/KmerHosting/domain-names/compare/v1.20.1...v1.21.0) (2026-09-07)
+
+
+### Features
+
+* **i18n:** localize domain request errors ([#83](https://github.com/KmerHosting/domain-names/issues/83)) ([433ae44](https://github.com/KmerHosting/domain-names/commit/433ae44fdcc6b549cb2c047e76caf4defc42cc90))
+
 ## [1.20.1](https://github.com/KmerHosting/domain-names/compare/v1.20.0...v1.20.1) (2026-09-07)
 
 
