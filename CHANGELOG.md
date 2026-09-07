@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.21.4](https://github.com/KmerHosting/domain-names/compare/v1.21.3...v1.21.4) (2026-09-07)
+
+
+### Bug Fixes
+
+* **ui:** make collapsed sidebar icon-only ([0fb2003](https://github.com/KmerHosting/domain-names/commit/0fb20037919a79864d3def24eb41de7dc36ba9c4))
+* **ui:** match collapsed sidebar rail ([563bbcf](https://github.com/KmerHosting/domain-names/commit/563bbcf7482cff23a3376eb0e877f91d8b1db6aa))
+
 ## [1.21.3](https://github.com/KmerHosting/domain-names/compare/v1.21.2...v1.21.3) (2026-09-07)
 
 
