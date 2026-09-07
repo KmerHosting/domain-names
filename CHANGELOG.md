@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.21.5](https://github.com/KmerHosting/domain-names/compare/v1.21.4...v1.21.5) (2026-09-07)
+
+
+### Bug Fixes
+
+* **ui:** add account panel close action ([03f1dee](https://github.com/KmerHosting/domain-names/commit/03f1dee9405f6edeed4d7c0ea0741ef876030bc8))
+* **ui:** add domain account panel close action ([575e9bd](https://github.com/KmerHosting/domain-names/commit/575e9bd48dfbaf0f4a53203f5d35056d39a23031))
+
 ## [1.21.4](https://github.com/KmerHosting/domain-names/compare/v1.21.3...v1.21.4) (2026-09-07)
 
 
