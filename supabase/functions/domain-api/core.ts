@@ -291,7 +291,7 @@ export async function requireAuth(req: Request): Promise<AuthContext> {
   return { user, session, token };
 }
 
-export function publicUser(user: Json): Json {
+export function publicUser(user: Json, preferredLanguage?: string | null): Json {
   return {
     id: user.id,
     email: user.email,
@@ -302,6 +302,7 @@ export function publicUser(user: Json): Json {
     emailVerifiedAt: user.email_verified_at,
     lastLoginAt: user.last_login_at,
     createdAt: user.created_at,
+    preferredLanguage: clean(preferredLanguage || user.preferred_language) || null,
   };
 }
 

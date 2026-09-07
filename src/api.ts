@@ -29,6 +29,7 @@ export type User = {
   role: "customer" | "admin";
   balanceUsd?: number;
   emailVerifiedAt: string;
+  preferredLanguage?: string | null;
 };
 export type ApiOptions = {
   method?: "GET" | "POST" | "PUT" | "PATCH" | "DELETE";

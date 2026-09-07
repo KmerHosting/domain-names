@@ -330,7 +330,7 @@ async function exchangeKmerHostingSso(req: Request): Promise<Response> {
   if (grantError || !grant) throw new ApiError(401, "sso_ticket_expired", "This KmerHosting sign-in ticket has expired. Return to the central dashboard and try again.");
 
   const { data: centralUser, error: centralError } = await db.from("dashboard_users")
-    .select("id,email,full_name,phone,country_code,status,email_verified_at")
+    .select("id,email,full_name,phone,country_code,status,email_verified_at,preferred_language")
     .eq("id", grant.user_id).eq("status", "active").maybeSingle();
   if (centralError || !centralUser) throw new ApiError(401, "central_account_unavailable", "Your KmerHosting account is unavailable.");
 
@@ -363,7 +363,7 @@ async function exchangeKmerHostingSso(req: Request): Promise<Response> {
   const session = await createSession(localUser, req);
   await db.from("domain_users").update({ last_login_at: new Date().toISOString() }).eq("id", localUser.id);
   await audit(req, "auth.sso.kmerhosting", localUser.id, "user", localUser.id, { centralUserId: centralUser.id });
-  return json(req, { user: publicUser(localUser), session, returnPath: clean(grant.return_path) || "/dashboard" });
+  return json(req, { user: publicUser(localUser, clean(centralUser.preferred_language)), preferredLanguage: clean(centralUser.preferred_language) || "en", session, returnPath: clean(grant.return_path) || "/dashboard" });
 }
 
 async function handleAuth(req: Request, path: string): Promise<Response | null> {
@@ -542,12 +542,21 @@ async function delegateDnsMutation(req: Request, path: string): Promise<Response
   });
 }
 
+async function centralPreferredLanguageForProductUser(productUserId: string): Promise<string | null> {
+  const { data: identity } = await db.from("dashboard_product_identities")
+    .select("user_id").eq("product", "domain").eq("external_user_id", productUserId).maybeSingle();
+  if (!identity?.user_id) return null;
+  const { data: centralUser } = await db.from("dashboard_users")
+    .select("preferred_language").eq("id", identity.user_id).maybeSingle();
+  return clean(centralUser?.preferred_language) || null;
+}
+
 async function protectedRoutes(req: Request, path: string): Promise<Response> {
   const auth = await requireAuth(req);
   const isDnsMutation = ["POST", "PUT", "DELETE"].includes(req.method) &&
     (/^\/domains\/[0-9a-f-]+\/dns(?:\/.*)?$/i.test(path) || /^\/domains\/[0-9a-f-]+\/nameservers$/i.test(path));
   if (isDnsMutation) return await delegateDnsMutation(req, path);
-  if (req.method === "GET" && path === "/me") return json(req, { user: publicUser(auth.user) });
+  if (req.method === "GET" && path === "/me") return json(req, { user: publicUser(auth.user, await centralPreferredLanguageForProductUser(clean(auth.user.id))) });
   if (req.method === "PATCH" && path === "/me") {
     throw new ApiError(403, "central_profile_only", "Profile changes are managed from your central KmerHosting Account.");
   }
