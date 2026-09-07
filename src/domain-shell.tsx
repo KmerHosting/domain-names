@@ -26,7 +26,7 @@ import {
   Settings,
   UserAvatar,
 } from "@carbon/react/icons";
-import { ReactNode, useEffect, useState } from "react";
+import { ReactNode, useEffect, useRef, useState } from "react";
 import { api, clearSession, getSession, subscribeSession, type Session, type User } from "./api";
 import { useDomainTheme } from "./carbon-experience";
 import { SiteFooter } from "./site-footer";
@@ -104,6 +104,7 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
   const [accountPanelOpen, setAccountPanelOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
   const [locale, setLocale] = useState<KmerLocale>(browserLocale);
+  const explicitLanguage = useRef(false);
   const copy = domainShellCopy(locale) as DomainCopy;
   const privateNavItems: NavItem[] = dashboardNavigation.map((item) => ({ ...item, label: copy[item.key] }));
 
@@ -113,8 +114,10 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
   }, [locale]);
 
   const changeLocale = async (next: KmerLocale) => {
+    explicitLanguage.current = true;
     setLocale(next);
     document.cookie = localeCookie(next, ".kmerhosting.com");
+    window.dispatchEvent(new CustomEvent("kmerhosting:language-change", { detail: next }));
     if (session) await api("/me/language", { method: "PATCH", body: { locale: next } });
   };
 
@@ -125,7 +128,13 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
     }
     let active = true;
     void api<{ user: User }>("/me")
-      .then((payload) => { if (active) setUser(payload.user); })
+      .then((payload) => {
+        if (!active) return;
+        setUser(payload.user);
+        if (!explicitLanguage.current && payload.user.preferredLanguage) {
+          setLocale(resolveLocale(payload.user.preferredLanguage, navigator.languages));
+        }
+      })
       .catch(() => { if (active) setUser(null); });
     return () => { active = false; };
   }, [session?.expiresAt]);
@@ -214,14 +223,14 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                   />
                   {session ? (
                     <>
-                      {!onCustomerDashboard ? <Button kind="ghost" size="sm" href={CUSTOMER_DASHBOARD_URL} renderIcon={Dashboard}>{copy.customerDashboard}</Button> : null}
-                      <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/?view=account" renderIcon={Settings}>{copy.centralAccount}</Button>
+                      {!onCustomerDashboard ? <Button kind="ghost" size="sm" href={CUSTOMER_DASHBOARD_URL} target="_blank" rel="noreferrer" renderIcon={Dashboard}>{copy.customerDashboard}</Button> : null}
+                      <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/?view=account" target="_blank" rel="noreferrer" renderIcon={Settings}>{copy.centralAccount}</Button>
                       <Button kind="ghost" size="sm" renderIcon={Logout} onClick={() => void logOut()}>{copy.signOut}</Button>
                     </>
                   ) : (
                     <>
-                      <Button kind="primary" size="sm" href="https://dashboard.kmerhosting.com/login?service=domain">{copy.signIn}</Button>
-                      <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/register">{copy.createAccount}</Button>
+                      <Button kind="primary" size="sm" href="https://dashboard.kmerhosting.com/login?service=domain" target="_blank" rel="noreferrer">{copy.signIn}</Button>
+                      <Button kind="ghost" size="sm" href="https://dashboard.kmerhosting.com/register" target="_blank" rel="noreferrer">{copy.createAccount}</Button>
                     </>
                   )}
                 </div>
