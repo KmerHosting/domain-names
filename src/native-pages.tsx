@@ -159,7 +159,7 @@ function Forwarding({ domainId }: { domainId: string }) {
     save.mutate({ redirectAddress: redirectAddress.trim(), forwardType: new FormData(event.currentTarget).get("forwardType") });
   };
 
-  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.forwarding}</h2><p>{copy.forwardingIntro}</p></div>{current ? <Badge value={current.status} /> : null}</div>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <><p>{current ? <>{copy.active}: <strong>{current.redirect_address || current.redirect_url}</strong></> : copy.noRule}</p><form className="carbon-form-stack" onSubmit={submit} noValidate key={current?.id || "new"}><TextInput id="forward-url" name="redirectAddress" type="url" labelText={copy.redirectUrl} helperText={copy.redirectHelper} value={redirectAddress} onChange={(event) => setRedirectAddress(event.target.value)} required invalid={forwardingAttempted && !validHttpUrl(redirectAddress)} invalidText={copy.redirectHelper} /><Select id="forward-type" name="forwardType" labelText={copy.forwardType} helperText={copy.forwardingIntro} defaultValue={current?.forward_type || "Standard"}><SelectItem value="Standard" text={copy.standard} /><SelectItem value="Frame" text={copy.frame} /></Select><div className="heading-actions"><Button type="submit" disabled={save.isPending}>{save.isPending ? "Saving…" : copy.save}</Button>{current ? <Button type="button" kind="danger--ghost" disabled={remove.isPending} onClick={() => remove.mutate()}>{copy.remove}</Button> : null}</div></form>{save.isError || remove.isError ? <ErrorNotice error={save.error || remove.error} /> : null}</>}</Tile>;
+  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.forwarding}</h2><p>{copy.forwardingIntro}</p></div>{current ? <Badge value={current.status} /> : null}</div>{query.isPending ? <Loading /> : query.isError ? <ErrorNotice error={query.error} /> : <><p>{current ? <>{copy.active}: <strong>{current.redirect_address || current.redirect_url}</strong></> : copy.noRule}</p><form className="carbon-form-stack" onSubmit={submit} noValidate key={current?.id || "new"}><TextInput id="forward-url" name="redirectAddress" type="url" labelText={copy.redirectUrl} helperText={copy.redirectHelper} value={redirectAddress} onChange={(event) => setRedirectAddress(event.target.value)} required invalid={forwardingAttempted && !validHttpUrl(redirectAddress)} invalidText={copy.redirectHelper} /><Select id="forward-type" name="forwardType" labelText={copy.forwardType} helperText={copy.forwardingIntro} defaultValue={current?.forward_type || "Standard"}><SelectItem value="Standard" text={copy.standard} /><SelectItem value="Frame" text={copy.frame} /></Select><div className="heading-actions"><Button type="submit" disabled={save.isPending}>{save.isPending ? `${copy.save}…` : copy.save}</Button>{current ? <Button type="button" kind="danger--ghost" disabled={remove.isPending} onClick={() => remove.mutate()}>{copy.remove}</Button> : null}</div></form>{save.isError || remove.isError ? <ErrorNotice error={save.error || remove.error} /> : null}</>}</Tile>;
 }
 
 function GlueHosts({ domainId, domainName }: { domainId: string; domainName: string }) {
@@ -192,7 +192,7 @@ function GlueHosts({ domainId, domainName }: { domainId: string; domainName: str
     <Modal
       open={Boolean(editingHost)}
       modalHeading={copy.edit}
-      primaryButtonText={edit.isPending ? "Saving…" : copy.save}
+      primaryButtonText={edit.isPending ? `${copy.save}…` : copy.save}
       secondaryButtonText={copy.remove}
       primaryButtonDisabled={edit.isPending || !editIps.trim()}
       onRequestClose={() => setEditingHost(null)}
@@ -222,7 +222,7 @@ function GlueHosts({ domainId, domainName }: { domainId: string; domainName: str
       open={Boolean(deleteTarget)}
       danger
       modalHeading={copy.deleteLabel}
-      primaryButtonText={remove.isPending ? "Deleting…" : copy.deleteLabel}
+      primaryButtonText={remove.isPending ? `${copy.deleteLabel}…` : copy.deleteLabel}
       secondaryButtonText={copy.remove}
       primaryButtonDisabled={remove.isPending}
       onRequestClose={() => setDeleteTarget(null)}
@@ -243,7 +243,7 @@ function DomainContacts({ domainId }: { domainId: string }) {
   const [selected, setSelected] = useState("");
   const [contactAttempted, setContactAttempted] = useState(false);
   const rows = contacts.data?.contacts || [];
-  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.contacts}</h2><p>{copy.applyRoles}</p></div><Button kind="tertiary" size="sm" href="/dashboard/contacts">{copy.manageContacts}</Button></div>{contacts.isPending ? <Loading /> : contacts.isError ? <ErrorNotice error={contacts.error} /> : <div className="carbon-contact-assignment"><Select id="domain-contact" labelText={copy.contacts} value={selected} required invalid={contactAttempted && !selected} invalidText={copy.contacts} onChange={(event) => setSelected(event.target.value)}><SelectItem value="" text={copy.contacts} />{rows.map((contact) => <SelectItem key={contact.id} value={contact.id} text={`${contact.label || `${contact.first_name} ${contact.last_name}`} · ${contact.email}`} />)}</Select><Button disabled={save.isPending} onClick={() => { setContactAttempted(true); if (selected) save.mutate({ contactId: selected }); }}>{save.isPending ? "Applying…" : copy.applyRoles}</Button></div>}{save.isSuccess ? <InlineNotification kind="success" lowContrast hideCloseButton title={copy.applyRoles} subtitle={copy.applyRoles} /> : null}{save.isError ? <ErrorNotice error={save.error} /> : null}</Tile>;
+  return <Tile className="carbon-dashboard-panel"><div className="card-heading"><div><h2>{copy.contacts}</h2><p>{copy.applyRoles}</p></div><Button kind="tertiary" size="sm" href="/dashboard/contacts">{copy.manageContacts}</Button></div>{contacts.isPending ? <Loading /> : contacts.isError ? <ErrorNotice error={contacts.error} /> : <div className="carbon-contact-assignment"><Select id="domain-contact" labelText={copy.contacts} value={selected} required invalid={contactAttempted && !selected} invalidText={copy.contacts} onChange={(event) => setSelected(event.target.value)}><SelectItem value="" text={copy.contacts} />{rows.map((contact) => <SelectItem key={contact.id} value={contact.id} text={`${contact.label || `${contact.first_name} ${contact.last_name}`} · ${contact.email}`} />)}</Select><Button disabled={save.isPending} onClick={() => { setContactAttempted(true); if (selected) save.mutate({ contactId: selected }); }}>{save.isPending ? `${copy.applyRoles}…` : copy.applyRoles}</Button></div>}{save.isSuccess ? <InlineNotification kind="success" lowContrast hideCloseButton title={copy.applyRoles} subtitle={copy.applyRoles} /> : null}{save.isError ? <ErrorNotice error={save.error} /> : null}</Tile>;
 }
 
 function DomainManagePage({ domainId }: { domainId: string }) {
