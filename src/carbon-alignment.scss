@@ -153,8 +153,9 @@ a {
   flex: 0 0 auto;
   place-items: center;
   border-radius: 50%;
-  color: var(--cds-text-on-color);
-  background: var(--cds-interactive);
+  color: var(--cds-text-primary);
+  background: var(--cds-layer-01);
+  border: 1px solid var(--cds-border-subtle-01);
   font-weight: 600;
 }
 
