@@ -427,16 +427,17 @@ function contactName(contact: Contact) {
 }
 
 function AttributeFields({ definitions, values, onChange, showErrors }: { definitions: ProviderAttribute[]; values: Row; onChange: (next: Row) => void; showErrors: boolean }) {
+  const copy = useDomainWorkflowCopy();
   if (!definitions.length) return null;
-  return <Tile className="form-section carbon-form-section"><h3>Registry information</h3><p>This extension needs a few additional details.</p><div className="carbon-form-grid">{definitions.map((definition) => {
+  return <Tile className="form-section carbon-form-section"><h3>{copy.registryInformation}</h3><p>{copy.registryDescription}</p><div className="carbon-form-grid">{definitions.map((definition) => {
     const options = (definition.options || []).map((option) => typeof option === "string" ? option : String(option.value || "")).filter(Boolean);
     const id = `registry-${definition.key.replace(/[^a-z0-9_-]/gi, "-")}`;
     const rawValue = values[definition.key];
     const missing = Boolean(definition.isRequired && (typeof rawValue === "boolean" ? !rawValue : !String(rawValue || "").trim()));
     const label = definition.description || definition.key;
-    if (options.length) return <Select id={id} key={definition.key} labelText={label} value={String(rawValue || "")} required={definition.isRequired} invalid={showErrors && missing} invalidText="Select an option." onChange={(event) => onChange({ ...values, [definition.key]: event.target.value })}><SelectItem value="" text="Select an option" />{options.map((option) => <SelectItem key={option} value={option} text={option} />)}</Select>;
-    if (definition.type === "Checkbox" || definition.type === "CheckboxWithContract") return <Checkbox id={id} key={definition.key} labelText={label} checked={Boolean(rawValue)} invalid={showErrors && missing} invalidText="This field is required." onChange={(event) => onChange({ ...values, [definition.key]: event.target.checked })} />;
-    return <TextInput id={id} key={definition.key} labelText={label} value={String(rawValue || "")} required={definition.isRequired} invalid={showErrors && missing} invalidText="Enter a value." onChange={(event) => onChange({ ...values, [definition.key]: event.target.value })} />;
+    if (options.length) return <Select id={id} key={definition.key} labelText={label} value={String(rawValue || "")} required={definition.isRequired} invalid={showErrors && missing} invalidText={copy.selectOption} onChange={(event) => onChange({ ...values, [definition.key]: event.target.value })}><SelectItem value="" text={copy.selectOption} />{options.map((option) => <SelectItem key={option} value={option} text={option} />)}</Select>;
+    if (definition.type === "Checkbox" || definition.type === "CheckboxWithContract") return <Checkbox id={id} key={definition.key} labelText={label} checked={Boolean(rawValue)} invalid={showErrors && missing} invalidText={copy.requiredField} onChange={(event) => onChange({ ...values, [definition.key]: event.target.checked })} />;
+    return <TextInput id={id} key={definition.key} labelText={label} value={String(rawValue || "")} required={definition.isRequired} invalid={showErrors && missing} invalidText={copy.enterValue} onChange={(event) => onChange({ ...values, [definition.key]: event.target.value })} />;
   })}</div></Tile>;
 }
 
@@ -546,7 +547,7 @@ function PurchasePage({ type }: { type: "registration" | "transfer" }) {
           <RadioButton id="nameservers-default" labelText="Use KmerHosting nameservers" value="default" />
           <RadioButton id="nameservers-custom" labelText="Use custom nameservers" value="custom" />
         </RadioButtonGroup>
-        {customNameservers ? <div className="carbon-form-stack">{nameservers.map((value, index) => <div className="carbon-inline-field" key={index}><TextInput id={`nameserver-${index}`} labelText={`Nameserver ${index + 1}`} value={value} onChange={(event) => setNameservers(nameservers.map((item, position) => position === index ? event.target.value : item))} placeholder={`ns${index + 1}.example.com`} required invalid={orderAttempted && (!validNameserver(value) || nameservers.length < 2)} invalidText="Enter a valid nameserver, for example ns1.example.com." /><Button type="button" kind="danger--ghost" size="sm" disabled={nameservers.length <= 2} onClick={() => setNameservers(nameservers.filter((_, position) => position !== index))}>Remove</Button></div>)}<Button type="button" kind="tertiary" size="sm" disabled={nameservers.length >= 13} onClick={() => setNameservers([...nameservers, ""])}>Add nameserver</Button></div> : null}
+        {customNameservers ? <div className="carbon-form-stack">{nameservers.map((value, index) => <div className="carbon-inline-field" key={index}><TextInput id={`nameserver-${index}`} labelText={interpolateDomain(copy.nameserver, { number: index + 1 })} value={value} onChange={(event) => setNameservers(nameservers.map((item, position) => position === index ? event.target.value : item))} placeholder={`ns${index + 1}.example.com`} required invalid={orderAttempted && (!validNameserver(value) || nameservers.length < 2)} invalidText={copy.validNameserver} /><Button type="button" kind="danger--ghost" size="sm" disabled={nameservers.length <= 2} onClick={() => setNameservers(nameservers.filter((_, position) => position !== index))}>{copy.remove}</Button></div>)}<Button type="button" kind="tertiary" size="sm" disabled={nameservers.length >= 13} onClick={() => setNameservers([...nameservers, ""])}>{copy.addNameserver}</Button></div> : null}
         <AttributeFields definitions={attributeDefinitions} values={attributes} onChange={setAttributes} showErrors={orderAttempted} />
         <Button type="submit" disabled={createOrder.isPending}>{type === "registration" ? "Review registration" : "Review transfer"}</Button>
         {createOrder.isError ? <ErrorNotice error={createOrder.error} title="Order creation failed" /> : null}
@@ -687,26 +688,26 @@ function ContactsPage() {
       </div>
       <TextInput id="contact-address" name="address" labelText={copy.address} autoComplete="street-address" defaultValue={editing?.address || ""} invalid={invalid("address")} invalidText={copy.address} required />
       <div className="carbon-form-grid carbon-form-grid--two">
-        <TextInput id="contact-city" name="city" labelText="City" autoComplete="address-level2" defaultValue={editing?.city || ""} invalid={invalid("city")} invalidText="Enter a city." required />
-        <TextInput id="contact-state" name="state" labelText="State or region" autoComplete="address-level1" defaultValue={editing?.state || ""} invalid={invalid("state")} invalidText="Enter a state or region." required />
+        <TextInput id="contact-city" name="city" labelText={copy.city} autoComplete="address-level2" defaultValue={editing?.city || ""} invalid={invalid("city")} invalidText={copy.city} required />
+        <TextInput id="contact-state" name="state" labelText={copy.state} autoComplete="address-level1" defaultValue={editing?.state || ""} invalid={invalid("state")} invalidText={copy.state} required />
       </div>
       <div className="carbon-form-grid carbon-form-grid--two">
-        <TextInput id="contact-postal" name="postalCode" labelText="Postal code" autoComplete="postal-code" defaultValue={editing?.postal_code || ""} invalid={invalid("postalCode")} invalidText="Enter a postal code." required />
-        <Select id="contact-country" name="country" labelText="Country" helperText="Select the registrant's two-letter country code." defaultValue={String(editing?.country || "CM").toUpperCase()} invalid={invalid("country")} invalidText="Select a two-letter country code." required>
-          <SelectItem value="" text="Select a country" />
+        <TextInput id="contact-postal" name="postalCode" labelText={copy.postal} autoComplete="postal-code" defaultValue={editing?.postal_code || ""} invalid={invalid("postalCode")} invalidText={copy.postal} required />
+        <Select id="contact-country" name="country" labelText={copy.country} helperText={copy.country} defaultValue={String(editing?.country || "CM").toUpperCase()} invalid={invalid("country")} invalidText={copy.country} required>
+          <SelectItem value="" text={copy.selectCountry} />
           {COUNTRY_CODES.map((code) => <SelectItem key={code} value={code} text={code} />)}
         </Select>
       </div>
-      <Checkbox id="contact-default" name="isDefault" labelText="Use as the default contact" defaultChecked={editing?.is_default ?? true} />
-      <div className="heading-actions"><Button type="submit" disabled={save.isPending}>{save.isPending ? "Saving…" : editing ? "Save contact" : "Create contact"}</Button>{editing ? <Button type="button" kind="secondary" onClick={() => { setEditing(null); setInvalidFields([]); }}>Cancel</Button> : null}</div>
+      <Checkbox id="contact-default" name="isDefault" labelText={copy.defaultContact} defaultChecked={editing?.is_default ?? true} />
+      <div className="heading-actions"><Button type="submit" disabled={save.isPending}>{save.isPending ? copy.saving : editing ? copy.save : copy.createContact}</Button>{editing ? <Button type="button" kind="secondary" onClick={() => { setEditing(null); setInvalidFields([]); }}>{copy.cancel}</Button> : null}</div>
     </form></Tile></Column>
-    <Column sm={4} md={8} lg={9}><Tile className="carbon-dashboard-panel"><h2>Saved contacts</h2>{verify.isSuccess ? <InfoNotice kind="success" title="Contact is complete" subtitle={verify.data.message} /> : null}{query.isPending ? <LoadingBlock /> : query.data?.contacts.length ? <div className="carbon-activity-list">{query.data.contacts.map((contact) => <Tile className="carbon-contact-row" key={contact.id}><div><strong>{contactName(contact)}</strong><span>{contact.email} · {contact.country}</span><small>{contact.registrar_verified ? "Ready to use" : "This contact will be checked when you place an order"}</small></div><div className="heading-actions">{!contact.registrar_verified ? <Button kind="tertiary" size="sm" disabled={verify.isPending} onClick={() => verify.mutate(contact.id)}>Check readiness</Button> : null}<Button kind="ghost" size="sm" onClick={() => { setEditing(contact); setInvalidFields([]); }}>Edit</Button><Button kind="danger--ghost" size="sm" onClick={() => setRemoveTarget(contact)}>Delete</Button></div></Tile>)}</div> : <EmptyState title="No contacts" text="Create a WHOIS contact before ordering a domain." />}</Tile></Column></Grid>
+    <Column sm={4} md={8} lg={9}><Tile className="carbon-dashboard-panel"><h2>{copy.savedContacts}</h2>{verify.isSuccess ? <InfoNotice kind="success" title={copy.contactComplete} subtitle={verify.data.message} /> : null}{query.isPending ? <LoadingBlock /> : query.data?.contacts.length ? <div className="carbon-activity-list">{query.data.contacts.map((contact) => <Tile className="carbon-contact-row" key={contact.id}><div><strong>{contactName(contact)}</strong><span>{contact.email} · {contact.country}</span><small>{contact.registrar_verified ? copy.contactReady : copy.contactPending}</small></div><div className="heading-actions">{!contact.registrar_verified ? <Button kind="tertiary" size="sm" disabled={verify.isPending} onClick={() => verify.mutate(contact.id)}>{copy.checkReadiness}</Button> : null}<Button kind="ghost" size="sm" onClick={() => { setEditing(contact); setInvalidFields([]); }}>{copy.edit}</Button><Button kind="danger--ghost" size="sm" onClick={() => setRemoveTarget(contact)}>{copy.delete}</Button></div></Tile>)}</div> : <EmptyState title={copy.noContacts} text={copy.noContactsBody} />}</Tile></Column></Grid>
     <Modal
       open={Boolean(removeTarget)}
       danger
-      modalHeading="Delete contact"
-      primaryButtonText={remove.isPending ? "Deleting…" : "Delete"}
-      secondaryButtonText="Cancel"
+      modalHeading={copy.deleteContact}
+      primaryButtonText={remove.isPending ? copy.deleting : copy.delete}
+      secondaryButtonText={copy.cancel}
       primaryButtonDisabled={remove.isPending}
       onRequestClose={() => setRemoveTarget(null)}
       onRequestSubmit={() => {
@@ -714,29 +715,32 @@ function ContactsPage() {
         remove.mutate(removeTarget.id, { onSettled: () => setRemoveTarget(null) });
       }}
     >
-      <p>This contact will be removed from your saved contacts. Only unused contacts can be deleted.</p>
+      <p>{copy.deleteContactBody}</p>
     </Modal>
   </div>;
 }
 
 function InvoicesPage() {
+  const copy = useDomainWorkflowCopy();
   const query = useQuery({ queryKey: ["invoices"], queryFn: () => api<{ invoices: Row[] }>("/invoices") });
   const [downloadError, setDownloadError] = useState<string | null>(null);
-  return <div className="dashboard-content"><PageHeading eyebrow="Documents" title="Invoices" description="Invoices for orders charged to your KmerHosting balance." />
-    {downloadError ? <InlineNotification kind="error" lowContrast hideCloseButton title="Download failed" subtitle={downloadError} /> : null}
-    {query.isPending ? <LoadingBlock /> : query.isError ? <ErrorNotice error={query.error} /> : query.data?.invoices.length ? <Tile className="carbon-table-section"><Table size="lg"><TableHead><TableRow><TableHeader>Invoice</TableHeader><TableHeader>Domain</TableHeader><TableHeader>Type</TableHeader><TableHeader>Date</TableHeader><TableHeader>Amount</TableHeader><TableHeader>Status</TableHeader><TableHeader>Document</TableHeader></TableRow></TableHead><TableBody>{query.data.invoices.map((invoice) => <TableRow key={invoice.id}><TableCell>{invoice.invoice_number}</TableCell><TableCell>{invoice.domain_orders?.domain_name || "—"}</TableCell><TableCell>{invoice.domain_orders?.type || "—"}</TableCell><TableCell>{formatDate(invoice.issued_at)}</TableCell><TableCell>{formatMoney(invoice.amount_usd)}</TableCell><TableCell><StatusBadge value={invoice.status} /></TableCell><TableCell><Button kind="ghost" size="sm" onClick={() => { setDownloadError(null); void downloadDomainDocument(`/invoices/${invoice.id}`, `${invoice.invoice_number}.pdf`).catch((error) => setDownloadError(errorText(error))); }}>Download PDF</Button></TableCell></TableRow>)}</TableBody></Table></Tile> : <EmptyState title="No invoices" text="Invoices appear after an order is charged to your KmerHosting balance." />}
+  return <div className="dashboard-content"><PageHeading eyebrow={copy.documents} title={copy.invoicesTitle} description={copy.invoicesDescription} />
+    {downloadError ? <InlineNotification kind="error" lowContrast hideCloseButton title={copy.unavailablePrice} subtitle={downloadError} /> : null}
+    {query.isPending ? <LoadingBlock /> : query.isError ? <ErrorNotice error={query.error} /> : query.data?.invoices.length ? <Tile className="carbon-table-section"><Table size="lg"><TableHead><TableRow><TableHeader>{copy.invoice}</TableHeader><TableHeader>{copy.domain}</TableHeader><TableHeader>{copy.type}</TableHeader><TableHeader>{copy.date}</TableHeader><TableHeader>{copy.amount}</TableHeader><TableHeader>{copy.status}</TableHeader><TableHeader>{copy.document}</TableHeader></TableRow></TableHead><TableBody>{query.data.invoices.map((invoice) => <TableRow key={invoice.id}><TableCell>{invoice.invoice_number}</TableCell><TableCell>{invoice.domain_orders?.domain_name || "—"}</TableCell><TableCell>{invoice.domain_orders?.type || "—"}</TableCell><TableCell>{formatDate(invoice.issued_at)}</TableCell><TableCell>{formatMoney(invoice.amount_usd)}</TableCell><TableCell><StatusBadge value={invoice.status} /></TableCell><TableCell><Button kind="ghost" size="sm" onClick={() => { setDownloadError(null); void downloadDomainDocument(`/invoices/${invoice.id}`, `${invoice.invoice_number}.pdf`).catch((error) => setDownloadError(errorText(error))); }}>{copy.downloadPdf}</Button></TableCell></TableRow>)}</TableBody></Table></Tile> : <EmptyState title={copy.noInvoices} text={copy.invoicesBody} />}
   </div>;
 }
 
 function ProfilePage() {
+  const copy = useDomainWorkflowCopy();
   const query = useQuery({ queryKey: ["me"], queryFn: () => api<{ user: User }>("/me") });
-  return <div className="dashboard-content"><PageHeading eyebrow="Account" title="Profile" description="Your KmerHosting Account is the single source of truth for identity and contact details." />
-    <Tile className="carbon-profile-card">{query.isPending ? <LoadingBlock /> : query.isError ? <ErrorNotice error={query.error} /> : <div className="carbon-form-stack"><TextInput id="profile-email" labelText="Email" value={query.data?.user.email || ""} readOnly /><TextInput id="profile-name" labelText="Full name" value={query.data?.user.fullName || ""} readOnly /><TextInput id="profile-phone" labelText="Phone" value={query.data?.user.phone || ""} readOnly /><TextInput id="profile-country" labelText="Country code" value={query.data?.user.countryCode || ""} readOnly /><InfoNotice title="Central account" subtitle="Edit these details in your central KmerHosting account." /><Button href="https://dashboard.kmerhosting.com/?view=account">Open KmerHosting Account settings</Button></div>}</Tile>
+  return <div className="dashboard-content"><PageHeading eyebrow={copy.centralAccount} title={copy.profileTitle} description={copy.profileDescription} />
+    <Tile className="carbon-profile-card">{query.isPending ? <LoadingBlock /> : query.isError ? <ErrorNotice error={query.error} /> : <div className="carbon-form-stack"><TextInput id="profile-email" labelText={copy.email} value={query.data?.user.email || ""} readOnly /><TextInput id="profile-name" labelText={copy.fullName} value={query.data?.user.fullName || ""} readOnly /><TextInput id="profile-phone" labelText={copy.phone} value={query.data?.user.phone || ""} readOnly /><TextInput id="profile-country" labelText={copy.countryCode} value={query.data?.user.countryCode || ""} readOnly /><InfoNotice title={copy.centralAccount} subtitle={copy.editCentral} /><Button href="https://dashboard.kmerhosting.com/?view=account">{copy.openAccountSettings}</Button></div>}</Tile>
   </div>;
 }
 
 function PaymentReturnPage() {
-  return <main className="return-page"><Tile className="return-card"><Brand /><h1>External checkout removed</h1><p>Domain orders are paid from your USD account balance. Contact support@kmerhosting.com for a manual credit.</p><Button href="/dashboard/orders">Open orders</Button></Tile></main>;
+  const copy = useDomainWorkflowCopy();
+  return <main className="return-page"><Tile className="return-card"><Brand /><h1>{copy.checkoutRemoved}</h1><p>{copy.balanceCheckout}</p><Button href="/dashboard/orders">{copy.openOrders}</Button></Tile></main>;
 }
 
 const rootRoute = createRootRoute({ component: Outlet });
