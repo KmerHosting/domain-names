@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.21.6](https://github.com/KmerHosting/domain-names/compare/v1.21.5...v1.21.6) (2026-09-07)
+
+
+### Bug Fixes
+
+* **brand:** add KmerHosting favicon ([de5d3e4](https://github.com/KmerHosting/domain-names/commit/de5d3e40dfa5dd34ea0ca2fe6f9b5fc110d5a5eb))
+* **brand:** add KmerHosting favicon ([ef3cd66](https://github.com/KmerHosting/domain-names/commit/ef3cd669d844901930509e04475b46483674bee7))
+
 ## [1.21.5](https://github.com/KmerHosting/domain-names/compare/v1.21.4...v1.21.5) (2026-09-07)
 
 
