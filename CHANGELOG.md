@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.20.1](https://github.com/KmerHosting/domain-names/compare/v1.20.0...v1.20.1) (2026-09-07)
+
+
+### Bug Fixes
+
+* **i18n:** remove native domain progress literals ([#81](https://github.com/KmerHosting/domain-names/issues/81)) ([3347721](https://github.com/KmerHosting/domain-names/commit/3347721c14ac88e2057a117e80c4266afea8ff8e))
+
 ## [1.20.0](https://github.com/KmerHosting/domain-names/compare/v1.19.0...v1.20.0) (2026-09-07)
 
 
