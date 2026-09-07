@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.19.0](https://github.com/KmerHosting/domain-names/compare/v1.18.0...v1.19.0) (2026-09-07)
+
+
+### Features
+
+* complete Domain Portal customer i18n ([ee6f627](https://github.com/KmerHosting/domain-names/commit/ee6f6274390918e02d9c60e07f00ca5c399b6ecf))
+
 ## [1.18.0](https://github.com/KmerHosting/domain-names/compare/v1.17.0...v1.18.0) (2026-09-07)
 
 
