@@ -52,8 +52,8 @@ export function isNativePage(pathname = window.location.pathname): boolean {
   return Boolean(route(pathname));
 }
 
-function errorText(error: unknown) {
-  return error instanceof Error ? error.message : "Request failed.";
+function errorText(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : `${fallback}.`;
 }
 
 function validHostname(value: string): boolean {
@@ -106,8 +106,9 @@ function Loading({ description = "Loading…" }: { description?: string }) {
   return <Tile className="carbon-loading-block" aria-label={label} aria-busy="true"><SkeletonText heading width="42%" /><SkeletonText paragraph lineCount={3} width="82%" /></Tile>;
 }
 
-function ErrorNotice({ error, title = "Request failed" }: { error: unknown; title?: string }) {
-  return <InlineNotification kind="error" lowContrast hideCloseButton title={title} subtitle={errorText(error)} />;
+function ErrorNotice({ error, title }: { error: unknown; title?: string }) {
+  const copy = useDomainCopy();
+  return <InlineNotification kind="error" lowContrast hideCloseButton title={title || copy.requestFailed} subtitle={errorText(error, copy.requestFailed || "Request failed")} />;
 }
 
 function Shell({ title, subtitle, back, children }: { title: string; subtitle: string; back: string; children: ReactNode }) {

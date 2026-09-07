@@ -34,7 +34,8 @@ const messages: Record<KmerLocale, DomainShellMessages> = {
 
 export function domainShellCopy(locale: unknown) {
   const normalized = normalizeLocale(locale) || "en";
-  return { ...COMMON_MESSAGES[normalized], ...messages[normalized] };
+  const requestFailed: Record<string, string> = { en: "Request failed", fr: "Échec de la requête", es: "Error en la solicitud", pt: "Falha no pedido", de: "Anfrage fehlgeschlagen", "zh-Hans": "请求失败", ar: "فشل الطلب", hi: "अनुरोध विफल", bn: "অনুরোধ ব্যর্থ", id: "Permintaan gagal", ja: "リクエストに失敗しました", ru: "Запрос не выполнен", it: "Richiesta non riuscita", ko: "요청 실패", tr: "İstek başarısız", vi: "Yêu cầu thất bại", ur: "درخواست ناکام", nl: "Aanvraag mislukt", pl: "Żądanie nie powiodło się", fa: "درخواست ناموفق بود" };
+  return { ...COMMON_MESSAGES.en, ...COMMON_MESSAGES[normalized], ...messages.en, ...messages[normalized], requestFailed: requestFailed[normalized] || requestFailed.en };
 }
 
 export function useDomainCopy() {
