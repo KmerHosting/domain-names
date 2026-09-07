@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.18.0](https://github.com/KmerHosting/domain-names/compare/v1.17.0...v1.18.0) (2026-09-07)
+
+
+### Features
+
+* **i18n:** localize domain DNS management ([#75](https://github.com/KmerHosting/domain-names/issues/75)) ([2034cd7](https://github.com/KmerHosting/domain-names/commit/2034cd7e196d135f8ee7697d307afa7092c803da))
+
 ## [1.17.0](https://github.com/KmerHosting/domain-names/compare/v1.16.0...v1.17.0) (2026-09-07)
 
 
