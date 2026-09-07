@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.21.1](https://github.com/KmerHosting/domain-names/compare/v1.21.0...v1.21.1) (2026-09-07)
+
+
+### Bug Fixes
+
+* **i18n:** sync domain language with central account ([#85](https://github.com/KmerHosting/domain-names/issues/85)) ([6a9a28f](https://github.com/KmerHosting/domain-names/commit/6a9a28f8ac5685a292b33eeb31f95a2c07928ce2))
+
 ## [1.21.0](https://github.com/KmerHosting/domain-names/compare/v1.20.1...v1.21.0) (2026-09-07)
 
 
