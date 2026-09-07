@@ -19,6 +19,7 @@ import {
 import {
   Application,
   Checkmark,
+  Close,
   Contrast,
   Copy,
   Dashboard,
@@ -42,7 +43,7 @@ type NavItem = {
   exact?: boolean;
 };
 
-type DomainCopy = DomainShellMessages & Pick<CommonMessages, "language" | "support" | "signIn" | "createAccount">;
+type DomainCopy = DomainShellMessages & Pick<CommonMessages, "language" | "support" | "signIn" | "createAccount" | "close">;
 type DomainMessageKey = keyof DomainShellMessages;
 
 const CUSTOMER_DASHBOARD_URL = "https://domain.kmerhosting.com/dashboard";
@@ -246,8 +247,9 @@ export function DomainApplicationShell({ children }: { children: ReactNode }) {
                     <span className="domain-header-panel__avatar" aria-hidden="true">{session ? initials : "K"}</span>
                     <div><h2>{session ? copy.domainAccount : "KmerHosting Account"}</h2><p>{session ? user?.email || copy.sessionActive : copy.centralAccess}</p></div>
                   </div>
-                  {session && user?.email ? <Button kind="ghost" size="sm" renderIcon={emailCopied ? Checkmark : Copy} onClick={() => void copyEmail()}>{emailCopied ? copiedLabels[locale] : copyEmailLabels[locale]}</Button> : null}
+                  <Button kind="ghost" size="sm" renderIcon={Close} onClick={() => setAccountPanelOpen(false)}>{copy.close}</Button>
                 </div>
+                {session && user?.email ? <Button className="domain-header-panel__copy" kind="ghost" size="sm" renderIcon={emailCopied ? Checkmark : Copy} onClick={() => void copyEmail()}>{emailCopied ? copiedLabels[locale] : copyEmailLabels[locale]}</Button> : null}
                 <div className="domain-header-panel__actions">
                   <ComboBox
                     id="domain-language"

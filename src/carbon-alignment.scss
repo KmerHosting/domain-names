@@ -127,6 +127,10 @@ a {
 }
 
 .domain-header-panel__heading {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: spacing.$spacing-03;
   padding-block-end: spacing.$spacing-05;
   border-block-end: 1px solid var(--cds-border-subtle-01);
 }
@@ -165,7 +169,7 @@ a {
   @include type.type-style('body-compact-01');
 }
 
-.domain-header-panel__heading > .cds--btn {
+.domain-header-panel__copy {
   inline-size: 100%;
   max-inline-size: none;
   justify-content: space-between;
