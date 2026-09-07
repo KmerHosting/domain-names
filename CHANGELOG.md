@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.21.3](https://github.com/KmerHosting/domain-names/compare/v1.21.2...v1.21.3) (2026-09-07)
+
+
+### Bug Fixes
+
+* **shell:** use themed KmerHosting brand logo ([a62240b](https://github.com/KmerHosting/domain-names/commit/a62240b3c2beab92f303c0a835d44204f6226393))
+* **shell:** use themed KmerHosting brand logo ([a62240b](https://github.com/KmerHosting/domain-names/commit/a62240b3c2beab92f303c0a835d44204f6226393))
+
 ## [1.21.2](https://github.com/KmerHosting/domain-names/compare/v1.21.1...v1.21.2) (2026-09-07)
 
 
